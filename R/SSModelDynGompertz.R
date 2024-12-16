@@ -350,6 +350,7 @@ SSModelDynamicGompertz <- setRefClass(
     results <- FilterResults$new(
       data_xts = Y,
       index = date.index,
+      reinit.date=reinit.date,
       output = model_output
     )
     return(results)

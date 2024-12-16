@@ -983,24 +983,16 @@ $0$ at the appropriate point, as discussed in the Theory section and
 extract the evaluation sample from the reinitialized data frame as
 below.
 
-```{r reinit-y-eval, eval=F}
-y.eval.reinit <- Y %>%
-  reinitialise_dataframe(., reinit.dates) %>%
-  df2ldl() %>%
-  subset(index(.) > tail(res.reinit$index,1))
-```
-
 Estimating the model with the reinitialized series, the actual and
 forecast $\ln(g_t)$ can be plotted as in Figure 7, which is analogous to
 Figure 2 for the non-reinitialized series.
 
 ```{r plot_forecast2, eval=F}
-tsgc::plot_forecast(
-    res=res.reinit,
-    y.eval = y.eval.reinit,
+tsgc::plot_log_forecast(
+    res.reinit,Y,
     n.ahead = n.forecasts,
     plt.start.date =  tail(res.reinit$index, 1) - plt.length,
-    title='Forecast of $\ln(g_t)$  after reinitialization.'
+    title='Forecast of $\\ln(g_t)$  after reinitialization.'
 )
 ```
 
@@ -1009,7 +1001,7 @@ tsgc::plot_forecast(
 reinit.dates = "2021-04-21"
 
 # Estimate reinitialized model
-model <- SSModelDynGompertzReinit$new(
+model <- SSModelDynamicGompertz$new(
   Y = y, q = q,
   reinit.date = as.Date(reinit.dates, format = date.format)
 )
@@ -1026,11 +1018,11 @@ y.eval.reinit <- Y %>%
   subset(zoo::index(.) > tail(res.reinit$index,1))
 
 # Create plot
-tsgc::plot_forecast(
-  res=res.reinit,
-  y.eval = y.eval.reinit,
-  n.ahead = n.forecasts,
-  plt.start.date =  tail(res.reinit$index, 1) - plt.length
+tsgc::plot_log_forecast(
+    res.reinit,Y,
+    n.ahead = n.forecasts,
+    plt.start.date =  tail(res.reinit$index, 1) - plt.length,
+    title='Forecast of $\\ln(g_t)$  after reinitialization.'
 )
 ```
 
@@ -1041,7 +1033,7 @@ with with the reinitialized series.
 
 ```{r fig-8, fig.cap="Figure 8: Forecast of new cases after reinitialization."}
 tsgc::plot_new_cases(
-  res.reinit, Y=Y.reinit, n.ahead=n.forecasts,
+  res.reinit, n.ahead=n.forecasts,
   confidence.level=confidence.level,
   date_format="%Y-%m-%d",
   plt.start.date = tail(res.reinit$index, 1) - plt.length
@@ -1049,8 +1041,7 @@ tsgc::plot_new_cases(
 ```
 
 ```{r fig-9, fig.cap="Figure 9: Forecast accuracy of the reinitialized model over the hold-out sample period: 14 days past 25 June 2021."}
-tsgc::plot_holdout(res = res.reinit, Y=Y.reinit[index(y)],
-                   Y.eval = Y[(tail(res.reinit$index,1)+0:n.forecasts)],
+tsgc::plot_holdout(res.reinit, Y=Y, n.ahead=14,
                    confidence.level = 0.68,
                    date_format = "%Y-%m-%d")
 ```
@@ -1061,8 +1052,7 @@ corresponding MAPE figures for 7-day forecasts is 15.2% without
 reinitialization and 9.5% with reinitialization.
 
 ```{r fig-10, echo=FALSE, fig.cap = "Figure 10: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
-tsgc::plot_holdout(res = res, Y=y,
-                   Y.eval = Y[(tail(res$index,1)+0:n.forecasts)],
+tsgc::plot_holdout(res, Y=Y, n.ahead=14,
                    confidence.level = 0.68,
                    date_format = "%Y-%m-%d")
 ```

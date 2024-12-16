@@ -42,13 +42,15 @@ FilterResults <- setRefClass(
   fields = list(
     data_xts = "xts",
     index = "Date",
+    reinit.date= "ANY",
     output = "KFS"
   ),
   methods = list(
-    initialize = function(data_xts,index, output)
+    initialize = function(data_xts,index,reinit.date, output)
     {
       data_xts<<-data_xts
       index <<- index
+      reinit.date<<-reinit.date
       output <<- output
     },
     predict_level = function(
@@ -353,12 +355,17 @@ FilterResults <- setRefClass(
     }, 
     plot_new_cases=function(n.ahead=14, confidence.level = 0.68, date_format = "%Y-%m-%d",
     title=NULL, plt.start.date=NULL) {
+      Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
+      if (is.null(title)) {title <- ""}
+      est.date.index <- res$index %>% as.Date()
+      estimation.date.end <- tail(est.date.index, 1)
       res<-.self
-      Y<-data_xts
-    Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
-    if (is.null(title)) {title <- ""}
-    est.date.index <- res$index %>% as.Date()
-    estimation.date.end <- tail(est.date.index, 1)
+      
+      if (!is.null(reinit.date)){
+        Y<-reinitialise_dataframe(data_xts, reinit.date)
+      } else{
+        Y<-data_xts
+      }
     y.level.est <- Y[est.date.index]
     if (is.null(plt.start.date)) {plt.start.date <- head(est.date.index, 1)}
     
@@ -416,11 +423,19 @@ FilterResults <- setRefClass(
       ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
       ggplot2::scale_size_manual(values = c(1, 1, 1))
     },
-    plot_log_forecast=function(y.eval, n.ahead = 14,
+    plot_log_forecast=function(Y,n.ahead = 14,
                                plt.start.date=NULL, title="", caption = "") {
       res<-.self
       model <- res$output$model
       est.date.index <- res$index
+      if (!is.null(reinit.date)){
+        y.eval <- Y %>%
+          reinitialise_dataframe(., reinit.date) %>%
+          df2ldl() %>%
+          subset(index(.) > tail(est.date.index,1))
+      } else {y.eval<-Y %>%
+        subset(zoo::index(.) > tail(est.date.index,1)) %>%
+        tsgc::df2ldl()}
       
       y <- xts::xts(res$output$model$y %>% as.numeric(), order.by = est.date.index)
       p <- attr(res$output$model, 'p')
@@ -604,24 +619,29 @@ FilterResults <- setRefClass(
       
       return(p1)
     }, 
-    plot_holdout = function(Y.eval, confidence.level = 0.68,
+    plot_holdout = function(Y, n.ahead=14,confidence.level = 0.68,
                              date_format = "%Y-%m-%d", series.name = NULL,
                              title= NULL, caption = NULL) {
       res<-.self
-      Y<-data_xts
+      if (!is.null(reinit.date)){
+        Y.est<-reinitialise_dataframe(data_xts, reinit.date)
+      } else {
+        Y.est<-data_xts
+      }
+      
       Date <- Actual <- Forecast <- ForecastTrend <- lower <- upper <- NULL
       
       model <- res$output$model
       est.date.index <- res$index
       
-      y.level.est <- Y[est.date.index]
+      y.level.est <- Y.est[est.date.index]
       
       p <- attr(res$output$model, 'p')
       if(p!=1) { stop('NotImplementedError') }
       
-      n.ahead <- tail(index(Y.eval),1)-tail(index(y.level.est),1)
+      #Evaluation values
       
-      y.eval.diff <- diff(Y.eval) %>% na.omit
+      y.eval.diff <- diff(Y) %>% na.omit
       
       est.date.index <- res$index %>% as.Date()
       estimation.date.end <- tail(est.date.index, 1)
@@ -636,8 +656,10 @@ FilterResults <- setRefClass(
         return.diff = TRUE
       )
       
+      ids=(index(y.eval.diff)>estimation.date.end) & (index(y.eval.diff)<estimation.date.end+15)
+      
       d <- cbind(
-        y.eval.diff[index(y.eval.diff)>estimation.date.end,],
+        y.eval.diff[ids,],
         y.hat.diff.final[, 1],
         y.hat.diff.final.ci[, 1]
       )

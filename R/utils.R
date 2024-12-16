@@ -157,16 +157,14 @@ argmax <- function(x, decreasing=TRUE) {
 #' )
 #'
 #' @export
-write_results <- function(res, res.dir, Y, n.ahead, confidence.level) {
-
-  est.date.index <- res$index %>% as.Date()
-  y.level.est <- Y[est.date.index]
+write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
+  y.level.est <- res$data_xts
 
   # 1. New Cases - Delta Y
   y.hat.diff <- res$predict_level(
     y.cum = y.level.est,
     n.ahead = n.ahead,
-    confidence_level = confidence.level,
+    confidence.level= confidence.level,
     sea.on = TRUE,
     return.diff = TRUE
   )
@@ -175,7 +173,7 @@ write_results <- function(res, res.dir, Y, n.ahead, confidence.level) {
     row.names = index(y.hat.diff),
     file = file.path(res.dir, "y-forecast.csv")
   )
-
+  
   # 2. Filtered slope / level
   y.hat.all <- res$predict_all(n.ahead, return.all = TRUE)
   filtered.level <- y.hat.all$level.t.t
