@@ -4,10 +4,10 @@
 \alias{estimate}
 \title{Calling estimate method for SSModelDynamicGompertz class}
 \usage{
-estimate(object)
+estimate(model)
 }
 \arguments{
-\item{object}{SSModelDynamicGompertz object}
+\item{model}{SSModelDynamicGompertz object}
 }
 \description{
 Accessor method to obtain estimated model for SSModelDynamicGompertz class

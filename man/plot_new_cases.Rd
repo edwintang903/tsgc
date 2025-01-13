@@ -10,10 +10,8 @@ plot_new_cases(object, ...)
 \arguments{
 \item{res}{Results object estimated using the \code{estimate()} method.}
 
-\item{Y}{Cumulated variable.}
-
 \item{n.ahead}{Number of forecasts (i.e. number of periods ahead to forecast
-from end of estimation window).}
+from end of estimation window). Default is 14.}
 
 \item{confidence.level}{Width of prediction interval for \eqn{\ln g_t} to
 use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
@@ -46,11 +44,10 @@ idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
 
 # Plot forecast of new cases 7 days ahead
-plot_new_cases(res, Y = gauteng[idx.est], n.ahead = 7,
-confidence.level = 0.68, date_format = "\%Y-\%m-\%d",
+plot_new_cases(res, n.ahead=7, confidence.level = 0.68, date_format = "\%Y-\%m-\%d",
 title = "Forecast new cases", plt.start.date = as.Date("2020-07-13"))
 
 }

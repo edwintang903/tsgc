@@ -659,7 +659,7 @@ parameter to be estimated, as in the code below.
 
 ```{r model_est_free_q, eval = F}
 model_q <- SSModelDynamicGompertz$new(Y = y)
-res_q <- model_q$estimate()
+res_q <- estimate(model_q)
 ```
 
 In the rest of this example we estimate the model setting the

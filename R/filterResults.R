@@ -21,7 +21,7 @@ setOldClass("KFS")
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 #' # Estimate a specified model
-#' res <- model$estimate()
+#' res <- estimate(model)
 #' # Print estimation results
 #' res$print_estimation_results()
 #' # Forecast 7 days ahead from the end of the estimation window
@@ -325,11 +325,14 @@ FilterResults <- setRefClass(
       return(pred)
     },
     print=function(){
+      "Provides a quick glimpse of model states and standard errors."
       cat("Object of FilterResults Class\n")
       cat("  - Model States and Standard Errors\n")
       base::print(output)
     },
     summary=function(){
+      "Supplies details of the filterResults object, such as estimated 
+      parameter values, start and end dates of estimation."
       H <- matrixKFS(output, "H")[, , 1]
       Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]
       Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
@@ -354,11 +357,15 @@ FilterResults <- setRefClass(
     }, 
     plot_new_cases=function(n.ahead=14, confidence.level = 0.68, date_format = "%Y-%m-%d",
     title=NULL, plt.start.date=NULL) {
+      "Generates a forecast plot for the difference in the cumulative variable,
+      showing actual values, forecasts including seasonal components,
+      and prediction intervals around the forecasts. 
+      For more details, see \\link{plot_new_cases}."
+      
       Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
       if (is.null(title)) {title <- ""}
-      est.date.index <- res$index %>% as.Date()
+      est.date.index <- index %>% as.Date()
       estimation.date.end <- tail(est.date.index, 1)
-      res<-.self
       
       if (!is.null(reinit.date)){
         Y<-reinitialise_dataframe(data_xts, reinit.date)
@@ -368,11 +375,11 @@ FilterResults <- setRefClass(
     y.level.est <- Y[est.date.index]
     if (is.null(plt.start.date)) {plt.start.date <- head(est.date.index, 1)}
     
-    y.hat.diff.final.ci <- res$predict_level(
+    y.hat.diff.final.ci <- .self$predict_level(
       y.cum = y.level.est, n.ahead = n.ahead, confidence.level = confidence.level,
       return.diff = TRUE
     )
-    y.hat.diff.final <- res$predict_level(
+    y.hat.diff.final <- .self$predict_level(
       y.cum = y.level.est, n.ahead = n.ahead, confidence.level = confidence.level,
       sea.on = TRUE, return.diff = TRUE
     )
@@ -424,9 +431,12 @@ FilterResults <- setRefClass(
     },
     plot_log_forecast=function(Y,n.ahead = 14,
                                plt.start.date=NULL, title="", caption = "") {
-      res<-.self
-      model <- res$output$model
-      est.date.index <- res$index
+      "Plots actual and filtered values of the log cumulative growth rate 
+      (\\eqn{\\ln(g_t)}) in the estimation sample and the forecast and realised 
+      log cumulative growth rate out of the estimation sample. For more details,
+      see \\link{plot_log_forecast}."
+      model <- modelKFS(output)
+      est.date.index <- index
       if (!is.null(reinit.date)){
         y.eval <- Y %>%
           reinitialise_dataframe(., reinit.date) %>%
@@ -435,11 +445,11 @@ FilterResults <- setRefClass(
       } else {y.eval<-Y %>%
         df2ldl()%>% subset(zoo::index(.) > tail(est.date.index,1))}
       
-      y <- xts::xts(res$output$model$y %>% as.numeric(), order.by = est.date.index)
-      p <- attr(res$output$model, 'p')
+      y <- xts::xts(model$y %>% as.numeric(), order.by = est.date.index)
+      p <- attr(model, 'p')
       
-      y.hat.all <- res$predict_all(n.ahead, return.all = TRUE)
-      y.pred <-  subset(y.hat.all$y.hat,index(y.hat.all$y.hat) > tail(res$index,1))
+      y.hat.all <- .self$predict_all(n.ahead, return.all = TRUE)
+      y.pred <-  subset(y.hat.all$y.hat,index(y.hat.all$y.hat) > tail(index,1))
       filtered.level <- y.hat.all$level
       
       if (p == 1) {

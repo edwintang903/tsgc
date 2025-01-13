@@ -28,6 +28,29 @@ variable (\eqn{Y}). Computed as
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
+\item{\code{plot_log_forecast(
+  Y,
+  n.ahead = 14,
+  plt.start.date = NULL,
+  title = "",
+  caption = ""
+)}}{Plots actual and filtered values of the log cumulative growth rate 
+(\eqn{\ln(g_t)}) of the target variable in the estimation sample and 
+the forecast and realised log cumulative growth rate of the target variable
+out of the estimation sample. For more details, see \link{plot_log_forecast}.}
+
+\item{\code{plot_new_cases(
+  n.ahead = 7,
+  confidence.level = 0.68,
+  date_format = "\%Y-\%m-\%d",
+  title = NULL,
+  plt.start.date = NULL,
+  series.name = "target variable"
+)}}{Generates a forecast plot for the difference in the cumulative target 
+variable, showing actual values, forecasts including seasonal components,
+and prediction intervals around the forecasts. For more details, see 
+\link{plot_new_cases}}
+
 \item{\code{predict_level(n.ahead = n.lag, confidence.level = 0.68)}}{Forecast the cumulated variable or the incidence of it. This function returns
 the forecast of the cumulated variable \eqn{Y}, or the forecast of the incidence of the cumulated variable, \eqn{y}. For
 example, in the case of an epidemic, \eqn{y} might be daily new cases of

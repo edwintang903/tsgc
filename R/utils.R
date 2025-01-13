@@ -309,7 +309,7 @@ forecast.peak <- function(delta, gamma) {
 #' providing a measure of forecast accuracy. If the vanilla growth curve model
 #' is used, ensure that the date format is "%Y-%m-%d".
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param object A `filterResults` or `filterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param n.ahead Integer specifying the number of days to forecast ahead.
 #' @param Y An xts object containing the original cumulative dataset
@@ -317,7 +317,24 @@ forecast.peak <- function(delta, gamma) {
 #'
 #' @returns A list containing the MAPE values for both the trend forecast and
 #' the forecast that includes the seasonal component.
-#'
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' #Setup
+#' date_format="%Y-%m-%d"
+#' est.end.date=as.Date("2021-07-24")
+#' n.ahead=7
+#' y=gauteng[index(gauteng) <= est.end.date])
+#' 
+#' #Estimate the model
+#' model_q <- SSModelDynamicGompertz$new(Y = y)
+#' res <- estimate(model_q)
+#' 
+#' #Return MAPE of forecast
+#' mapes(res,n.ahead=n.ahead,y)
+#' 
+#' 
 #' @export
 mapes<-function(object,...){
   object$mapes(...)
@@ -353,10 +370,24 @@ mapes<-function(object,...){
 #' @param LeadIndCol (Only required for leading indicator models) Integer
 #' representing the column number in \code{y} that contains the leading
 #' indicator.
+#' 
+#' @importFrom zoo index
 #'
 #' @returns A table summarizing the MAPE scores for each lag across the
 #' specified dates.
 #'
+#' @examples
+#' library(tsgc)
+#' 
+#' #Lay out the estimation settings
+#' Y = england[,1:2] 
+#' estimation.date.start = as.Date("2021-04-30")
+#' estimation.date.end = as.Date("2021-07-24")
+#' 
+#' #Output cross validation result
+#' cross_val(y=Y[index(Y)>=estimation.date.start],
+#' est.end.date=estimation.date.end,n.ahead=7,lags=1:9,totaldays=3, 
+#' vanilla=TRUE,freq=2,LeadIndCol=1)
 #'
 #' @export
 cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=TRUE,

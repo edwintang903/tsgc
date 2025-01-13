@@ -55,3 +55,17 @@ forecasting performance across different lag values. It returns a table of
 MAPE values for forecasts \code{n.ahead} days ahead, using models estimated
 with varying all_lags over a series of specified end dates.
 }
+\examples{
+library(tsgc)
+
+#Lay out the estimation settings
+Y = england[,1:2] 
+estimation.date.start = as.Date("2021-04-30")
+estimation.date.end = as.Date("2021-07-24")
+
+#Output cross validation result
+cross_val(y=Y[index(Y)>=estimation.date.start],
+est.end.date=estimation.date.end,n.ahead=7,lags=1:9,totaldays=3, 
+vanilla=TRUE,freq=2,LeadIndCol=1)
+
+}

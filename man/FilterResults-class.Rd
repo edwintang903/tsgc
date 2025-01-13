@@ -45,6 +45,28 @@ variable (\eqn{Y}). Computed as
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
+\item{\code{plot_log_forecast(
+  Y,
+  n.ahead = 14,
+  plt.start.date = NULL,
+  title = "",
+  caption = ""
+)}}{Plots actual and filtered values of the log cumulative growth rate 
+(\eqn{\ln(g_t)}) in the estimation sample and the forecast and realised 
+log cumulative growth rate out of the estimation sample. For more details,
+see \link{plot_log_forecast}.}
+
+\item{\code{plot_new_cases(
+  n.ahead = 14,
+  confidence.level = 0.68,
+  date_format = "\%Y-\%m-\%d",
+  title = NULL,
+  plt.start.date = NULL
+)}}{Generates a forecast plot for the difference in the cumulative variable,
+showing actual values, forecasts including seasonal components,
+and prediction intervals around the forecasts. 
+For more details, see \link{plot_new_cases}.}
+
 \item{\code{predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)}}{Returns forecasts of the incidence variable \eqn{y}, the state variables
  and the conditional covariance matrix
 for the states.
@@ -93,8 +115,13 @@ the disease and
 forecasts and upper and lower bounds of
 the forecast interval.}}
 
+\item{\code{print()}}{Provides a quick glimpse of model states and standard errors.}
+
 \item{\code{print_estimation_results()}}{Prints a table of estimated parameters in a format ready to paste into
 LaTeX.}
+
+\item{\code{summary()}}{Supplies details of the filterResults object, such as estimated 
+parameter values, start and end dates of estimation.}
 }}
 
 \examples{
@@ -105,7 +132,7 @@ idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
 # Print estimation results
 res$print_estimation_results()
 # Forecast 7 days ahead from the end of the estimation window

@@ -401,9 +401,15 @@ FilterResultsLI <- setRefClass(
       cat("\n")
       cat("Seasonality noise:",format(Q_seasonal, digits = 4))
     },
-    plot_new_cases = function(n.ahead=7, confidence.level = 0.68, date_format = "%Y-%m-%d",
-    title=NULL, plt.start.date=NULL, series.name="target variable")
+    plot_new_cases = function(n.ahead=7, confidence.level = 0.68, 
+                              date_format = "%Y-%m-%d",
+                              title=NULL, plt.start.date=NULL, 
+                              series.name="target variable")
     {
+      "Generates a forecast plot for the difference in the cumulative target 
+      variable, showing actual values, forecasts including seasonal components,
+      and prediction intervals around the forecasts. For more details, see 
+      \\link{plot_new_cases}"
       res<-.self
         forecasts<-res$predict_level(n.ahead=n.ahead)
         
@@ -459,10 +465,14 @@ FilterResultsLI <- setRefClass(
       },
   plot_log_forecast = function(Y, n.ahead = 14,
                                plt.start.date=NULL, title="", caption = ""){
+    "Plots actual and filtered values of the log cumulative growth rate 
+      (\\eqn{\\ln(g_t)}) of the target variable in the estimation sample and 
+      the forecast and realised log cumulative growth rate of the target variable
+      out of the estimation sample. For more details, see \\link{plot_log_forecast}."
     res<-.self
-    out<-res$output
+    out<-output
     
-    old=res$data_xts[,"LDLhosp"]
+    old=data_xts[,"LDLhosp"]
     old=old[index(old)>head(index(old),1)+n.lag]
     
     eng_full<-add_daily_ldl(Y)

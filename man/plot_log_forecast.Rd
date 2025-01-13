@@ -9,9 +9,7 @@ plot_log_forecast(object, ...)
 \arguments{
 \item{res}{Results object estimated using the \code{estimate()} method.}
 
-\item{Y}{Cumulated dataset containing the out-of-sample realisation of the log growth rate of the
-cumulated variable (i.e. the actual values to which the forecasts should
-be compared). Subsetting is done within the function.}
+\item{Y}{Cumulated dataset containing future values.}
 
 \item{n.ahead}{The number of time periods ahead from the end of the sample
 to be forecast. The default is 14.}
@@ -41,10 +39,10 @@ idx.eval <- (zoo::index(gauteng) >= as.Date("2020-07-20")) &
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
 
 # Plot forecast and realised log growth rate of cumulative cases
-plot_forecast(res, y.eval = df2ldl(gauteng[idx.eval]), n.ahead = 7,
+plot_log_forecast(res, Y=gauteng, n.ahead = 7,
   title = "Forecast ln(g)", plt.start.date = as.Date("2020-07-13"))
 
 }

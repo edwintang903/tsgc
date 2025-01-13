@@ -25,9 +25,8 @@
 #' intervals for \eqn{\ln(g_t)}.
 #'
 #' @param res Results object estimated using the \code{estimate()} method.
-#' @param Y Cumulated variable.
 #' @param n.ahead Number of forecasts (i.e. number of periods ahead to forecast
-#' from end of estimation window).
+#' from end of estimation window). Default is 14.
 #' @param confidence.level Width of prediction interval for \eqn{\ln g_t} to
 #' use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
 #' approximately one standard deviation for a Normal distribution.
@@ -55,11 +54,10 @@
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 #' # Estimate a specified model
-#' res <- model$estimate()
+#' res <- estimate(model)
 #'
 #' # Plot forecast of new cases 7 days ahead
-#' plot_new_cases(res, Y = gauteng[idx.est], n.ahead = 7,
-#' confidence.level = 0.68, date_format = "%Y-%m-%d",
+#' plot_new_cases(res, n.ahead=7, confidence.level = 0.68, date_format = "%Y-%m-%d",
 #' title = "Forecast new cases", plt.start.date = as.Date("2020-07-13"))
 #'
 #' @export
@@ -74,9 +72,7 @@ plot_new_cases <- function(object,...) {
 #' log cumulative growth rate out of the estimation sample.
 #'
 #' @param res Results object estimated using the \code{estimate()} method.
-#' @param Y Cumulated dataset containing the out-of-sample realisation of the log growth rate of the
-#' cumulated variable (i.e. the actual values to which the forecasts should
-#' be compared). Subsetting is done within the function.
+#' @param Y Cumulated dataset containing future values.
 #' @param n.ahead The number of time periods ahead from the end of the sample
 #' to be forecast. The default is 14.
 #' @param plt.start.date Plot start date. Default is \code{NULL} which is the
@@ -101,10 +97,10 @@ plot_new_cases <- function(object,...) {
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 #' # Estimate a specified model
-#' res <- model$estimate()
+#' res <- estimate(model)
 #'
 #' # Plot forecast and realised log growth rate of cumulative cases
-#' plot_forecast(res, y.eval = df2ldl(gauteng[idx.eval]), n.ahead = 7,
+#' plot_log_forecast(res, Y=gauteng, n.ahead = 7,
 #'   title = "Forecast ln(g)", plt.start.date = as.Date("2020-07-13"))
 #'
 #' @export
@@ -251,7 +247,7 @@ plot_gy_ci <- function(object,...){
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 #' # Estimate a specified model
-#' res <- model$estimate()
+#' res <- estimate(model)
 #'
 #' # Plot forecasts and outcomes over evaluation period
 #' plot_holdout(object = res, Y = gauteng)

@@ -54,7 +54,7 @@ idx.eval <- (zoo::index(gauteng) >= as.Date("2020-07-20")) &
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
 
 # Plot forecasts and outcomes over evaluation period
 plot_holdout(object = res, Y = gauteng)
