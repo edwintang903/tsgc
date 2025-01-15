@@ -406,9 +406,9 @@ SSModelDynamicGompertz <- setRefClass(
           } else {
             model_output <- output(original.results)
             model_seasonal <- seasonalComp(original.results)
-            sea.type <- if (is.null(model_seasonal)) {'none'} else {
+            sea.type <<- if (is.null(model_seasonal)) {'none'} else {
               'trigonometric'}
-            sea.period <- if (!is.null(model_seasonal)) {
+            sea.period <<- if (!is.null(model_seasonal)) {
               ncol(att(model_output)) - 1}
           }
           
@@ -445,7 +445,7 @@ SSModelDynamicGompertz <- setRefClass(
     },
     summary = function() {
       out <- suppressWarnings(output(.self$estimate()))
-      q<-.self$q
+      q <<-.self$q
       if(is.null(q)){
         qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
       }
