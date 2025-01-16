@@ -44,7 +44,7 @@ model_q <- SSModelDynamicGompertz$new(Y = y)
 res <- estimate(model_q)
 
 #Return MAPE of forecast
-mapes(res,n.ahead=n.ahead,y)
+mapes(res,n.ahead=n.ahead,Y)
 
 
 }

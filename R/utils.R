@@ -312,8 +312,7 @@ forecast.peak <- function(delta, gamma) {
 #' @param object A `filterResults` or `filterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param n.ahead Integer specifying the number of days to forecast ahead.
-#' @param Y An xts object containing the original cumulative dataset
-#' with two columns: the leading indicator and the target variable.
+#' @param Y An xts object containing the original cumulative dataset.
 #'
 #' @returns A list containing the MAPE values for both the trend forecast and
 #' the forecast that includes the seasonal component.
@@ -335,7 +334,7 @@ forecast.peak <- function(delta, gamma) {
 #' res <- estimate(model_q)
 #' 
 #' #Return MAPE of forecast
-#' mapes(res,n.ahead=n.ahead,y)
+#' mapes(res,n.ahead=n.ahead,Y)
 #' 
 #' 
 #' @export

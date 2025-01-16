@@ -721,51 +721,49 @@ FilterResults <- setRefClass(
       return(p1)
     },
     mapes=function(n.ahead,Y){
-      res<-.self
         date_format="%Y-%m-%d"
-        
-        Date <- Actual <- Forecast <- ForecastTrend <- lower <- upper <- NULL
-        
-        model <- res$output$model
-        est.date.index <- res$index
         
         y.level.est <- Y[est.date.index]
         
-        p <- attr(res$output$model, 'p')
+        p <- attr(output$model, 'p')
         if(p!=1) { stop('NotImplementedError') }
         
-        Y.eval<-Y[(tail(res$index,1)+0:n.ahead)]
+        Y.eval<-Y[(tail(index,1)+0:n.ahead)]
         
         y.eval.diff <- diff(Y.eval) %>% na.omit
         
-        est.date.index <- res$index %>% as.Date()
+        est.date.index <- as.Date(index)
         estimation.date.end <- tail(est.date.index, 1)
         
-        y.hat.diff.final.ci <- res$predict_level(
+        y.hat.diff.final.ci <- .self$predict_level(
           y.cum = y.level.est, n.ahead = n.ahead, confidence.level = 0.68,
           return.diff = TRUE
         )
-        y.hat.diff.final <- res$predict_level(
+        y.hat.diff.final <- .self$predict_level(
           y.cum = y.level.est, n.ahead = n.ahead, confidence.level =0.68,
           sea.on = TRUE,
           return.diff = TRUE
         )
         
-        d <- cbind(
-          y.eval.diff[index(y.eval.diff)>estimation.date.end,],
-          y.hat.diff.final[, 1],
-          y.hat.diff.final.ci[, 1]
+        # Extract the relevant columns
+        filtered_y_eval_diff <- y.eval.diff[index(y.eval.diff) > estimation.date.end]
+        forecast_column <- y.hat.diff.final[, 1]
+        forecast_trend_column <- y.hat.diff.final.ci[, 1]
+        
+        #Form dataframe
+        df_plot <- data.frame(
+          Actual = coredata(filtered_y_eval_diff),  # Extract data from zoo
+          Forecast = forecast_column,
+          ForecastTrend = forecast_trend_column,
+          row.names = index(filtered_y_eval_diff)  # Use index as row names
         )
-        names(d) <- c('Actual', 'Forecast', 'ForecastTrend')
         
-        df_plot <- as.data.frame(d)
-        df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
+        d.eval <- na.omit(df_plot)
+        colnames(d.eval)<-c('Actual', 'Forecast', 'ForecastTrend')
         
-        d.eval <- na.omit(d)
-        mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
-                             d.eval$Actual) %>% mean
-        mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
-          mean
+        mape.trend <- mean(100*(abs(d.eval$Actual - d.eval$ForecastTrend)/
+                             d.eval$Actual))
+        mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
         
         return(list(trend=mape.trend, sea=mape.sea))
       }
