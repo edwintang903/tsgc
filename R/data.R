@@ -65,7 +65,7 @@
 #'
 #' @docType data
 #'
-#' @usage data(covid)
+#' @usage data(ukitaly)
 #'
 #' @format An object of class `"xts"`;
 #' \describe{
@@ -77,7 +77,7 @@
 #' @references Downloaded from https://www.ecdc.europa.eu/en/publications-data/download-todays-data-geographic-distribution-covid-19-cases-worldwide
 #'
 #' @examples
-#' data(covid)
+#' data(ukitaly)
 #' # plot daily cases
-#' plot(diff(covid))
-"covid"
+#' plot(diff(ukitaly))
+"ukitaly"
