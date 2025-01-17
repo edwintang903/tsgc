@@ -314,7 +314,7 @@ SSModelDynamicGompertz <- setRefClass(
   },
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
-      class \\code{SSModelDynamicGompertz} or \\code{SSModelDynGompertzReinit}.
+      class \\code{SSModelDynamicGompertz}.
       \\subsection{Parameters}{\\itemize{
         \\item{\\code{sea.type} Seasonal type. Options are
         \\code{'trigonometric'} and \\code{'none'}. \\code{'trigonometric'} will
@@ -401,16 +401,16 @@ SSModelDynamicGompertz <- setRefClass(
             # NB. Restrict sample to t<=r - date of reinitialisation.
             idx.est <- zoo::index(Y) <= reinit.date
             model <- SSModelDynamicGompertz$new(Y = Y[idx.est], q = q)
-            res.original <- estimate(model)
+            res.original <- model$estimate()
             model_output <- output(res.original)
           } else {
             model_output <- output(original.results)
-            model_seasonal <- seasonalComp(original.results)
-            season.type <- if (is.null(model_seasonal)) {'none'} else {
-              'trigonometric'}
-            season.period <- if (!is.null(model_seasonal)) {
-              ncol(att(model_output)) - 1}
           }
+          model_seasonal <- seasonalComp(model_output)
+          season.type <- if (is.null(model_seasonal)) {'none'} else {
+            'trigonometric'}
+          season.period <- if (!is.null(model_seasonal)) {
+            ncol(att(model_output)) - 1}
           
           # 4.3 Reset slope to 0 and add constant to initial value for level.
           # where reinit.date is t=r
@@ -485,7 +485,7 @@ SSModelDynamicGompertz <- setRefClass(
     },
     print = function() {
       reinit<-!is.null(reinit.date)
-      out <- output(estimate(.self)) #KFS object
+      out <- output(.self$estimate()) #KFS object
       if(is.null(q)){
         qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
       }

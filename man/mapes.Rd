@@ -13,8 +13,7 @@ mapes(object, ...)
 
 \item{n.ahead}{Integer specifying the number of days to forecast ahead.}
 
-\item{Y}{An xts object containing the original cumulative dataset
-with two columns: the leading indicator and the target variable.}
+\item{Y}{An xts object containing the original cumulative dataset.}
 }
 \value{
 A list containing the MAPE values for both the trend forecast and

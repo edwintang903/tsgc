@@ -31,7 +31,7 @@ effect with daily data, this would be 7. Not required if
 
 \describe{
 \item{\code{estimate()}}{Estimates the dynamic Gompertz curve model when applied to an object of
-class \code{SSModelDynamicGompertz} or \code{SSModelDynGompertzReinit}.
+class \code{SSModelDynamicGompertz}.
 \subsection{Parameters}{\itemize{
   \item{\code{sea.type} Seasonal type. Options are
   \code{'trigonometric'} and \code{'none'}. \code{'trigonometric'} will

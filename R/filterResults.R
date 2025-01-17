@@ -637,8 +637,6 @@ FilterResults <- setRefClass(
         Y.est<-data_xts
       }
       
-      Date <- Actual <- Forecast <- ForecastTrend <- lower <- upper <- NULL
-      
       model <- res$output$model
       est.date.index <- res$index
       
@@ -664,7 +662,7 @@ FilterResults <- setRefClass(
         return.diff = TRUE
       )
       
-      ids=(index(y.eval.diff)>estimation.date.end) & (index(y.eval.diff)<estimation.date.end+15)
+      ids=(index(y.eval.diff)>estimation.date.end) & (index(y.eval.diff)<estimation.date.end+n.ahead+1)
       
       d <- cbind(
         y.eval.diff[ids,],

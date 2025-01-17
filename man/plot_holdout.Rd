@@ -48,15 +48,14 @@ sample.
 library(tsgc)
 data(gauteng,package="tsgc")
 idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
-idx.eval <- (zoo::index(gauteng) >= as.Date("2020-07-20")) &
-     zoo::index(gauteng) <= as.Date("2020-07-27")
+n.ahead=7
 
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- estimate(model)
+res <- model$estimate()
 
 # Plot forecasts and outcomes over evaluation period
-plot_holdout(object = res, Y = gauteng)
+plot_holdout(object = res, Y = gauteng, n.ahead=n.ahead)
 
 }

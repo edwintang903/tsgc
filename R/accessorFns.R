@@ -135,15 +135,15 @@ gety.hat<-function(object){
 alphahat<-function(object){
   object$alphahat
 }
-
-#' @title Calling estimate method for SSModelDynamicGompertz class
-#
-#' @description Accessor method to obtain estimated model for SSModelDynamicGompertz class
-#'
-#' @param model SSModelDynamicGompertz object
-#'
-#' @export
-estimate<-function(model){
-  model$estimate()
-}
+#' 
+#' #' @title Calling estimate method for SSModelDynamicGompertz class
+#' #
+#' #' @description Accessor method to obtain estimated model for SSModelDynamicGompertz class
+#' #'
+#' #' @param model SSModelDynamicGompertz object
+#' #'
+#' #' @export
+#' estimate<-function(model){
+#'   model$estimate()
+#' }
 
