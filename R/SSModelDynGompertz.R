@@ -77,12 +77,19 @@ SSModelDynamicGompertz <- setRefClass(
                                        sea.period = 7,reinit.date=NULL, original.results=NULL,
                                        use.presample.info=TRUE)
   {
-    "Create an instance of the \\code{SSModelDynGompertzReinit} class.
+    "Create an instance of the \\code{SSModelDynamicGompertz} class.
        \\subsection{Parameters}{\\itemize{
         \\item{\\code{Y} The cumulated variable.}
         \\item{\\code{q} The signal-to-noise ratio (ratio of slope to irregular
          variance). Defaults to \\code{'NULL'}, in which case no
          signal-to-noise ratio will be imposed. Instead, it will be estimated.}
+         \\item{\\code{sea.type} Seasonal type. Options are \\code{'trigonometric'}
+       and \\code{'none'}. \\code{'trigonometric'} will yield a model with a
+       trigonometric seasonal component and \\code{'none'} will yield a model
+       with no seasonal component.}
+      \\item{\\code{sea.period} The period of seasonality. For a day-of-the-week
+       effect with daily data, this would be 7. Not required if
+       \\code{sea.type = 'none'}.}
         \\item{\\code{reinit.date} The reinitialisation date \\eqn{r}. Should
         be specified as an object of class \\code{\"Date\"}. Must be specified
         if \\code{original.results = NULL} and
@@ -315,15 +322,6 @@ SSModelDynamicGompertz <- setRefClass(
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
       class \\code{SSModelDynamicGompertz}.
-      \\subsection{Parameters}{\\itemize{
-        \\item{\\code{sea.type} Seasonal type. Options are
-        \\code{'trigonometric'} and \\code{'none'}. \\code{'trigonometric'} will
-         yield a model with a trigonometric seasonal component and
-         \\code{'none'} will yield a model with no seasonal component.}
-        \\item{\\code{sea.period} The period of seasonality. For a
-        day-of-the-week effect with daily data, this would be 7. Not required
-        if \\code{sea.type = 'none'}.}
-      }}
       \\subsection{Return Value}{An object of class \\code{FilterResults}
       containing the result output for the estimated dynamic Gompertz curve
       model.}
@@ -444,6 +442,8 @@ SSModelDynamicGompertz <- setRefClass(
       }
     },
     summary = function() {
+      "Supplies details of the SSModelDynamicGompertz object, such as estimated 
+      parameter values, start and end dates of estimation."
       out <- suppressWarnings(output(.self$estimate()))
       if(is.null(q)){
         qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
@@ -484,6 +484,8 @@ SSModelDynamicGompertz <- setRefClass(
       base::print(out)
     },
     print = function() {
+      "Provides a quick description of SSModelDynamicGompertz object, providing 
+      model states and standard errors."
       reinit<-!is.null(reinit.date)
       out <- output(.self$estimate()) #KFS object
       if(is.null(q)){
@@ -512,6 +514,15 @@ SSModelDynamicGompertz <- setRefClass(
       }
     },
     plot_diff =function(...){
+      "Plots the lagged differences of the cumulated dataset \\code{Y} in this 
+      \\code{SSModelDynamicGompertz} object against time, which could represent 
+      daily cases.
+      \\subsection{Parameters}{\\itemize{
+        \\item{\\code{...} arguments passed to the \\code{xts::plot.xts} method}
+      }}
+      \\subsection{Return Value}{A plot of the lagged differences of the 
+      cumulated dataset \\code{Y} against time.}
+      "
       plot(diff(Y), ...)
     }
   )

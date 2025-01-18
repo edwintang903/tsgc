@@ -48,6 +48,17 @@ FilterResults <- setRefClass(
   methods = list(
     initialize = function(data_xts,index,reinit.date, output)
     {
+      "Create an instance of the \\code{FilterResults} class.
+       \\subsection{Parameters}{\\itemize{
+        \\item{\\code{data_xts} The cumulated variable.}
+        \\item{\\code{index} The list of dates in the index of \\code{data_xts}.}
+        \\item{\\code{reinit.date} The reinitialisation date \\eqn{r}. Should
+        be specified as an object of class \\code{\"Date\"}.}
+        \\item{\\code{output} A \\code{KFS} results object obtained after fitting a 
+        \\code{SSModelDynamicGompertz} model.}
+      }}
+      \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
+      reinit.date = as.Date(\"2021-05-12\",format = date.format))}}"
       data_xts<<-data_xts
       index <<- index
       reinit.date<<-reinit.date
