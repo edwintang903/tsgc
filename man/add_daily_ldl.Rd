@@ -31,5 +31,4 @@ library(tsgc)
 data(england,package="tsgc")
 add_daily_ldl(england[,c("cum_cases","cum_admissions")],LeadIndCol=1)
 
-
 }

@@ -1,10 +1,11 @@
 Package: tsgc
 Title: Time Series Methods Based on Growth Curves
-Version: 1.0.0
-Authors@R: c(person(given = "Craig", family = "Thamotheram", role = c("aut", "cre"), email = "cpt@tacindex.com"),
-    person(given = "Michael", family = "Ashby", role = c("ctb"), email = "mwa22@cam.ac.uk"),
-    person(given = "Paul", family = "Kattuman", role = c("ctb"), email = "p.kattuman@jbs.cam.ac.uk"),
-    person(given = "Andrew", family = "Harvey", role = c("ctb"), email = "ach34@cam.ac.uk"))
+Version: 2.0.0
+Authors@R: c(person(given = "Michael", family = "Ashby", role = c("aut","cre"), email = "mwa22@cam.ac.uk"),
+    person(given = "Paul", family = "Kattuman", role = c("aut"), email = "p.kattuman@jbs.cam.ac.uk"),
+    person(given = "Andrew", family = "Harvey", role = c("aut"), email = "ach34@cam.ac.uk"),
+    person(given = "Edwin", family = "Tang", role = c("aut"), email = "yiu-nam-edwin.tang@warwick.ac.uk"),
+    person(given = "Craig", family = "Thamotheram", role = c("aut"), email = "cpt@tacindex.com"))
 Description: The 'tsgc' package provides comprehensive tools for the analysis and forecasting of epidemic trajectories.
     It is designed to model the progression of an epidemic over time while accounting for the various uncertainties
     inherent in real-time data. Underpinned by a dynamic Gompertz model, the package adopts a state space approach,
@@ -36,7 +37,6 @@ Suggests:
     here,
     timetk,
     testthat,
-    purrr,
     kableExtra
 Config/testthat/edition: 3
 Imports:
@@ -46,11 +46,12 @@ Imports:
     ggthemes,
     zoo,
     magrittr,
-    scales,
     dplyr,
     tidyr,
-    methods
+    methods,
+    ForecastComb,
+    purrr
 BugReports: https://github.com/Craig-PT/tsgc/issues
 Depends:
-    R (>= 2.10)
+    R (>= 3.5.0)
 LazyData: true

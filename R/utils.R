@@ -58,6 +58,7 @@ df2ldl <- function(dt) {
 #' data(england,package="tsgc")
 #' add_daily_ldl(england[,c("cum_cases","cum_admissions")],LeadIndCol=1)
 #'
+#' @importFrom stats lag
 #'
 #' @export
 add_daily_ldl <- function(data, LeadIndCol=1){
@@ -499,7 +500,10 @@ cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=
 #' @export
 combine_forecasts=function(Y,est.start.date,est.end.date,
                            all_lags,train_days,test_days,method,
-                           LeadIndCol=1,rolling=FALSE){
+                           LeadIndCol=1,rolling=FALSE){  
+  
+  x <- Value <- Variable <- NULL
+  
   if (!inherits(Y, "xts")) stop("Y must be an xts object.")
   if (!is.numeric(all_lags) || any(all_lags < 0)) stop("all_lags must be a numeric vector with non-negative values.")
   if (!is.function(method)) stop("method must be a valid function from the ForecastComb package.")
