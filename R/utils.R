@@ -58,7 +58,7 @@ df2ldl <- function(dt) {
 #' data(england,package="tsgc")
 #' add_daily_ldl(england[,c("cum_cases","cum_admissions")],LeadIndCol=1)
 #'
-#' @importFrom stats lag
+#' @importFrom xts lag
 #'
 #' @export
 add_daily_ldl <- function(data, LeadIndCol=1){
