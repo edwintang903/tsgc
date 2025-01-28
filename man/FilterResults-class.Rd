@@ -101,18 +101,16 @@ seasonals where applicable (\code{a.t.t}) and covariance matrix of all
 states including seasonals where applicable (\code{P.t.t}).}}
 
 \item{\code{predict_level(
-  y.cum,
   n.ahead,
-  confidence.level,
+  confidence.level = 0.68,
   sea.on = FALSE,
-  return.diff = FALSE
+  return.diff = TRUE
 )}}{Forecast the cumulated variable or the incidence of it. This function returns
 the forecast of the cumulated variable \eqn{Y}, or the forecast of the incidence of the cumulated variable, \eqn{y}. For
 example, in the case of an epidemic, \eqn{y} might be daily new cases of
 the disease and
  \eqn{Y} the cumulative number of recorded infections.
  \subsection{Parameters}{\itemize{
-  \item{\code{y.cum} The cumulated variable.}
   \item{\code{n.ahead} The number of periods ahead you wish to forecast from
   the end of the estimation window.}
   \item{\code{confidence.level} The confidence level for the log growth
@@ -121,7 +119,7 @@ the disease and
   \item{\code{return.diff} Logical value indicating whether to return the cumulated variable,
   \eqn{Y}, or the incidence of it,
   \eqn{y} (i.e., the first difference of the cumulated variable). Default is
-  \code{FALSE}.}
+  \code{TRUE}.}
 }}
 \subsection{Return Value}{\code{xts} object containing the point
 forecasts and upper and lower bounds of
