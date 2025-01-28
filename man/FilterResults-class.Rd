@@ -116,6 +116,8 @@ the disease and
   \item{\code{confidence.level} The confidence level for the log growth
    rate that should be used to compute
   the forecast intervals of \eqn{y}.}
+  \item{\code{sea.on} Logical value indicating whether to return the prediction 
+  of just the trend or prediction incorporating seasonality.}
   \item{\code{return.diff} Logical value indicating whether to return the cumulated variable,
   \eqn{Y}, or the incidence of it,
   \eqn{y} (i.e., the first difference of the cumulated variable). Default is

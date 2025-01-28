@@ -55,7 +55,8 @@ FilterResultsLI <- setRefClass(
       LeadIndCol<<-LeadIndCol
     },
     predict_level = function(n.ahead=n.lag, 
-                             confidence.level=0.68){
+                             confidence.level=0.68,
+                             sea.on = FALSE){
       "Forecast the cumulated variable or the incidence of it. This function returns
       the forecast of the cumulated variable \\eqn{Y}, or the forecast of the incidence of the cumulated variable, \\eqn{y}. For
       example, in the case of an epidemic, \\eqn{y} might be daily new cases of
@@ -63,9 +64,11 @@ FilterResultsLI <- setRefClass(
        \\subsection{Parameters}{\\itemize{
         \\item{\\code{n.ahead} The number of periods ahead you wish to forecast from
         the end of the estimation window. Default is \\code{n.lag}.}
+        \\item{\\code{sea.on} Logical value indicating whether to return the prediction 
+        of just the trend or prediction incorporating seasonality.}
         \\item{\\code{confidence.level} The confidence level for the log growth
          rate that should be used to compute the forecast intervals of \\eqn{y}.}
-        }
+       }
       }
       \\subsection{Return Value}{A list object containing n.lag and 2 \\code{xts}
       objects: the point forecasts and upper and lower bounds of the forecast interval
@@ -116,74 +119,88 @@ FilterResultsLI <- setRefClass(
       forcout = predict(modelKFS(output),forcmodel,interval=c('prediction'),
                         level=confidence.level, states=c('trend'))
       
-      # Create empty dataframe to put forecasts in
-      forecasts <- matrix(NA,ncol=ncol(data_ldl),nrow=max(n.ahead,n.lag)) %>%
-        as.data.frame()
-      colnames(forecasts) = c('Admissions','Cases')
-      
-      # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
-      # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
-      forecasts$Cases[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,1])
-      forecasts$Cases[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,1])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),1]))
-      
-      forecasts$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,1])
-      forecasts$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),1]))
-      
-      forecasts$Cases.lwr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,2])
-      forecasts$Cases.lwr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,2])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),2]))
-      forecasts$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,2])
-      forecasts$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),2]))
-      
-      forecasts$Cases.upr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,3])
-      forecasts$Cases.upr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,3])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),3]))
-      forecasts$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,3])
-      forecasts$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),3]))
-      
-      # Round forecasts to nearest whole number
-      forecasts = round(forecasts)
-      
-      # Put forecasts into a separate dataframe for admissions and cases
-      admissions_forecasts = cbind(forecasts$Admissions,forecasts$Admissions.lwr,forecasts$Admissions.upr)
-      colnames(admissions_forecasts) = c('forc','lwr','upr')
-      
-      cases_forecasts = cbind(forecasts$Cases,forecasts$Cases.lwr,forecasts$Cases.upr)
-      colnames(cases_forecasts) = c('forc','lwr','upr')
-      
-      #Re-do with seasonal component
-      
-      forcout_sea = predict(modelKFS(output),forcmodel,interval=c('prediction'),
-                            level=confidence.level,states='all')
-      
-      # Create empty dataframe to put forecasts in
-      forecasts_sea <- matrix(NA,ncol=ncol(data_ldl),nrow=max(n.ahead,n.lag)) %>%
-        as.data.frame()
-      colnames(forecasts_sea) = c('Admissions','Cases')
-      
-      # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
-      # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
-      forecasts_sea$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,1])
-      forecasts_sea$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),1]))
-      
-      forecasts_sea$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,2])
-      forecasts_sea$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),2]))
-      
-      forecasts_sea$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,3])
-      forecasts_sea$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),3]))
-      
-      # Round forecasts to nearest whole number
-      forecasts_sea = cbind(forecasts_sea$Admissions,forecasts_sea$Admissions.lwr,forecasts_sea$Admissions.upr) %>% round()
-      colnames(forecasts_sea) = c('forc','lwr','upr')
-      
-      startforc = (data_xts %>% index %>% tail(1))+1
-      
-      finds = seq(startforc,length.out = n.ahead,by='day')
-      fadmits = xts(admissions_forecasts[1:n.ahead,],finds)
-      sea = xts(forecasts_sea[1:n.ahead,],finds)
-      
-      if (unity){
-        return(list(trend=fadmits[1,], seasonal=sea[1,], n.ahead=1))
-      } else{
-        return(list(trend=fadmits, seasonal=sea, n.ahead=n.ahead))
+      if (!sea.on){
+        # Create empty dataframe to put forecasts in
+        forecasts <- matrix(NA,ncol=ncol(data_ldl),nrow=max(n.ahead,n.lag)) %>%
+          as.data.frame()
+        colnames(forecasts) = c('Admissions','Cases')
+        
+        # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
+        # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
+        forecasts$Cases[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,1])
+        forecasts$Cases[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,1])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),1]))
+        
+        forecasts$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,1])
+        forecasts$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),1]))
+        
+        forecasts$Cases.lwr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,2])
+        forecasts$Cases.lwr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,2])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),2]))
+        forecasts$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,2])
+        forecasts$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),2]))
+        
+        forecasts$Cases.upr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,3])
+        forecasts$Cases.upr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,3])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),3]))
+        forecasts$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,3])
+        forecasts$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),3]))
+        
+        # Round forecasts to nearest whole number
+        forecasts = round(forecasts)
+        
+        # Put forecasts into a separate dataframe for admissions and cases
+        admissions_forecasts = cbind(forecasts$Admissions,forecasts$Admissions.lwr,forecasts$Admissions.upr)
+        colnames(admissions_forecasts) = c('forc','lwr','upr')
+        
+        cases_forecasts = cbind(forecasts$Cases,forecasts$Cases.lwr,forecasts$Cases.upr)
+        colnames(cases_forecasts) = c('forc','lwr','upr')
+        
+        #Save forecast dates
+        startforc = (index %>% tail(1))+1
+        finds = seq(startforc,length.out = n.ahead,by='day')
+        
+        fadmits = xts(admissions_forecasts[1:n.ahead,],finds)
+        
+        if (unity){
+          return(fadmits[1,])
+        } else{
+          return(fadmits)
+        }
+        
+      } else {
+        #Re-do with seasonal component
+        forcout_sea = predict(modelKFS(output),forcmodel,interval=c('prediction'),
+                              level=confidence.level,states='all')
+        
+        # Create empty dataframe to put forecasts in
+        forecasts_sea <- matrix(NA,ncol=ncol(data_ldl),nrow=max(n.ahead,n.lag)) %>%
+          as.data.frame()
+        colnames(forecasts_sea) = c('Admissions','Cases')
+        
+        # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
+        # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
+        forecasts_sea$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,1])
+        forecasts_sea$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),1]))
+        
+        forecasts_sea$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,2])
+        forecasts_sea$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),2]))
+        
+        forecasts_sea$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,3])
+        forecasts_sea$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),3]))
+        
+        # Round forecasts to nearest whole number
+        forecasts_sea = cbind(forecasts_sea$Admissions,forecasts_sea$Admissions.lwr,forecasts_sea$Admissions.upr) %>% round()
+        colnames(forecasts_sea) = c('forc','lwr','upr')
+        
+        #Save forecast dates
+        startforc = (index %>% tail(1))+1
+        finds = seq(startforc,length.out = n.ahead,by='day')
+        sea = xts(forecasts_sea[1:n.ahead,],finds)
+        
+        
+        if (unity){
+          return(sea[1,])
+        } else{
+          return(sea)
+        }
       }
     },
     print_estimation_results = function() {
@@ -442,12 +459,15 @@ FilterResultsLI <- setRefClass(
       and prediction intervals around the forecasts. For more details, see 
       \\link{plot_new_cases}"
       res<-.self
-        forecasts<-res$predict_level(n.ahead=n.ahead)
         
         if (is.null(plt.start.date)){plt.start.date <- head(index(data_xts), 1)}
         # add forecasts to plotting dataframe
-        fadmits<-forecasts$trend
-        sea<-forecasts$seasonal
+        fadmits<-.self$predict_level(n.ahead=n.ahead, 
+                                     confidence.level=confidence.level, 
+                                     sea.on=FALSE)
+        sea<-.self$predict_level(n.ahead=n.ahead, 
+                                 confidence.level=confidence.level, 
+                                 sea.on=TRUE)
         sea <- sea[,1]
         fadmits$zero=NA
         
@@ -686,9 +706,12 @@ FilterResultsLI <- setRefClass(
                         date_format = "%Y-%m-%d", series.name = "target variable",
                         title= NULL, caption = NULL){
     res<-.self
-    forecasts<-res$predict_level(n.ahead=n.ahead)
-    fadmits<-forecasts$trend    #trend
-    sea<-forecasts$seasonal     #seasonal
+    fadmits<-.self$predict_level(n.ahead=n.ahead, 
+                                 confidence.level=confidence.level, 
+                                 sea.on=FALSE)
+    sea<-.self$predict_level(n.ahead=n.ahead, 
+                             confidence.level=confidence.level, 
+                             sea.on=TRUE)
     
     end_date<-tail(index(data_xts),1)
     sea<-sea[,1] #get the forecast column
@@ -745,9 +768,10 @@ FilterResultsLI <- setRefClass(
   },
   mapes=function(n.ahead,Y){
     res<-.self
-      forecasts<-res$predict_level(n.ahead=n.ahead)
-      fadmits<-forecasts$trend    #trend
-      sea<-forecasts$seasonal        #seasonal
+    fadmits<-.self$predict_level(n.ahead=n.ahead, 
+                                 sea.on=FALSE)
+    sea<-.self$predict_level(n.ahead=n.ahead, 
+                             sea.on=TRUE)
       
       end.date<-tail(index(res$data_xts),1)
       idx.dates <- (index(Y) >=end.date)

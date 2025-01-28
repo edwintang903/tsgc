@@ -159,20 +159,11 @@ argmax <- function(x, decreasing=TRUE) {
 #' @export
 write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
   # 1. New Cases - Delta Y
-  if (class(res)=="FilterResults"){
     y.hat.diff <- res$predict_level(
       n.ahead = n.ahead,
       confidence.level= confidence.level,
-      sea.on = TRUE,
-      return.diff = TRUE
+      sea.on = TRUE
     )
-  } else {
-    preds <- res$predict_level(
-      n.ahead = n.ahead,
-      confidence.level= confidence.level
-    )
-    y.hat.diff<-preds$seasonal
-  }
   
   write.csv(
     y.hat.diff,
@@ -528,14 +519,14 @@ combine_forecasts=function(Y,est.start.date,est.end.date,
       idx<-(index(Y) <= est.end.date+m) & (index(Y) >= est.start.date)
       if (all_lags[k]==0){
         out<-SSModelDynamicGompertz(Y=Y[idx,-LeadIndCol])
-        res<-out$estimate()
+        res<-estimate(out)
         d<-res$predict_level(y.cum=Y[idx,-LeadIndCol],n.ahead=1,confidence.level = 0.68, 
                              return.diff = TRUE)
         result[k,1+m]<-as.matrix(d)[1,1]
       } else{
         out<-SSModelLeadingIndicator(Y=Y[idx], n.lag = all_lags[k])
-        res<-out$estimate()
-        result[k,1+m]<-res$predict_level(n.ahead=1)$seasonal[,"forc"]
+        res<-estimate(out)
+        result[k,1+m]<-res$predict_level(n.ahead=1, sea.on=TRUE)[,"forc"]
       }
       actual[1+m]<-Y_full[est.end.date+m+1, "newAdmit"]
     }

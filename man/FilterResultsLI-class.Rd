@@ -89,16 +89,18 @@ of \eqn{y} (\code{y.hat}), \eqn{\delta} (\code{level.t.t}),
 seasonals where applicable (\code{a.t.t}) and covariance matrix of all
 states including seasonals where applicable (\code{P.t.t}).}}
 
-\item{\code{predict_level(n.ahead = n.lag, confidence.level = 0.68)}}{Forecast the cumulated variable or the incidence of it. This function returns
+\item{\code{predict_level(n.ahead = n.lag, confidence.level = 0.68, sea.on = FALSE)}}{Forecast the cumulated variable or the incidence of it. This function returns
 the forecast of the cumulated variable \eqn{Y}, or the forecast of the incidence of the cumulated variable, \eqn{y}. For
 example, in the case of an epidemic, \eqn{y} might be daily new cases of
 the disease and
  \subsection{Parameters}{\itemize{
   \item{\code{n.ahead} The number of periods ahead you wish to forecast from
   the end of the estimation window. Default is \code{n.lag}.}
+  \item{\code{sea.on} Logical value indicating whether to return the prediction 
+  of just the trend or prediction incorporating seasonality.}
   \item{\code{confidence.level} The confidence level for the log growth
    rate that should be used to compute the forecast intervals of \eqn{y}.}
-  }
+ }
 }
 \subsection{Return Value}{A list object containing n.lag and 2 \code{xts}
 objects: the point forecasts and upper and lower bounds of the forecast interval
