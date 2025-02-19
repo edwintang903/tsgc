@@ -1,22 +1,15 @@
 ##############################################
 # Replication Script: Time Series Growth Curves package `tsgc`
-#
-# Structured to include:
-#   - A centralised section for project structure and parameter definitions.
-#   - Consistent variable naming and single definitions for key parameters.
-#   - Error handling for file operations and function outputs.
-#
 ##############################################
 
 # -----------------------------
 # Library Management
 # -----------------------------
-# SUGGESTION: Remove duplicate library calls and load all necessary libraries at the top.
 library(tsgc)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
-library(ggfortify)    # Check if needed only once.
+library(ggfortify)    
 library(ggforce)
 library(magrittr)
 library(zoo)
@@ -25,7 +18,7 @@ library(xts)
 library(gridExtra)
 library(here)
 library(timetk)
-library(ForecastComb)  # For forecast combination in later section.
+library(ForecastComb) 
 library(tidyr)
 
 # -----------------------------
@@ -34,13 +27,13 @@ library(tidyr)
 # Set a consistent global theme.
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
 
-# SUGGESTION 2: Define the base project path in one place.
-base_path <- here()  # Here() provides the root of your project.
+# Define the base project path in one place. here() provides the root of your project.
+base_path <- here() 
 
 # -----------------------------
 # Create Folder Structure with Error Handling
 # -----------------------------
-# SUGGESTION 5: Create a results folder with subfolders for Tables and Images.
+# Create a results folder with subfolders for Tables and Images.
 results_dir <- file.path(base_path, 'results')
 tables_dir  <- file.path(results_dir, 'Tables')
 images_dir  <- file.path(results_dir, 'Images')
@@ -58,9 +51,11 @@ for (dir_path in list(results_dir, tables_dir, images_dir)) {
 }
 
 # -----------------------------
-# Centralised Parameter Definitions
+# 1. Gompertz Growth Curve Model
+# 
+# Parameter Definitions
 # -----------------------------
-# SUGGESTION 3: Gather all parameters in one centralised block for easy modification.
+# Gather all parameters in one centralised block for easy modification.
 date.format      <- "%Y-%m-%d"
 n.forecasts      <- 14
 q                <- 0.005
@@ -69,16 +64,12 @@ plt.length       <- 30
 estimation.date.start <- as.Date("2021-02-01")
 estimation.date.end   <- as.Date("2021-04-19")
 
-
-# NOTE: Some parameters were redefined later in the original script. Here we define them only once.
-# For example, avoid reassigning date.format or results_dir later in the script.
-
 # -----------------------------
 # Data Loading and Preparation: Gauteng Data
 # -----------------------------
 # Load Gauteng data (cumulative confirmed cases)
 data(gauteng, package = "tsgc")
-cumulative_cases <- gauteng[, 1]  # Renaming 'Y' to cumulative_cases for clarity
+cumulative_cases <- gauteng[, 1]  
 
 # -----------------------------
 # Preliminary Examination of Data
@@ -129,9 +120,6 @@ data_plot
 # -----------------------------
 # Model Estimation Options for the Third Wave
 # -----------------------------
-# "estimation.date.start" and "estimation.date.end" moved from
-# here to Centralised parameter definitions 
-# SUGGESTION 4: Avoid re-defining parameters. 
 
 idx.est <- (zoo::index(cumulative_cases) >= estimation.date.start) &
   (zoo::index(cumulative_cases) <= estimation.date.end)
@@ -140,28 +128,18 @@ y <- cumulative_cases[idx.est]
 # -----------------------------
 # Estimation: Diffuse Prior Model
 # -----------------------------
+# The signal-to-noise ratio was estimated as a free parameter in this step.
 model_q <- SSModelDynamicGompertz$new(Y = y)
 res_q <- estimate(model_q)
 res_q
-# The signal-to-noise ratio was estimated as a free parameter in this step.
+
 
 # -----------------------------
 # Estimation: Fixed Signal-to-Noise Ratio Model
 # -----------------------------
-# Wrap model estimation in tryCatch to handle potential errors.
-res <- tryCatch(
-  {
-    model <- SSModelDynamicGompertz$new(Y = y, q = q)
-    estimate(model)
-  },
-  error = function(e) {
-    message("Error during fixed signal-to-noise model estimation: ", e)
-    return(NULL)
-  }
-)
-if (is.null(res)) {
-  stop("Terminating script due to estimation error.")
-}
+# Estimate model
+model <- SSModelDynamicGompertz$new(Y = y, q = q)
+res <- estimate(model)
 res
 
 # -----------------------------
@@ -229,7 +207,7 @@ res.rt <- ggplot(r.t, aes(x = Date)) +
   theme_light(base_size = 12) +
   theme(
     legend.position = "inside",
-    legend.position = c(0.85, 0.2),
+    legend.position.inside = c(0.85, 0.2),
     legend.title = element_text(size = 2),
     legend.text = element_text(size = 10),
     axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
@@ -238,7 +216,8 @@ res.rt <- ggplot(r.t, aes(x = Date)) +
 res.rt
 
 # -----------------------------
-# Reinitialisation for a New Wave
+# 2. Reinitialisation for a New Wave
+#
 # -----------------------------
 # Update the estimation period.
 estimation.date.end <- as.Date("2021-06-25")
@@ -357,12 +336,11 @@ tsgc::plot_holdout(
 )
 
 # -----------------------------
-# Leading Indicator Analysis: England Data
+# 3. Leading Indicator Analysis: England Data
 # -----------------------------
 
 # Load England data and select the first two columns.
 eng <- tsgc::england[, 1:2]
-# We might change "eng" to "england"
 
 # Transform the data to calculate daily cases and log growth rates.
 eng_full <- tsgc::add_daily_ldl(eng)
@@ -370,19 +348,30 @@ eng_daily <- eng_full[, 3:4]
 
 # Plot daily new cases and admissions.
 ggplot(log(eng_daily), aes(x = index(eng_daily))) +
-  geom_line(aes(y = newCases, color = "Cases"), size = 0.5) +
-  geom_line(aes(y = newAdmit, color = "Hospitalizations"), size = 0.5) +
+  geom_line(aes(y = newCases, color = "Cases"), lwd = 0.85) +
+  geom_line(aes(y = newAdmit, color = "Hospitalizations"), lwd = 0.85) +
+  scale_color_manual(values = c("red", "blue"))+
   labs(
     title = "COVID Daily Cases and Hospitalizations in England",
     x = "Date",
     y = "log(Number)",
     color = "Legend"
   ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+  theme_economist_white(gray_bg = FALSE, base_size = 12) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = "top",
+    text = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1)),
+    axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
+    axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
+    plot.title = element_text(margin = margin(b = 5), face = "bold"),
+    plot.caption = element_text(size = rel(1))
+  ) +
+  scale_x_date(labels = scales::date_format("%d %b %y"))
+
 
 # Define estimation parameters for the leading indicator analysis.
-# SUGGESTION: Reuse the centralised definitions where possible.
 estimation.date.start <- as.Date("2021-04-30")
 estimation.date.end   <- as.Date("2021-07-24")
 plt.length            <- 14  # Adjusted for this analysis
@@ -400,16 +389,27 @@ eng_daily <- eng_full[, 3:4]
 
 # Plot daily new cases and admissions again.
 ggplot(log(eng_daily), aes(x = index(eng_daily))) +
-  geom_line(aes(y = newCases, color = "Cases"), size = 0.5) +
-  geom_line(aes(y = newAdmit, color = "Hospitalizations"), size = 0.5) +
+  geom_line(aes(y = newCases, color = "Cases"), lwd = 0.85) +
+  geom_line(aes(y = newAdmit, color = "Hospitalizations"), lwd = 0.85) +
+  scale_color_manual(values = c("red", "blue"))+
   labs(
     title = "COVID Daily Cases and Hospitalizations in England",
     x = "Date",
     y = "log(Number)",
     color = "Legend"
   ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+  theme_economist_white(gray_bg = FALSE, base_size = 12) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = "top",
+    text = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1)),
+    axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
+    axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
+    plot.title = element_text(margin = margin(b = 5), face = "bold"),
+    plot.caption = element_text(size = rel(1))
+  ) +
+  scale_x_date(labels = scales::date_format("%d %b %y"))
 
 # Define and estimate the leading indicator model.
 out <- SSModelLeadingIndicator(Y = y, n.lag = n.lag, q = NA, LeadIndCol = 1, sea.period = 7)
@@ -445,24 +445,34 @@ write_results(
 )
 
 # -----------------------------
-# UK and Italy Examples
+# 4. Leading Indicator vs Gompertz Growth curves: UK and Italy Examples
 # -----------------------------
 # Example: UK-Italy Data analysis.
 UKIT_full <- tsgc::add_daily_ldl(ukitaly)
 ggplot(UKIT_full[, c(3, 4)], aes(x = index(UKIT_full))) +
-  geom_line(aes(y = newCases, color = "Italy"), size = 0.5) +
-  geom_line(aes(y = newAdmit, color = "UK"), size = 0.5) +
+  geom_line(aes(y = newCases, color = "Italy"), lwd = 0.85) +
+  geom_line(aes(y = newAdmit, color = "UK"), lwd = 0.85) +
+  scale_color_manual(values = c("red", "blue"))+
   labs(
-    title = "COVID Daily Cases and Hospitalizations in England",
+    title = "COVID Daily Cases in UK and Italy",
     x = "Date",
-    y = "Number",
-    color = "Legend"
+    y = "Daily cases"
   ) +
-  theme_minimal() +
-  theme(legend.position = "right")
+  theme_economist_white(gray_bg = FALSE, base_size = 12) +
+  theme(
+    legend.title = element_blank(),
+    legend.position = "top",
+    text = element_text(size = rel(1.1)),
+    axis.text = element_text(size = rel(1)),
+    axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
+    axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
+    plot.title = element_text(margin = margin(b = 5), face = "bold"),
+    plot.caption = element_text(size = rel(1))
+  ) +
+  scale_x_date(labels = scales::date_format("%d %b %y"))
+
 
 # Case 1: First peak.
-date.format <- "%Y-%m-%d"  # Already defined, so avoid redefinition if possible.
 Y <- ukitaly[, "UK"]
 estimation.date.start <- as.Date("2020-02-25")
 n.forecasts <- 14
@@ -519,7 +529,6 @@ plot_holdout(
 )
 
 # Case 2: Future peaks.
-date.format <- "%Y-%m-%d"
 Y <- ukitaly[, "UK"]
 estimation.date.start <- as.Date("2020-02-25")
 n.forecasts <- 14
@@ -576,14 +585,16 @@ plot_holdout(
 )
 
 # -----------------------------
-# Forecast Combination to Predict Hospitalisation from Multiple Lags of Cases
+# 5. Forecast Combination to Predict Hospitalisation from Multiple Lags of Cases
 # -----------------------------
 # Using the ForecastComb package, combine forecasts for hospitalisations.
 Y <- england[, c("cum_cases", "cum_admissions")]
 est.start.date <- as.Date("2020-09-01")
 est.end.date <- as.Date("2020-10-30")
 Y.reinit <- reinitialise_dataframe(Y, est.start.date)
-combine_forecasts(
+
+#Split into 2 functions, rolling_forecasts and optimal_combine
+comb_all<-combine_forecasts(
   Y.reinit,
   est.start.date,
   est.end.date,
@@ -594,4 +605,20 @@ combine_forecasts(
   rolling = TRUE
 )
 
+est.start.date <- as.Date("2020-09-01")
+est.end.date <- as.Date("2020-10-30")+80
+idx.est <- (zoo::index(Y.reinit) >= est.start.date) &
+  (zoo::index(Y.reinit) <= est.end.date)
+y <- Y.reinit[idx.est]
+
+future_preds<-matrix(nrow=14,ncol=4)
+all_lags<-c(2, 5, 7, 9)
+for (i in 1:4){
+  j=all_lags[i]
+  mod<-SSModelLeadingIndicator(Y=y, n.lag=j)
+  resi<-estimate(mod)
+  future_preds[,i]<-resi$predict_level(14)[,1]
+}
+
 ### Are we writing the forecast combination results to file?
+predict(comb_all,future_preds)

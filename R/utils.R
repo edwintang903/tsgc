@@ -550,14 +550,26 @@ combine_forecasts=function(Y,est.start.date,est.end.date,
     
     # Plot the data
     p1<-ggplot(df_long, aes(x = x, y = Value, color = Variable, group = Variable)) +
-      geom_line(linewidth = 1) +
+      geom_line(linewidth = 0.85) +
       geom_point(size= 2) +
       labs(title = "Evolution of weights",
            x = "Observations",
-           y = "Values") +
-      theme_minimal() +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    return(list(combin, p1))
+           y = "Values",
+           color="Lags") +
+      theme_economist_white(gray_bg = FALSE, base_size = 12) +
+      theme(
+        legend.title = element_blank(),
+        legend.position = "top",
+        text = element_text(size = rel(1.1)),
+        axis.text = element_text(size = rel(1)),
+        axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
+        axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
+        plot.title = element_text(margin = margin(b = 5), face = "bold"),
+        plot.caption = element_text(size = rel(1))
+      ) +
+      scale_x_date(labels = scales::date_format("%d %b %y"))
+    print(p1)
+    return(combin)
   } else {
     return(method(data))
   }
