@@ -49,13 +49,7 @@ combination of forecasts. Example: \code{comb_OLS}.}
 contains the leading indicator. Defaults to 1.}
 }
 \value{
-If \code{rolling = TRUE}, returns a list with two elements:
-\itemize{
-\item A forecast combination object with details of the computed weights.
-\item A \code{ggplot} object showing the evolution of weights over time.
-}
-
-If \code{rolling = FALSE}, returns the results of the forecast combination
+Results of the forecast combination
 method applied to the data.
 }
 \description{

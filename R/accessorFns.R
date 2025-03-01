@@ -161,3 +161,90 @@ estimate<-function(model){
    model$estimate()
 }
 
+#' @title Calling print method for classes in tsgc
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `SSModelLeadingIndicator` class
+#'
+#' @param model A `SSModelLeadingIndicator` object
+#' 
+#' @export
+print.SSModelLeadingIndicator <- function(model) {
+  # Call the object's print() method if it exists
+  if (!is.null(model$print) && is.function(model$print)) {
+    model$print()
+  } else {
+    stop("The object does not have a valid 'print' method.")
+  }
+}
+
+#' @title Calling plot method for classes in tsgc
+#'
+#' @description Accessor method to call the plot method of an object of 
+#' `SSModelLeadingIndicator` class
+#'
+#' @param model A `SSModelLeadingIndicator` object
+#' 
+#' @export
+plot.SSModelLeadingIndicator <- function(model,title, series.name.lead, 
+                                         series.name.target,take.log) {
+  # Call the object's plot() method if it exists
+  if (!is.null(model$plot) && is.function(model$plot)) {
+    model$plot(title, series.name.lead, 
+               series.name.target,take.log)
+  } else {
+    stop("The object does not have a valid 'plot' method.")
+  }
+}
+
+
+#' @title Calling summary method for classes in tsgc
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `SSModelLeadingIndicator` class
+#'
+#' @param model A `SSModelLeadingIndicator` object
+#' 
+#' @export
+summary.SSModelLeadingIndicator <- function(model) {
+  # Call the object's summary() method if it exists
+  if (!is.null(model$summary) && is.function(model$summary)) {
+    model$summary()
+  } else {
+    stop("The object does not have a valid 'summary' method.")
+  }
+}
+
+#' @title Calling print method for classes in tsgc
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `SSModelDynamicGompertz` class
+#'
+#' @param model A `SSModelDynamicGompertz` object
+#' 
+#' @export
+print.SSModelDynamicGompertz <- function(model) {
+  # Call the object's print() method if it exists
+  if (!is.null(model$print) && is.function(model$print)) {
+    model$print()
+  } else {
+    stop("The object does not have a valid 'print' method.")
+  }
+}
+
+#' @title Calling summary method for classes in tsgc
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `SSModelDynamicGompertz` class
+#'
+#' @param model A `SSModelDynamicGompertz` object
+#' 
+#' @export
+summary.SSModelDynamicGompertz <- function(model) {
+  # Call the object's summary() method if it exists
+  if (!is.null(model$summary) && is.function(model$summary)) {
+    model$summary()
+  } else {
+    stop("The object does not have a valid 'summary' method.")
+  }
+}

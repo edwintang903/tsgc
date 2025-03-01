@@ -6,52 +6,85 @@
 \alias{SSModelLeadingIndicator}
 \title{Class for leading indicator state space model object}
 \description{
-Class for leading indicator state space model object.
+Class for leading indicator state space model object. The model
+settings are stored in the fields of this object, and the class contains
+methods to obtain FilterResultsLI object for further analysis and plotting
+the time series under investigation as an exploratory data analysis.
+}
+\section{Fields}{
 
-\subsection{Methods}{
-\code{get_model(y, q = NULL, sea.type = 'trigonometric', sea.period = 7)}
-Retrieves the model object.
-\subsection{Parameters}{\itemize{
-\item{\code{y} The cumulated variable.}
-\item{\code{q} The signal-to-noise ratio (ratio of slope to irregular
-variance). Defaults to \code{'NULL'}, in which case no signal-to-noise ratio
-will be imposed. Instead, it will be estimated.}
-\item{\code{sea.type} Seasonal type. Options are \code{'trigonometric'} and
-\code{'none'}. \code{'trigonometric'} will yield a model with a trigonometric
-seasonal component and \code{'none'} will yield a model with no seasonal
-component.}
-\item{\code{sea.period}  The period of seasonality. For a day-of-the-week
+\describe{
+\item{\code{Y}}{The cumulated variable.}
+
+\item{\code{q}}{The signal-to-noise ratio (ratio of slope to irregular
+variance). Defaults to \code{'NULL'}, in which case no
+signal-to-noise ratio will be imposed. Instead, it will be estimated.}
+
+\item{\code{sea.period}}{The period of seasonality. For a day-of-the-week
 effect with daily data, this would be 7. Not required if
 \code{sea.type = 'none'}.}
+
+\item{\code{n.lag}}{Number of days to lag the leading indicator.}
+
+\item{\code{LeadIndCol}}{The column in \\code{Y} that contains the leading indicator.}
 }}
-\subsection{Return Value}{\code{KFS} model object.}
-}
-}
+
 \section{Methods}{
 
 \describe{
-\item{\code{estimate()}}{Retrieves the model object.}
+\item{\code{estimate()}}{Estimates the Leading Indicator model when applied to an object of
+class \code{SSModelLeadingIndicator}.
+\subsection{Return Value}{An object of class \code{FilterResultsLI}
+containing the result output for the estimated Leading Indicator
+model.}}
 
-\item{\code{initialize(Y, n.lag, sea.period = 7, q = NA, LeadIndCol = 1)}}{Create an instance of the \code{SSModelLeadingIndicator} class.
- \subsection{Parameters}{\itemize{
-  \item{\code{Y} The cumulated leading indiactor variable and target variable.}
-  \item{\code{n.lag} Number of days to lag the leading indicator.}
-  \item{\code{q} The signal-to-noise ratio (ratio of slope to irregular
-   variance). Defaults to \code{'NULL'}, in which case no
-   signal-to-noise ratio will be imposed. Instead, it will be estimated.}
-   \item{\code{LeadIndCol} The column in \code{Y} that contains the leading indicator}
-}}
-\subsection{Usage}{\code{SSModelLeadingIndicator(Y=y,n.lag = n.lag,q=q,LeadIndCol=1)}}}
+\item{\code{initialize(Y, n.lag, sea.period = 7, q = NA, LeadIndCol = 1)}}{Create an instance of the \code{SSModelLeadingIndicator} class with the 
+fields laid out at the beginning of the documentation.}
+
+\item{\code{plot(
+  title = NULL,
+  series.name.lead = "Leading Indicator",
+  series.name.target = "Target Variable",
+  take.log = TRUE
+)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
+\code{SSModelLinearIndicator} object against time, which could represent 
+daily cases.
+\subsection{Parameters}{\itemize{
+  \item{\code{title} Title for forecast plot. Enter as text string. 
+  \code{NULL} (i.e. no title) by default.}
+  \item{\code{series.name} The name of the series the growth rate is being computed
+  for. E.g. \code{'cases'}. Default is `target variable`.}
+  \item{\code{take.log} A logical value indicating whether to return 
+  take log of the lagged differences. Defaults to \code{TRUE}.}
+  }
+}
+\subsection{Return Value}{A plot of the lagged differences of the 
+cumulated dataset \code{Y} against time.}}
 }}
 
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#Set up the estimation timeframe
+idx.est <- (zoo::index(ukitaly) >= estimation.date.start) & 
+(zoo::index(ukitaly) <= estimation.date.end)
+y <- ukitaly[idx.est]
 
 # Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+model <- SSModelLeadingIndicator(Y=y, n.lag = 14, 
+sea.period = 7,LeadIndCol=1)
+
+# Show summary of the model object
+summary(model)
+
+# Print a short description of the model object
+print(model)
+
+# Plot the time series stored in the model object
+plot(model, title="COVID Daily Cases in UK and Italy",
+series.name.lead="Italy", series.name.target="UK", take.log=FALSE)
+
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
+res
 
 }

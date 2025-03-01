@@ -63,7 +63,34 @@ model.}}
   Q = NULL,
   H = NULL
 )}}{Returns the Dynamic Gompertz Model object, assuming no reinitialization. 
-Used in the \code{get_model} function.}
+Used in the \code{get_model} function.
+\subsection{Parameters}{\itemize{
+  \item{\code{y} The cumulated variable}
+  \item{\code{q} The signal-to-noise ratio (ratio of slope to irregular
+  variance). Defaults to \code{'NULL'}, in which case no signal-to-noise
+  ratio will be imposed. Instead, it will be estimated.}
+  \item{\code{sea.type} Seasonal type. Options are \code{'trigonometric'}
+   and \code{'none'}. \code{'trigonometric'} will yield a model with a
+   trigonometric seasonal component and \code{'none'} will yield a model
+   with no seasonal component.}
+  \item{\code{sea.period} The period of seasonality. For a day-of-the-week
+   effect with daily data, this would be 7. Not required if
+   \code{sea.type = 'none'}.}
+  \item{\code{a1} Optional parameter specifying the prior mean of the
+  states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
+  prior (no prior information). If a proper prior is to be specified, both
+  \code{a1} and \code{P1} must be given.}
+  \item{\code{P1} Optional parameter specifying the prior mean of the
+  states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
+   prior (no prior information). If a proper prior is to be specified,
+   both \code{a1} and \code{P1} must be given.}
+  \item{\code{Q} Optional parameter specifying the state error variances
+  where these are to be imposed rather than estimated. Defaults to
+  \code{'NULL'} which will see the variances estimated.}
+  \item{\code{H} Optional parameter specifying the irregular variance
+  where this is to be imposed rather than estimated. Defaults to
+  \code{'NULL'} which will see the variance estimated.}
+}}}
 
 \item{\code{get_model(y, q = NULL, sea.type = "trigonometric", sea.period = 7)}}{Returns dynamic Gompertz curve model. 
     \subsection{Parameters}{\itemize{
@@ -78,20 +105,6 @@ Used in the \code{get_model} function.}
       \item{\code{sea.period} The period of seasonality. For a day-of-the-week
        effect with daily data, this would be 7. Not required if
        \code{sea.type = 'none'}.}
-      \item{\code{a1} Optional parameter specifying the prior mean of the
-      states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
-      prior (no prior information). If a proper prior is to be specified, both
-      \code{a1} and \code{P1} must be given.}
-      \item{\code{P1} Optional parameter specifying the prior mean of the
-      states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
-       prior (no prior information). If a proper prior is to be specified,
-       both \code{a1} and \code{P1} must be given.}
-      \item{\code{Q} Optional parameter specifying the state error variances
-      where these are to be imposed rather than estimated. Defaults to
-      \code{'NULL'} which will see the variances estimated.}
-      \item{\code{H} Optional parameter specifying the irregular variance
-      where this is to be imposed rather than estimated. Defaults to
-      \code{'NULL'} which will see the variance estimated.}
     }}
     \subsection{Description}{
     The dynamic Gompertz with an integrated random walk (IRW) trend is
@@ -135,7 +148,7 @@ Used in the \code{get_model} function.}
   original.results = NULL,
   use.presample.info = TRUE
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
-are the defined in `fields` section. 
+are defined in `fields` section. 
   \subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,
   reinit.date = as.Date("2021-05-12",format = date.format))}}}
 
