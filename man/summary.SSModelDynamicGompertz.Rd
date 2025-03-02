@@ -2,7 +2,7 @@
 % Please edit documentation in R/accessorFns.R
 \name{summary.SSModelDynamicGompertz}
 \alias{summary.SSModelDynamicGompertz}
-\title{Calling summary method for classes in tsgc}
+\title{Calling summary method for SSModelDynamicGompertz class}
 \usage{
 \method{summary}{SSModelDynamicGompertz}(model)
 }

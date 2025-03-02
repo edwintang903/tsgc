@@ -2,7 +2,7 @@
 % Please edit documentation in R/accessorFns.R
 \name{print.SSModelDynamicGompertz}
 \alias{print.SSModelDynamicGompertz}
-\title{Calling print method for classes in tsgc}
+\title{Calling print method for SSModelDynamicGompertz class}
 \usage{
 \method{print}{SSModelDynamicGompertz}(model)
 }

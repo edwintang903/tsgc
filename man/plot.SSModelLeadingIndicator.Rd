@@ -4,7 +4,13 @@
 \alias{plot.SSModelLeadingIndicator}
 \title{Calling plot method for classes in tsgc}
 \usage{
-\method{plot}{SSModelLeadingIndicator}(model, title, series.name.lead, series.name.target, take.log)
+\method{plot}{SSModelLeadingIndicator}(
+  model,
+  title = NULL,
+  series.name.lead = "Leading Indicator",
+  series.name.target = "Target Variable",
+  take.log = TRUE
+)
 }
 \arguments{
 \item{model}{A \code{SSModelLeadingIndicator} object}

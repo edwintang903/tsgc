@@ -186,8 +186,8 @@ print.SSModelLeadingIndicator <- function(model) {
 #' @param model A `SSModelLeadingIndicator` object
 #' 
 #' @export
-plot.SSModelLeadingIndicator <- function(model,title, series.name.lead, 
-                                         series.name.target,take.log) {
+plot.SSModelLeadingIndicator <- function(model,title=NULL, series.name.lead="Leading Indicator", 
+                                         series.name.target="Target Variable",take.log=TRUE) {
   # Call the object's plot() method if it exists
   if (!is.null(model$plot) && is.function(model$plot)) {
     model$plot(title, series.name.lead, 
@@ -215,7 +215,7 @@ summary.SSModelLeadingIndicator <- function(model) {
   }
 }
 
-#' @title Calling print method for classes in tsgc
+#' @title Calling print method for SSModelDynamicGompertz class
 #'
 #' @description Accessor method to print a short description for the objects of
 #' `SSModelDynamicGompertz` class
@@ -232,7 +232,7 @@ print.SSModelDynamicGompertz <- function(model) {
   }
 }
 
-#' @title Calling summary method for classes in tsgc
+#' @title Calling summary method for SSModelDynamicGompertz class
 #'
 #' @description Accessor method to show a summary for the objects of
 #' `SSModelDynamicGompertz` class
@@ -248,3 +248,24 @@ summary.SSModelDynamicGompertz <- function(model) {
     stop("The object does not have a valid 'summary' method.")
   }
 }
+
+
+
+#' @title Calling plot method for SSModelDynamicGompertz class
+#'
+#' @description Accessor method to call the plot method of an object of 
+#' `SSModelDynamicGompertz` class
+#'
+#' @param model A `SSModelDynamicGompertz` object
+#' 
+#' @export
+plot.SSModelDynamicGompertz <- function(model,title=NULL, 
+                                        series.name="target variable", MA=TRUE) {
+  # Call the object's plot() method if it exists
+  if (!is.null(model$plot) && is.function(model$plot)) {
+    model$plot(title, series.name, MA)
+  } else {
+    stop("The object does not have a valid 'plot' method.")
+  }
+}
+

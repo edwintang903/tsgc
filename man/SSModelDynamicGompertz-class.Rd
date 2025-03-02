@@ -6,9 +6,44 @@
 \alias{SSModelDynamicGompertz}
 \title{Class for Dynamic Gompertz Curve State-Space Model}
 \description{
-Class for Dynamic Gompertz Curve State-Space Model Object, whose
-fields contain the model settings. Contains methods to obtain FilterResults
-object and plot the time series.
+Class for Dynamic Gompertz Curve State-Space Model Object, which encapsulates
+model settings and provides methods to obtain a FilterResults object and plot time series.
+
+The dynamic Gompertz model with an integrated random walk (IRW) trend is defined as:
+\deqn{\ln g_{t}= \delta_{t} + \varepsilon_{t}, \quad
+\varepsilon_{t} \sim NID(0, \sigma_{\varepsilon}^{2}), \quad
+t=2, ..., T,}
+where \eqn{Y_t} is the cumulative variable, \eqn{y_t = \Delta Y_t}, and
+\deqn{\ln g_{t} = \ln y_{t} - \ln Y_{t-1}.}
+The trend component follows:
+\deqn{\delta_{t} = \delta_{t-1} + \gamma_{t-1},}
+\deqn{\gamma_{t} = \gamma_{t-1} + \zeta_{t}, \quad
+\zeta_{t} \sim NID(0, \sigma_{\zeta}^{2}).}
+Here, the observation disturbances \eqn{\varepsilon_{t}} and slope disturbances \eqn{\zeta_{t}} are independent and normally distributed. The signal-to-noise ratio,
+\eqn{q_{\zeta} = \sigma_{\zeta}^{2} / \sigma_{\varepsilon}^{2}},
+determines how rapidly the slope adjusts to new observations—higher values lead to faster changes, while lower values induce smoothness.
+For models without seasonal terms (\code{sea.type = 'none'}), the priors are given by:
+\deqn{\begin{pmatrix} \delta_1 \ \gamma_1 \end{pmatrix}
+\sim N(a_1, P_1).}
+
+The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.type = 'trigonometric'}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
+
+See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{Q}, \eqn{H = \sigma^2_{\varepsilon}}.
+
+This class also supports the implementation of the reinitialisation
+procedure, described in the vignette and also summarised below.
+Let \eqn{t=r} denote the re-initialization date and \eqn{r_0} denote the
+date at which the cumulative series is set to 0. As the growth rate of
+cumulative cases is defined as \eqn{g_t\equiv \frac{y_t}{Y_{t-1}}}, we have:
+\deqn{\ln g_t = \ln y_t - \ln Y_{t-1} \;\;\;\; t=1, \ldots, r}
+\deqn{\ln g_t^r = \ln y_t - \ln Y_{t-1}^r \;\;\;\; t=r+1, \ldots, T}
+\deqn{Y_{t}^{r}=Y_{t-1}^{r}+y_{t}  \;\;\;\; t=r,\ldots,T}
+where \eqn{Y_{t}^{r}} is the cumulative cases after re-initialization. We
+choose to set the cumulative cases to zero at \eqn{r_0=r-1, Y_{r-1}^{r}=0},
+such that the growth rate of cumulative cases is available from \eqn{t=r+1}
+onwards.
+We reinitialise the model by specifying the prior distribution for the
+initial states appropriately. See the vignette for details.
 }
 \section{Fields}{
 
@@ -52,92 +87,6 @@ class \code{SSModelDynamicGompertz}.
 \subsection{Return Value}{An object of class \code{FilterResults}
 containing the result output for the estimated dynamic Gompertz curve
 model.}}
-
-\item{\code{get_dynamic_gompertz_model(
-  y,
-  q = NULL,
-  sea.type = "trigonometric",
-  sea.period = 7,
-  a1 = NULL,
-  P1 = NULL,
-  Q = NULL,
-  H = NULL
-)}}{Returns the Dynamic Gompertz Model object, assuming no reinitialization. 
-Used in the \code{get_model} function.
-\subsection{Parameters}{\itemize{
-  \item{\code{y} The cumulated variable}
-  \item{\code{q} The signal-to-noise ratio (ratio of slope to irregular
-  variance). Defaults to \code{'NULL'}, in which case no signal-to-noise
-  ratio will be imposed. Instead, it will be estimated.}
-  \item{\code{sea.type} Seasonal type. Options are \code{'trigonometric'}
-   and \code{'none'}. \code{'trigonometric'} will yield a model with a
-   trigonometric seasonal component and \code{'none'} will yield a model
-   with no seasonal component.}
-  \item{\code{sea.period} The period of seasonality. For a day-of-the-week
-   effect with daily data, this would be 7. Not required if
-   \code{sea.type = 'none'}.}
-  \item{\code{a1} Optional parameter specifying the prior mean of the
-  states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
-  prior (no prior information). If a proper prior is to be specified, both
-  \code{a1} and \code{P1} must be given.}
-  \item{\code{P1} Optional parameter specifying the prior mean of the
-  states. Defaults to \code{'NULL'}. Leave as \code{'NULL'} for a diffuse
-   prior (no prior information). If a proper prior is to be specified,
-   both \code{a1} and \code{P1} must be given.}
-  \item{\code{Q} Optional parameter specifying the state error variances
-  where these are to be imposed rather than estimated. Defaults to
-  \code{'NULL'} which will see the variances estimated.}
-  \item{\code{H} Optional parameter specifying the irregular variance
-  where this is to be imposed rather than estimated. Defaults to
-  \code{'NULL'} which will see the variance estimated.}
-}}}
-
-\item{\code{get_model(y, q = NULL, sea.type = "trigonometric", sea.period = 7)}}{Returns dynamic Gompertz curve model. 
-    \subsection{Parameters}{\itemize{
-      \item{\code{y} The log-growth rate time series.}
-      \item{\code{q} The signal-to-noise ratio (ratio of slope to irregular
-      variance). Defaults to \code{'NULL'}, in which case no signal-to-noise
-      ratio will be imposed. Instead, it will be estimated.}
-      \item{\code{sea.type} Seasonal type. Options are \code{'trigonometric'}
-       and \code{'none'}. \code{'trigonometric'} will yield a model with a
-       trigonometric seasonal component and \code{'none'} will yield a model
-       with no seasonal component.}
-      \item{\code{sea.period} The period of seasonality. For a day-of-the-week
-       effect with daily data, this would be 7. Not required if
-       \code{sea.type = 'none'}.}
-    }}
-    \subsection{Description}{
-    The dynamic Gompertz with an integrated random walk (IRW) trend is
-    \deqn{\ln g_{t}=\delta_{t}+\varepsilon_{t},  \;\;\;\;
-    \varepsilon_{t}\sim NID(0,\sigma_{\varepsilon }^{2}), \;\;\;\;
-    t=2,...,T, }
-    where \eqn{Y_t} is the cumulated variable, \eqn{y_t = \Delta Y_t},
-    \eqn{\ln g_{t}=\ln y_{t}-\ln Y_{t-1}} and
-    \deqn{\delta_{t} =\delta_{t-1}+\gamma_{t-1},}
-    \deqn{\gamma_{t} =\gamma_{t-1}+\zeta_{t}, \;\;\;\;
-    \zeta_{t}\sim NID(0,\sigma_{\zeta }^{2}),}
-    where the observation disturbances \eqn{\varepsilon_{t}}  and slope
-    disturbances \eqn{\zeta_{t}}, are iid Normal and mutually independent.
-    Note that, the larger the signal-to-noise ratio,
-    \eqn{q_{\zeta }=\sigma_{\zeta }^{2}/\sigma_{\varepsilon }^{2}},
-    the faster the slope changes in response to new observations. Conversely,
-    a lower signal-to-noise ratio induces smoothness.
-
-    For the model without seasonal terms (\code{sea.type = 'none'}) the are
-    priors are
-    \deqn{\begin{pmatrix} \delta_1 \ \gamma_1 \end{pmatrix}
-    \sim N(a_1,P_1)}.
-    The diffuse prior has \eqn{P_1 = \kappa I_{2\times 2}} with
-    \eqn{\kappa \to \infty}. Implementation of the diffuse prior is handled
-     by the package \code{KFAS} (Helske, 2017). Where the model has a seasonal
-      component (\code{sea.type = 'trigonometric'}), the vector of prior means
-       \eqn{a_1} and the prior covariance matrix \eqn{P_1} are extended
-       accordingly.
-
-    See the vignette for details of the variance matrix \eqn{Q}.
-    \eqn{H = \sigma^2_{\varepsilon}}.
-    }
-      \subsection{Return Value}{\code{KFS} model object.}}
 
 \item{\code{initialize(
   Y,
@@ -199,7 +148,17 @@ idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
 
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+
+# Show summary of the model object
+summary(model)
+
+# Print a short description of the model object
+print(model)
+
+# Plot the time series in the model object
+plot(model,title="Daily COVID cases in Gauteng", series.name="cases", MA=TRUE)
+
 # Estimate a specified model
-res <- model$estimate()
+res <- estimate(model)
 
 }
