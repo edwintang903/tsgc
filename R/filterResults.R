@@ -5,6 +5,14 @@ setOldClass("KFS")
 #' @description Class for estimated Dynamic Gompertz Curve model and contains
 #' methods to extract smoothed/filtered estimates of the states, the level of
 #' the incidence variable \eqn{y}, and forecasts of \eqn{y}.
+#' 
+#' @field data_xts The non-reinitialized cumulated variable.
+#' @field index The list of dates in the index of \code{data_xts}.
+#' @field reinit.date The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable). 
+#' Should be specified as an object of class \code{\"Date\"}.
+#' @field output A \code{KFS} results object obtained after fitting a 
+#' \code{SSModelDynamicGompertz} model.
+#' 
 #' @references Harvey, A. C. and Kattuman, P. (2021). A Farewell to R:
 #' Time Series Models for Tracking and
 #' Forecasting Epidemics, Journal of the Royal Society Interface, vol 18(182):
@@ -20,20 +28,53 @@ setOldClass("KFS")
 #'
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' 
 #' # Estimate a specified model
 #' res <- estimate(model)
+#' 
+#' # Show summary of object
+#' res$summary()
+#' 
+#' # Print a short description of the object
+#' res$print()
+#' 
 #' # Print estimation results
 #' res$print_estimation_results()
+#' 
 #' # Forecast 7 days ahead from the end of the estimation window
 #' res$predict_level(n.ahead = 7,
 #'   confidence.level = 0.68, sea.on=TRUE)
+#'   
 #' # Forecast 7 days ahead from the model and return filtered states
 #' res$predict_all(n.ahead = 7, return.all = TRUE)
+#' 
 #' # Return the filtered growth rate and its components
 #' res$get_growth_y(return.components = TRUE)
+#' 
 #' # Return smoothed growth rate of incidence variable and its confidence
 #' # interval
 #' res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
+#'
+#' # Plot forecast and realised log growth rate of cumulative cases
+#' res$plot_log_forecast(Y=Y,n.ahead=7,
+#' plt.start.date=estimation.date.end-plt.length)
+#' 
+#' # Plot forecast of new cases 7 days ahead
+#' res$plot_new_cases(n.ahead=7,
+#' plt.start.date = estimation.date.end-plt.length,
+#' series.name="hospitalizations")
+#' 
+#' # Plot forecasts and outcomes over evaluation period
+#' res$plot_holdout(Y=Y,n.ahead=7, series.name="hospitalizations")
+#' 
+#' # Plot filtered gy, g and gamma
+#' res$plot_gy_components()
+#' 
+#' # Plot filtered gy, g and gamma
+#' res$plot_gy_ci()
+#' 
+#' # Return MAPE of forecast
+#' res$mapes(n.ahead=7,gauteng)
 #'
 #' @export
 #'
@@ -48,17 +89,8 @@ FilterResults <- setRefClass(
   methods = list(
     initialize = function(data_xts,index,reinit.date, output)
     {
-      "Create an instance of the \\code{FilterResults} class.
-       \\subsection{Parameters}{\\itemize{
-        \\item{\\code{data_xts} The cumulated variable.}
-        \\item{\\code{index} The list of dates in the index of \\code{data_xts}.}
-        \\item{\\code{reinit.date} The reinitialisation date \\eqn{r}. Should
-        be specified as an object of class \\code{\"Date\"}.}
-        \\item{\\code{output} A \\code{KFS} results object obtained after fitting a 
-        \\code{SSModelDynamicGompertz} model.}
-      }}
-      \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
-      reinit.date = as.Date(\"2021-05-12\",format = date.format))}}"
+      "Create an instance of the \\code{FilterResults} class with fields defined
+      earlier in the fields section."
       data_xts<<-data_xts
       index <<- index
       reinit.date<<-reinit.date
@@ -234,13 +266,17 @@ FilterResults <- setRefClass(
       y.hat <- xts::xts(
         rbind(y.t.t, y.hat.kfas[, 1] %>% as.matrix()),
         order.by = dates)
-
+      names(y.hat)<-c("y.hat")
+      
       i.level <- grep("level", colnames(att(model_output)))
       level.t.t <- xts::xts(att(model_output)[, i.level], order.by = dates) %>%
         as.xts()
+      names(level.t.t)<-c("level.t.t")
+      
       i.slope <- grep("slope", colnames(att(model_output)))
       slope.t.t <- xts::xts(att(model_output)[, i.slope], order.by = dates) %>%
         as.xts()
+      names(slope.t.t)<-c("slope.t.t")
 
       if (!return.all) {
         y.hat <- y.hat %>%

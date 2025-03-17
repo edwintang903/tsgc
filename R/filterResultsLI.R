@@ -1,15 +1,33 @@
 setOldClass("KFS")
 #'
-#' @title FilterResultsLI
+#' @title Class for the estimated Leading Indicator Gompertz Curve model
 #'
 #' @description Class for estimated Leading Indicator Gompertz Curve model and
 #' contains methods to extract smoothed/filtered estimates of the states, the
 #' level of the incidence variable \eqn{y}, and forecasts of \eqn{y}.
-#' @references Harvey, A. C. and Kattuman, P. (2021).
+#'
+#' @field data_xts A xts object with cumulated variables: leading indicator and 
+#' target variable.
+#' @field index The list of dates in the index of \code{data_xts}.
+#' @field output A \code{KFS} results object obtained after fitting a 
+#' \code{SSModelLeadingIndicator} model.
+#' @field n.lag Number of days to lag the leading indicator, inherited from the 
+#' estimated \code{SSModelLeadingIndicator} model.
+#' @field sea.period The period of seasonality, inherited from the estimated 
+#' \code{SSModelLeadingIndicator} model. For a day-of-the-week
+#'   effect with daily data, this would be 7. 
+#' @field LeadIndCol The column in \code{data_xts} that contains the leading 
+#' indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.
+#'
+#'@references Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS: 
+#'LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT. 
+#'National Institute Economic Review, 257, 83–100. 
+#'doi:10.1017/nie.2021.21
 #'
 #' @importFrom xts periodicity last
 #' @importFrom magrittr %>%
 #' @importFrom methods new
+#' 
 #' @examples
 #' library(tsgc)
 #' 
@@ -22,44 +40,51 @@ setOldClass("KFS")
 #' confidence.level = 0.68
 #' plt.length = 14
 #' n.lag = 4
-#' n.forecasts = 7
 #' 
 #' #Select data in the desired timeframe
 #' idx.est =(zoo::index(Y) >= estimation.date.start) & (zoo::index(Y) <= estimation.date.end)
 #' y = Y[idx.est]
 #' 
-#' #Define and Estimate the model
+#' # Define and Estimate the model
 #' out<-SSModelLeadingIndicator(Y=y,n.lag = n.lag,q=q,LeadIndCol=1, sea.period=7) 
 #' res<-estimate(out) 
 #' 
-#' #Plots
-#' res$plot_log_forecast(Y=Y,n.ahead=n.forecasts,
-#' plt.start.date=estimation.date.end-plt.length)
-#' 
-#' res$plot_new_cases(n.ahead=n.forecasts,
-#' plt.start.date = estimation.date.end-plt.length,
-#' series.name="hospitalizations")
-#' 
-#' res$plot_holdout(Y=Y,n.ahead=n.forecasts, series.name="hospitalizations")
-#'
-#' # Specify a model
-#' 
-#' 
-#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
-#' # Estimate a specified model
-#' res <- model$estimate()
 #' # Print estimation results
 #' res$print_estimation_results()
+#' 
 #' # Forecast 7 days ahead from the end of the estimation window
-#' res$predict_level(y.cum = gauteng[idx.est], n.ahead = 7,
-#'   confidence.level = 0.68)
+#' res$predict_level(n.ahead = 7, confidence.level = 0.68)
+#'   
 #' # Forecast 7 days ahead from the model and return filtered states
 #' res$predict_all(n.ahead = 7, return.all = TRUE)
+#' 
 #' # Return the filtered growth rate and its components
 #' res$get_growth_y(return.components = TRUE)
+#' 
 #' # Return smoothed growth rate of incidence variable and its confidence
 #' # interval
 #' res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
+#'
+#' # Plot forecast of new cases 7 days ahead
+#' res$plot_log_forecast(Y=Y, n.ahead=7,
+#' plt.start.date=estimation.date.end-plt.length)
+#' 
+#' # Plot forecast of new cases 7 days ahead
+#' res$plot_new_cases(n.ahead=7,
+#' plt.start.date = estimation.date.end-plt.length,
+#' series.name="hospitalizations")
+#' 
+#' # Plot forecasts and outcomes over evaluation period
+#' res$plot_holdout(Y=Y,n.ahead=7, series.name="hospitalizations")
+#' 
+#' # Plot filtered gy, g and gamma
+#' res$plot_gy_components(plt.start.date = estimation.date.end-plt.length)
+#' 
+#' # Plot filtered gy, g and gamma
+#' res$plot_gy_ci(plt.start.date = estimation.date.end-plt.length)
+#' 
+#' #Return MAPE of forecast
+#' res$mapes(n.ahead=7,Y)
 #'
 #' @export
 #'
@@ -76,6 +101,8 @@ FilterResultsLI <- setRefClass(
   methods = list(
     initialize = function(index,data_xts, output,n.lag,sea.period,LeadIndCol)
     {
+      "Create an instance of the \\code{FilterResultsLI} class with fields defined
+      earlier in the fields section."
       index <<-index
       data_xts <<- data_xts
       output <<- output
@@ -490,7 +517,6 @@ FilterResultsLI <- setRefClass(
       variable, showing actual values, forecasts including seasonal components,
       and prediction intervals around the forecasts. For more details, see 
       \\link{plot_new_cases}."
-      res<-.self
         
         if (is.null(plt.start.date)){plt.start.date <- head(index(data_xts), 1)}
         # add forecasts to plotting dataframe
@@ -552,7 +578,6 @@ FilterResultsLI <- setRefClass(
       (\\eqn{\\ln(g_t)}) of the target variable in the estimation sample and 
       the forecast and realised log cumulative growth rate of the target variable
       out of the estimation sample. For more details, see \\link{plot_log_forecast}."
-    res<-.self
     
     old=data_xts[,"LDLhosp"]
     old=old[index(old)>head(index(old),1)+n.lag]
@@ -581,11 +606,11 @@ FilterResultsLI <- setRefClass(
     
     # Extract estimate of Q from earlier model
     Qf = output$model$Q[,,1]
-    if (is.na(res$sea.period)) {
+    if (is.na(.self$sea.period)) {
       forcmodel = SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
                           H = output$model$H)
     } else {
-      forcmodel = SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+SSMseasonal(res$sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), sea.type='dummy', type='distinct')+SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = output$model$H)
+      forcmodel = SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+SSMseasonal(.self$sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), sea.type='dummy', type='distinct')+SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = output$model$H)
     }
     forcout = predict(output$model,forcmodel,interval=c('prediction'),
                       level=0.68,states=c('trend'))
@@ -639,7 +664,6 @@ FilterResultsLI <- setRefClass(
     "Plots the growth rates and slope of the log cumulative growth rate 
       against the dates in estimation sample. 
       For more details, please see \\link{plot_gy_components}."
-    res<-.self
     Date <- Value <- Variable <- NULL
     # Determine plot start date
     if(is.null(plt.start.date)) {
@@ -647,7 +671,7 @@ FilterResultsLI <- setRefClass(
     }
     
     # Get gy.t, g.t and gamma
-    gy.components <- res$get_growth_y(return.components = TRUE, smoothed =
+    gy.components <- .self$get_growth_y(return.components = TRUE, smoothed =
                                         smoothed)
     gy.t <- gy.components[[1]]
     g.t <- gy.components[[2]]
@@ -684,7 +708,6 @@ FilterResultsLI <- setRefClass(
     "Plots the growth rates and the slope of the log cumulative growth rate of 
     the target variable against the dates in estimation sample. 
       For more details, please see \\link{plot_gy_ci}."
-    res<-.self
     Date <- fit <- upper <- lower <- NULL
     
     # Determine plot start date
@@ -693,7 +716,7 @@ FilterResultsLI <- setRefClass(
     }
     
     # Get confidence intervals to plot
-    gy.ci<- res$get_gy_ci(smoothed = smoothed)
+    gy.ci<- .self$get_gy_ci(smoothed = smoothed)
     
     y.lab <- if(is.null(series.name)) { c("Growth rate") } else {
       paste("Growth rate of"," ",series.name,sep="")

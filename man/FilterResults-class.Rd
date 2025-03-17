@@ -10,6 +10,20 @@ Class for estimated Dynamic Gompertz Curve model and contains
 methods to extract smoothed/filtered estimates of the states, the level of
 the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 }
+\section{Fields}{
+
+\describe{
+\item{\code{data_xts}}{The non-reinitialized cumulated variable.}
+
+\item{\code{index}}{The list of dates in the index of \code{data_xts}.}
+
+\item{\code{reinit.date}}{The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable).
+Should be specified as an object of class \code{\"Date\"}.}
+
+\item{\code{output}}{A \code{KFS} results object obtained after fitting a
+\code{SSModelDynamicGompertz} model.}
+}}
+
 \section{Methods}{
 
 \describe{
@@ -45,17 +59,8 @@ variable (\eqn{Y}). Computed as
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
-\item{\code{initialize(data_xts, index, reinit.date, output)}}{Create an instance of the \code{FilterResults} class.
- \subsection{Parameters}{\itemize{
-  \item{\code{data_xts} The cumulated variable.}
-  \item{\code{index} The list of dates in the index of \code{data_xts}.}
-  \item{\code{reinit.date} The reinitialisation date \eqn{r}. Should
-  be specified as an object of class \code{"Date"}.}
-  \item{\code{output} A \code{KFS} results object obtained after fitting a 
-  \code{SSModelDynamicGompertz} model.}
-}}
-\subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,
-reinit.date = as.Date("2021-05-12",format = date.format))}}}
+\item{\code{initialize(data_xts, index, reinit.date, output)}}{Create an instance of the \code{FilterResults} class with fields defined
+earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
 forecasts against a holdout sample. For more details, please refer to 
@@ -174,20 +179,53 @@ idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
 
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+
 # Estimate a specified model
 res <- estimate(model)
+
+# Show summary of object
+res$summary()
+
+# Print a short description of the object
+res$print()
+
 # Print estimation results
 res$print_estimation_results()
+
 # Forecast 7 days ahead from the end of the estimation window
 res$predict_level(n.ahead = 7,
   confidence.level = 0.68, sea.on=TRUE)
+  
 # Forecast 7 days ahead from the model and return filtered states
 res$predict_all(n.ahead = 7, return.all = TRUE)
+
 # Return the filtered growth rate and its components
 res$get_growth_y(return.components = TRUE)
+
 # Return smoothed growth rate of incidence variable and its confidence
 # interval
 res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
+
+# Plot forecast and realised log growth rate of cumulative cases
+res$plot_log_forecast(Y=Y,n.ahead=7,
+plt.start.date=estimation.date.end-plt.length)
+
+# Plot forecast of new cases 7 days ahead
+res$plot_new_cases(n.ahead=7,
+plt.start.date = estimation.date.end-plt.length,
+series.name="hospitalizations")
+
+# Plot forecasts and outcomes over evaluation period
+res$plot_holdout(Y=Y,n.ahead=7, series.name="hospitalizations")
+
+# Plot filtered gy, g and gamma
+res$plot_gy_components()
+
+# Plot filtered gy, g and gamma
+res$plot_gy_ci()
+
+# Return MAPE of forecast
+res$mapes(n.ahead=7,gauteng)
 
 }
 \references{

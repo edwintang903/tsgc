@@ -4,12 +4,34 @@
 \name{FilterResultsLI-class}
 \alias{FilterResultsLI-class}
 \alias{FilterResultsLI}
-\title{FilterResultsLI}
+\title{Class for the estimated Leading Indicator Gompertz Curve model}
 \description{
 Class for estimated Leading Indicator Gompertz Curve model and
 contains methods to extract smoothed/filtered estimates of the states, the
 level of the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 }
+\section{Fields}{
+
+\describe{
+\item{\code{data_xts}}{A xts object with cumulated variables: leading indicator and
+target variable.}
+
+\item{\code{index}}{The list of dates in the index of \code{data_xts}.}
+
+\item{\code{output}}{A \code{KFS} results object obtained after fitting a
+\code{SSModelLeadingIndicator} model.}
+
+\item{\code{n.lag}}{Number of days to lag the leading indicator, inherited from the
+estimated \code{SSModelLeadingIndicator} model.}
+
+\item{\code{sea.period}}{The period of seasonality, inherited from the estimated
+\code{SSModelLeadingIndicator} model. For a day-of-the-week
+effect with daily data, this would be 7.}
+
+\item{\code{LeadIndCol}}{The column in \code{data_xts} that contains the leading
+indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.}
+}}
+
 \section{Methods}{
 
 \describe{
@@ -44,6 +66,9 @@ variable (\eqn{Y}). Computed as
 }}
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
+
+\item{\code{initialize(index, data_xts, output, n.lag, sea.period, LeadIndCol)}}{Create an instance of the \code{FilterResultsLI} class with fields defined
+earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
 forecasts against a holdout sample. For more details, please refer to 
@@ -156,46 +181,56 @@ q = NA
 confidence.level = 0.68
 plt.length = 14
 n.lag = 4
-n.forecasts = 7
 
 #Select data in the desired timeframe
 idx.est =(zoo::index(Y) >= estimation.date.start) & (zoo::index(Y) <= estimation.date.end)
 y = Y[idx.est]
 
-#Define and Estimate the model
+# Define and Estimate the model
 out<-SSModelLeadingIndicator(Y=y,n.lag = n.lag,q=q,LeadIndCol=1, sea.period=7) 
 res<-estimate(out) 
 
-#Plots
-res$plot_log_forecast(Y=Y,n.ahead=n.forecasts,
-plt.start.date=estimation.date.end-plt.length)
-
-res$plot_new_cases(n.ahead=n.forecasts,
-plt.start.date = estimation.date.end-plt.length,
-series.name="hospitalizations")
-
-res$plot_holdout(Y=Y,n.ahead=n.forecasts, series.name="hospitalizations")
-
-# Specify a model
-
-
-model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
-# Estimate a specified model
-res <- model$estimate()
 # Print estimation results
 res$print_estimation_results()
+
 # Forecast 7 days ahead from the end of the estimation window
-res$predict_level(y.cum = gauteng[idx.est], n.ahead = 7,
-  confidence.level = 0.68)
+res$predict_level(n.ahead = 7, confidence.level = 0.68)
+  
 # Forecast 7 days ahead from the model and return filtered states
 res$predict_all(n.ahead = 7, return.all = TRUE)
+
 # Return the filtered growth rate and its components
 res$get_growth_y(return.components = TRUE)
+
 # Return smoothed growth rate of incidence variable and its confidence
 # interval
 res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
 
+# Plot forecast of new cases 7 days ahead
+res$plot_log_forecast(Y=Y, n.ahead=7,
+plt.start.date=estimation.date.end-plt.length)
+
+# Plot forecast of new cases 7 days ahead
+res$plot_new_cases(n.ahead=7,
+plt.start.date = estimation.date.end-plt.length,
+series.name="hospitalizations")
+
+# Plot forecasts and outcomes over evaluation period
+res$plot_holdout(Y=Y,n.ahead=7, series.name="hospitalizations")
+
+# Plot filtered gy, g and gamma
+res$plot_gy_components(plt.start.date = estimation.date.end-plt.length)
+
+# Plot filtered gy, g and gamma
+res$plot_gy_ci(plt.start.date = estimation.date.end-plt.length)
+
+#Return MAPE of forecast
+res$mapes(n.ahead=7,Y)
+
 }
 \references{
-Harvey, A. C. and Kattuman, P. (2021).
+Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS:
+LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT.
+National Institute Economic Review, 257, 83–100.
+doi:10.1017/nie.2021.21
 }

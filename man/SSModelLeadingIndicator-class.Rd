@@ -26,7 +26,7 @@ effect with daily data, this would be 7. Not required if
 
 \item{\code{n.lag}}{Number of days to lag the leading indicator.}
 
-\item{\code{LeadIndCol}}{The column in \\code{Y} that contains the leading indicator.}
+\item{\code{LeadIndCol}}{The column in \code{Y} that contains the leading indicator.}
 }}
 
 \section{Methods}{

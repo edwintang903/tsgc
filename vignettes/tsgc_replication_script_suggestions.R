@@ -82,7 +82,6 @@ mod1$plot(title="Gauteng daily cases", series.name="cases")
 # -----------------------------
 # Model Estimation Options for the Third Wave
 # -----------------------------
-
 idx.est <- (zoo::index(cumulative_cases) >= estimation.date.start) &
   (zoo::index(cumulative_cases) <= estimation.date.end)
 y <- cumulative_cases[idx.est]
@@ -142,7 +141,7 @@ tsgc::plot_holdout(
 
 tsgc::write_results(
   res = res,
-  res.dir = results_dir,
+  res.dir = tables_dir,
   n.ahead = n.forecasts,
   confidence.level = confidence.level
 )
@@ -491,42 +490,3 @@ plot_holdout(
   n.ahead = n.forc,
   series.name = "UK cases"
 )
-
-# -----------------------------
-# 5. Forecast Combination to Predict Hospitalisation from Multiple Lags of Cases
-# -----------------------------
-# Using the ForecastComb package, combine forecasts for hospitalisations.
-Y <- england[, c("cum_cases", "cum_admissions")]
-est.start.date <- as.Date("2020-09-01")
-est.end.date <- as.Date("2020-10-30")
-Y.reinit <- reinitialise_dataframe(Y, est.start.date)
-
-#Plot optimal weights of rolling forecasts
-comb_all<-plot_rolling_weights(
-  Y.reinit,
-  est.start.date,
-  est.end.date,
-  all_lags = c(2, 5, 7, 9),
-  train_days = 20,
-  test_days = 60,
-  method = comb_BG
-)
-
-#Predict future observations with forecast combinations
-est.start.date <- as.Date("2020-09-01")
-est.end.date <- as.Date("2020-10-30")+80
-idx.est <- (zoo::index(Y.reinit) >= est.start.date) &
-  (zoo::index(Y.reinit) <= est.end.date)
-y <- Y.reinit[idx.est]
-
-future_preds<-matrix(nrow=14,ncol=4)
-all_lags<-c(2, 5, 7, 9)
-for (i in 1:4){
-  j=all_lags[i]
-  mod<-SSModelLeadingIndicator(Y=y, n.lag=j)
-  resi<-estimate(mod)
-  future_preds[,i]<-resi$predict_level(14)[,1]
-}
-
-### Are we writing the forecast combination results to file?
-predict(comb_all,future_preds)

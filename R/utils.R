@@ -512,7 +512,7 @@ combine_forecasts=function(Y,est.start.date,est.end.date,
       if (all_lags[k]==0){
         out<-SSModelDynamicGompertz(Y=Y[idx,-LeadIndCol])
         res<-estimate(out)
-        d<-res$predict_level(y.cum=Y[idx,-LeadIndCol],n.ahead=1,confidence.level = 0.68, 
+        d<-res$predict_level(n.ahead=7,confidence.level = 0.68, sea.on = TRUE,
                              return.diff = TRUE)
         result[k,1+m]<-as.matrix(d)[1,1]
       } else{

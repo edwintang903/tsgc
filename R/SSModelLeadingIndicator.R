@@ -16,7 +16,7 @@
 
 setOldClass("KFS")
 #'
-#' @title  Class for leading indicator state space model object
+#' @title Class for leading indicator state space model object
 #'
 #' @description Class for leading indicator state space model object. The model 
 #' settings are stored in the fields of this object, and the class contains 
@@ -31,7 +31,7 @@ setOldClass("KFS")
 #'   effect with daily data, this would be 7. Not required if
 #'   \code{sea.type = 'none'}.
 #' @field n.lag Number of days to lag the leading indicator.
-#' @field LeadIndCol The column in \\code{Y} that contains the leading indicator.
+#' @field LeadIndCol The column in \code{Y} that contains the leading indicator.
 #'
 #' @importFrom xts periodicity last
 #' @importFrom methods new
@@ -95,7 +95,7 @@ SSModelLeadingIndicator <- setRefClass(
       model.}"
 
       # Compute LDL and lag data appropriately
-      y<-add_daily_ldl(Y,LeadIndCol=LeadIndCol)
+      y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
 
       data_ldl = y[,c("LDLcases","LDLhosp")]
 
