@@ -77,6 +77,9 @@ not to use information from before the reinitialisation date in the
 reinitialisation procedure. Default is \code{TRUE}. If \code{FALSE}, the
 model is estimated from scratch from the reinitialisation date and no
 attempt to use information from before the reinitialisation date is made.}
+
+\item{\code{xpred}}{An \code{xts} object containing the dataset of exogenous variables
+to include in the model. Defaults to \code{NULL}.}
 }}
 
 \section{Methods}{
@@ -95,7 +98,8 @@ model.}}
   sea.period = 7,
   reinit.date = NULL,
   original.results = NULL,
-  use.presample.info = TRUE
+  use.presample.info = TRUE,
+  xpred = NULL
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
 are defined in `fields` section. 
   \subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,

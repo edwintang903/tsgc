@@ -59,10 +59,10 @@ variable (\eqn{Y}). Computed as
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
-\item{\code{initialize(data_xts, index, reinit.date, output)}}{Create an instance of the \code{FilterResults} class with fields defined
+\item{\code{initialize(data_xts, xpred, index, reinit.date, output)}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}
 
-\item{\code{mapes(n.ahead, Y)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
+\item{\code{mapes(n.ahead, Y, xpred.new = NULL)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
 forecasts against a holdout sample. For more details, please refer to 
 \link{mapes}.}
 
@@ -83,6 +83,7 @@ For more details, please see \link{plot_gy_components}.}
 \item{\code{plot_holdout(
   Y,
   n.ahead = 14,
+  xpred.new = NULL,
   confidence.level = 0.68,
   date_format = "\%Y-\%m-\%d",
   series.name = "target variable",
@@ -95,6 +96,7 @@ variable) over a holdout sample. For more details, please refer to
 \item{\code{plot_log_forecast(
   Y,
   n.ahead = 14,
+  xpred.new = NULL,
   plt.start.date = NULL,
   title = "",
   caption = ""
@@ -105,6 +107,7 @@ see \link{plot_log_forecast}.}
 
 \item{\code{plot_new_cases(
   n.ahead = 14,
+  xpred.new = NULL,
   confidence.level = 0.68,
   date_format = "\%Y-\%m-\%d",
   title = NULL,
@@ -115,7 +118,7 @@ showing actual values, forecasts including seasonal components,
 and prediction intervals around the forecasts. 
 For more details, see \link{plot_new_cases}.}
 
-\item{\code{predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)}}{Returns forecasts of the incidence variable \eqn{y}, the state variables
+\item{\code{predict_all(n.ahead, xpred.new = NULL, sea.on = TRUE, return.all = FALSE)}}{Returns forecasts of the incidence variable \eqn{y}, the state variables
  and the conditional covariance matrix
 for the states.
  \subsection{Parameters}{\itemize{
@@ -138,6 +141,7 @@ states including seasonals where applicable (\code{P.t.t}).}}
 
 \item{\code{predict_level(
   n.ahead,
+  xpred.new = NULL,
   confidence.level = 0.68,
   sea.on = FALSE,
   return.diff = TRUE

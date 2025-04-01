@@ -24,7 +24,7 @@ setOldClass("KFS")
 #'National Institute Economic Review, 257, 83–100. 
 #'doi:10.1017/nie.2021.21
 #'
-#' @importFrom xts periodicity last lag
+#' @importFrom xts periodicity last lag.xts
 #' @importFrom magrittr %>%
 #' @importFrom methods new
 #' 

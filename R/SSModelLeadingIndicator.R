@@ -33,7 +33,7 @@ setOldClass("KFS")
 #' @field n.lag Number of days to lag the leading indicator.
 #' @field LeadIndCol The column in \code{Y} that contains the leading indicator.
 #'
-#' @importFrom xts periodicity last lag
+#' @importFrom xts periodicity last lag.xts
 #' @importFrom methods new
 #' @importFrom magrittr %>%
 #' @importFrom KFAS SSMtrend SSMseasonal SSModel
