@@ -7,7 +7,10 @@
 \format{
 An object of class \code{"xts"};
 \describe{
-\item{Cases}{Cumulative cases of Covid-19}
+\item{cum_cases}{Cumulative cases of Covid-19}
+\item{cum_admissions}{Cumulative hospital admissions due to Covid-19}
+\item{cum_deaths}{Cumulative deaths due to Covid-19}
+\item{hospital_cases}{???}
 }
 }
 \usage{

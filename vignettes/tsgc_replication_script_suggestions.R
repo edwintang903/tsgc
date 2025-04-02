@@ -20,6 +20,7 @@ library(here)
 library(timetk)
 library(ForecastComb) 
 library(tidyr)
+library(abind)
 
 # -----------------------------
 # Global Theme and Project Setup
@@ -105,8 +106,7 @@ summary(res)
 # -----------------------------
 # Forecasting: Log Growth Rate
 # -----------------------------
-tsgc::plot_log_forecast(
-  res,
+res$plot_log_forecast(
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   plt.start.date = tail(res$index, 1) - plt.length,
@@ -116,8 +116,7 @@ tsgc::plot_log_forecast(
 # -----------------------------
 # Forecasting: New Cases and Holdout Evaluation
 # -----------------------------
-tsgc::plot_new_cases(
-  res,
+res$plot_new_cases(
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   date_format = date.format,
@@ -126,8 +125,7 @@ tsgc::plot_new_cases(
   series.name = "Cases"
 )
 
-tsgc::plot_holdout(
-  res,
+res$plot_holdout(
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
@@ -144,21 +142,6 @@ tsgc::write_results(
   n.ahead = n.forecasts,
   confidence.level = confidence.level
 )
-# -----------------------------
-# Estimation: Diffuse Prior Model with exogenous predictors
-# -----------------------------
-# Load Gauteng weather 
-data(gauteng, package = "tsgc")
-
-# Extract weather information in estimation time frame
-idx.est1 <- (zoo::index(gauteng_weather) >= estimation.date.start) &
-  (zoo::index(gauteng_weather) <= estimation.date.end)
-weather<-gauteng_weather[idx.est1,]
-
-# The signal-to-noise ratio was estimated as a free parameter in this step.
-model_weather <- SSModelDynamicGompertz$new(Y = y, xpred=weather)
-res_weather <- estimate(model_weather)
-summary(res_weather)
 
 # -----------------------------
 # Estimation: Diffuse Prior Model with exogenous predictors
@@ -312,6 +295,21 @@ model <- SSModelDynamicGompertz$new(
   reinit.date = as.Date(reinit.dates, format = date.format)
 )
 res.reinit <- estimate(model)
+
+# # Estimate the reinitialized model with exogenous predictors.
+# idx.est3 <- (zoo::index(gauteng_weather) >= estimation.date.start) &
+#   (zoo::index(gauteng_weather) <= estimation.date.end)
+# weather3 <- gauteng_weather[idx.est3]
+# 
+# model.x <- SSModelDynamicGompertz$new(
+#   Y = y,
+#   xpred=weather3,
+#   q = q,
+#   sea.period=7,
+#   reinit.date = as.Date(reinit.dates, format = date.format)
+# )
+# res.reinit.x <- estimate(model.x)
+# summary(res.reinit.x)
 
 # -----------------------------
 # Plotting: Forecasts after Reinitialisation
