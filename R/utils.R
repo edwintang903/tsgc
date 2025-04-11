@@ -214,6 +214,56 @@ write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
 
 }
 
+#' @title Calculate reproduction number estimates and credible intervals
+#'
+#' @description Since Harvey and Kattuman (2021)
+#'
+#' @param res A `filterResults` object, obtained from \code{estimate()} method.
+#' @param gen_int Generation interval in days
+#' @param ndays Number of days to plot, counting from the end of estimation timeframe.
+#' @param show_plot A logical value indicating whether ti show the plot of R0
+#' @param title Title for the reproduction number plot. 
+#'
+#' @returns Forecast of number of periods until peak.
+#' 
+#' @importFrom timetk tk_tbl
+#'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#'
+#' @export
+estimate_r0<-function(res,gen_int, ndays=7, show_plot=FALSE, 
+                      title="Reproduction number"){
+  r.t <- tail(exp(res$get_gy_ci() * gen_int), ndays) %>% tk_tbl
+  names(r.t) <- c("Date", "Rt", "lower", "upper")
+  
+  if (show_plot){
+    res.rt <- ggplot(r.t, aes(x = Date)) +
+      ylim(0, 1.4) +
+      geom_line(aes(y = Rt, color = "Rt")) +
+      geom_point(aes(y = Rt), color = "red", size = 3) +
+      geom_segment(aes(xend = Date, yend = lower, y = Rt), color = "blue") +
+      geom_segment(aes(xend = Date, yend = upper, y = Rt), color = "blue") +
+      geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
+      geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
+      scale_x_date(date_breaks = "1 day") +
+      labs(title = title)+
+      theme_light(base_size = 12) +
+      theme(
+        legend.position = "inside",
+        legend.position.inside = c(0.85, 0.2),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        plot.title = element_text(face = "bold")
+      )
+    return(res.rt)
+  } else {
+    return(r.t)
+  }
+}
+
 
 
 #' @title Returns forecast of number of periods until peak given
