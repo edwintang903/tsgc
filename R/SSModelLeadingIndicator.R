@@ -73,10 +73,12 @@ SSModelLeadingIndicator <- setRefClass(
     q = "ANY",
     sea.period= "numeric",
     n.lag = "numeric",
-    LeadIndCol ="numeric"
+    LeadIndCol ="numeric",
+    xpred = "ANY"
   ),
   methods = list(
-    initialize = function(Y, n.lag, sea.period=7, q = NA,LeadIndCol=1)
+    initialize = function(Y, n.lag, sea.period=7, q = NA,
+                          LeadIndCol=1, xpred=NULL)
     {
       "Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
@@ -85,6 +87,7 @@ SSModelLeadingIndicator <- setRefClass(
       sea.period<<-sea.period
       n.lag <<- n.lag
       LeadIndCol <<- LeadIndCol
+      xpred<<-xpred
     },
     estimate = function()
     {

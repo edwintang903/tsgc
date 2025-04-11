@@ -7,6 +7,8 @@ setOldClass("KFS")
 #' the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 #' 
 #' @field data_xts The non-reinitialized cumulated variable.
+#' @field xpred The exogeneous predictors used to estimate the FilterResults object.
+#' If no exogeneous predictors were used, this will be NULL.
 #' @field index The list of dates in the index of \code{data_xts}.
 #' @field reinit.date The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable). 
 #' Should be specified as an object of class \code{\"Date\"}.
@@ -86,10 +88,11 @@ FilterResults <- setRefClass(
     xpred = "ANY",
     index = "Date",
     reinit.date= "ANY",
+    ar1 = "logical",
     output = "KFS"
   ),
   methods = list(
-    initialize = function(data_xts,xpred,index,reinit.date, output)
+    initialize = function(data_xts,xpred,index,reinit.date, ar1, output)
     {
       "Create an instance of the \\code{FilterResults} class with fields defined
       earlier in the fields section."
@@ -97,6 +100,7 @@ FilterResults <- setRefClass(
       xpred<<-xpred
       index <<- index
       reinit.date<<-reinit.date
+      ar1<<-ar1
       output <<- output
     },
     predict_level = function(
@@ -431,8 +435,10 @@ FilterResults <- setRefClass(
       H <- matrixKFS(output, "H")[, , 1]
       Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]
       Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
+      
       start_date <- index[1]
       end_date <- index[length(index)]
+      
       cat("Summary of FilterResults Object\n")
       cat("Model Details:\n")
       cat("  - Estimation start date:", format(as.Date(start_date, origin = "1970-01-01")))
@@ -441,6 +447,11 @@ FilterResults <- setRefClass(
       cat("\n")
       cat("  - Model States and Standard Errors\n")
       base::print(output)
+      if (ar1){
+        ar1_comp<-matrixKFS(output,"T")["ar1","ar1",1]
+        cat("  - AR(1) coefficient:", signif(ar1_comp,3))
+        cat("\n")
+      }
       cat("  - Variance parameter estimates\n")
       cat("Observation equation noise:",format(H, digits = 4))
       cat("\n")

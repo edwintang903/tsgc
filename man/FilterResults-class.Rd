@@ -15,6 +15,9 @@ the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 \describe{
 \item{\code{data_xts}}{The non-reinitialized cumulated variable.}
 
+\item{\code{xpred}}{The exogeneous predictors used to estimate the FilterResults object.
+If no exogeneous predictors were used, this will be NULL.}
+
 \item{\code{index}}{The list of dates in the index of \code{data_xts}.}
 
 \item{\code{reinit.date}}{The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable).

@@ -7,10 +7,10 @@
 \format{
 An object of class \code{"xts"};
 \describe{
-\item{TempC}{Temperature in degree Celsius}
-\item{TempC_max}{Temperature in degree Celsius in a day}
-\item{RelHumid}{Relative humidity}
-\item{WindSpeed}{Wind speed}
+\item{TempC}{Mean air temperature in degree Celsius at 2 meters}
+\item{TempC_max}{Maximum Temperature in degree Celsius at 2 meters}
+\item{RelHumid}{Relative humidity (\%)}
+\item{WindSpeed}{Wind speed in m/s at 10 meters }
 }
 }
 \usage{
@@ -25,6 +25,6 @@ data(gauteng_weather)
 plot(diff(gauteng_weather))
 }
 \references{
-Downloaded from NASA POWER
+Downloaded from https://power.larc.nasa.gov/data-access-viewer/
 }
 \keyword{datasets}

@@ -6,6 +6,7 @@
 # Library Management
 # -----------------------------
 library(tsgc)
+library(KFAS)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
@@ -18,7 +19,6 @@ library(xts)
 library(gridExtra)
 library(here)
 library(timetk)
-library(ForecastComb) 
 library(tidyr)
 library(abind)
 
@@ -78,7 +78,7 @@ cumulative_cases <- gauteng[, 1]
 # -----------------------------
 # Get a glimpse of data by plotting its moving average series
 mod1<-SSModelDynamicGompertz$new(Y=cumulative_cases)
-mod1$plot(title="Gauteng daily cases", series.name="cases")
+plot(mod1, title="Gauteng daily cases", series.name="cases")
 
 # -----------------------------
 # Model Estimation Options for the Third Wave
@@ -94,6 +94,14 @@ y <- cumulative_cases[idx.est]
 model_q <- SSModelDynamicGompertz$new(Y = y)
 res_q <- estimate(model_q)
 summary(res_q)
+
+# -----------------------------
+# Estimation: Diffuse Prior Model with AR(1) component
+# -----------------------------
+model_ar1 <- SSModelDynamicGompertz$new(Y = y, ar1=TRUE)
+res_ar1 <- estimate(model_ar1)
+summary(res_ar1)
+
 
 # -----------------------------
 # Estimation: Fixed Signal-to-Noise Ratio Model
@@ -147,7 +155,7 @@ tsgc::write_results(
 # Estimation: Diffuse Prior Model with exogenous predictors
 # -----------------------------
 #Load Gauteng weather 
-data(gauteng, package = "tsgc")
+data(gauteng_weather, package = "tsgc")
 
 #Extract weather information in estimation time frame
 idx.est1 <- (zoo::index(gauteng_weather) >= estimation.date.start) &
@@ -189,33 +197,15 @@ res_weather$plot_holdout(gauteng,n.ahead=n.forecasts,
 # Reproduction Number Calculation
 # -----------------------------
 gen_int <- 4  # Generation interval in days
+ndays<-7 #Number of days to plot
 
 # Calculate reproduction number estimates and credible intervals.
-r.t <- tail(exp(res$get_gy_ci() * gen_int), 7) %>% tk_tbl
-r.t$name <- "Gauteng"
-names(r.t) <- c("Date", "Rt", "lower", "upper", "name")
+r.t <- estimate_r0(res, gen_int, ndays)
 r.t
 
 # Plot reproduction numbers.
-res.rt <- ggplot(r.t, aes(x = Date)) +
-  ylim(0, 1.4) +
-  geom_line(aes(y = Rt, color = "Rt")) +
-  geom_point(aes(y = Rt), color = "red", size = 3) +
-  geom_segment(aes(xend = Date, yend = lower, y = Rt), color = "blue") +
-  geom_segment(aes(xend = Date, yend = upper, y = Rt), color = "blue") +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
-  geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
-  scale_x_date(date_breaks = "1 day") +
-  theme_light(base_size = 12) +
-  theme(
-    legend.position = "inside",
-    legend.position.inside = c(0.85, 0.2),
-    legend.title = element_text(size = 2),
-    legend.text = element_text(size = 10),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-    plot.title = element_text(face = "bold")
-  )
-res.rt
+estimate_r0(res, gen_int, ndays, show_plot = TRUE, 
+            title="Gauteng Reproduction numbers")
 
 # -----------------------------
 # 2. Reinitialisation for a New Wave
@@ -291,10 +281,11 @@ reinit.dates <- "2021-04-21"
 # Estimate the reinitialized model.
 model <- SSModelDynamicGompertz$new(
   Y = y,
-  q = q,
-  reinit.date = as.Date(reinit.dates, format = date.format)
+  q=q,
+  reinit.date = as.Date(reinit.dates, format = date.format),ar1=TRUE
 )
 res.reinit <- estimate(model)
+summary(res.reinit)
 
 # # Estimate the reinitialized model with exogenous predictors.
 # idx.est3 <- (zoo::index(gauteng_weather) >= estimation.date.start) &

@@ -83,6 +83,8 @@ setOldClass("KFS")
 #' attempt to use information from before the reinitialisation date is made.
 #' @field xpred An \code{xts} object containing the dataset of exogenous variables 
 #' to include in the model. Defaults to \code{NULL}.
+#' @field ar1 Logical value indicating whether an ar1 component should be 
+#' included in the model. Default is \code{FALSE}.
 #' 
 #' @importFrom xts periodicity last
 #' @importFrom methods new
@@ -126,11 +128,12 @@ SSModelDynamicGompertz <- setRefClass(
     reinit.date = "ANY",
     original.results = "ANY",
     use.presample.info = "ANY",
-    xpred="ANY"
+    xpred="ANY",
+    ar1="logical"
   ),
   methods = list(initialize = function(Y, q = NULL, sea.type = 'trigonometric',
                                        sea.period = 7,reinit.date=NULL, original.results=NULL,
-                                       use.presample.info=TRUE, xpred=NULL)
+                                       use.presample.info=TRUE, xpred=NULL, ar1=FALSE)
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
@@ -144,6 +147,7 @@ SSModelDynamicGompertz <- setRefClass(
     original.results <<- original.results
     use.presample.info <<- use.presample.info
     xpred<<-xpred
+    ar1<<-ar1
   },
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
@@ -212,6 +216,40 @@ SSModelDynamicGompertz <- setRefClass(
       }
       return(model)
     }
+    updatear1=function(pars, model, q, order, index){
+      "Standard update function allow the targeting of the signal-to-noise ratio. 
+      Signal-to-noise ratio is defined as the variance of the trend component of order 'order' 
+      (= 1 for level, = 2 for slope, etc) relative to variance of irregular of series 'index'
+      (= 1 for 1st col of dataframe, = 2 for 2nd etc)."
+      np = sum(is.na(model$Q)) + sum(is.na(model$H))
+      if(any(is.na(model$Q))){
+        Q <- as.matrix(model$Q[,,1])
+        naQd  <- which(is.na(diag(Q)))
+        naQnd <- which(upper.tri(Q[naQd,naQd]) & is.na(Q[naQd,naQd]))
+        Q[naQd,naQd][lower.tri(Q[naQd,naQd])] <- 0
+        diag(Q)[naQd] <- exp(0.5 * pars[1:length(naQd)])
+        Q[naQd,naQd][naQnd] <- pars[length(naQd)+1:length(naQnd)]
+        model$Q[naQd,naQd,1] <- crossprod(Q[naQd,naQd])
+      }
+      if(!identical(model$H,'Omitted') && any(is.na(model$H))){
+        H<-as.matrix(model$H[,,1])
+        naHd  <- which(is.na(diag(H)))
+        naHnd <- which(upper.tri(H[naHd,naHd]) & is.na(H[naHd,naHd]))
+        H[naHd,naHd][lower.tri(H[naHd,naHd])] <- 0
+        diag(H)[naHd] <-
+          exp(0.5 * pars[length(naQd)+length(naQnd)+1:length(naHd)])
+        H[naHd,naHd][naHnd] <-
+          pars[length(naQd)+length(naQnd)+length(naHd)+1:length(naHnd)]
+        model$H[naHd,naHd,1] <- crossprod(H[naHd,naHd])
+        if (!is.null(q)) {
+          model$Q[order,order,1] <- q*crossprod(H[index,index])
+          }
+      }
+      T = model$T[,,1]
+      model$T[nrow(T),ncol(T),1] = pars[np+1]
+      model
+    }
+    
     get_model = function(
     y,
     xpred=NULL,
@@ -223,6 +261,7 @@ SSModelDynamicGompertz <- setRefClass(
       get_dynamic_gompertz_model = function(
     y,
     xpred,
+    ar1 = FALSE,
     q = NULL,
     sea.type = 'trigonometric',
     sea.period = 7,
@@ -232,12 +271,14 @@ SSModelDynamicGompertz <- setRefClass(
     H = NULL,
     T=NULL,
     R=NULL,
-    newZ=NULL)
+    newZ=NULL,
+    ar1_coeff=NULL)
       { "Obtain the model object which is then used for 
         estimation."
         Qt.slope <- if (is.null(Q)) { NA } else { Q[2, 2] }
         Qt.seas <- if (is.null(Q)) { NA } else { Q[3, 3] }
         Ht <- if (is.null(H)) { NA } else { H }
+        Qt.ar1 <- if (is.null(Q)) { NA } else {Q[dim(Q)[1],dim(Q)[2]]}
         
         # 1. Set prior on state as ~ N(a1, P1) if a1 supplied.
         use.prior <- if (!is.null(a1)) { TRUE } else { FALSE }
@@ -245,7 +286,9 @@ SSModelDynamicGompertz <- setRefClass(
         # 2. Check whether there are exogeneous predictors in model
         need.xpred<-!is.null(xpred)
         
+        #Write out the model depending on case
         if (use.prior) {
+          #Case 1: With prior info, seasonality, xpred
           if (sea.type == 'trigonometric') {
             if (need.xpred){
               ss_model <- SSModel(
@@ -253,113 +296,197 @@ SSModelDynamicGompertz <- setRefClass(
                                 a1=a1, P1=P1, state_names=dimnames(newZ)[[2]]),
                 H = Ht
               )
-              n.pars <- 0
             } else {
+              #Case 2: With prior info, seasonality, no xpred
+              if (ar1){
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope)),
+                      a1 = a1[1:2],
+                      P1 = P1[1:2, 1:2]
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type,
+                      a1 = a1[3:dim(a1)[1]],
+                      P1 = P1[3:dim(a1)[1], 3:dim(a1)[1]]
+                    )+SSMcustom(Z=1,T=ar1_coeff,R=1,Q=Qt.ar1),
+                  H = Ht
+                )
+              } else {
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope)),
+                      a1 = a1[1:2],
+                      P1 = P1[1:2, 1:2]
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type,
+                      a1 = a1[3:dim(a1)[1]],
+                      P1 = P1[3:dim(a1)[1], 3:dim(a1)[1]]
+                    ),
+                  H = Ht
+                ) 
+              }
+            }
+          } else if (sea.type == 'none') {
+            #Case 3: With prior info, no seasonality, yes xpred
+            if (need.xpred){
               ss_model <- SSModel(
-                y ~
-                  SSMtrend(
+                y ~-1+SSMcustom(Z=newZ, T=T, R=R, Q=Q, 
+                                a1=a1, P1=P1, state_names=dimnames(newZ)[[2]]),
+                H = Ht
+              )
+            } else {
+              #Case 4: With prior info, no seasonality, no xpred
+              if (ar1){
+                ss_model <- SSModel(
+                  y ~SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[1:2],
-                    P1 = P1[1:2, 1:2]
-                  ) +
-                  SSMseasonal(
-                    period = sea.period,
-                    Q = Qt.seas,
-                    sea.type = sea.type,
-                    a1 = a1[3:dim(a1)[1]],
-                    P1 = P1[3:dim(a1)[1], 3:dim(a1)[1]]
-                  ),
-                H = Ht
-              )
-              n.pars <- 0
-            }
-          } else if (sea.type == 'none') {
-            if(need.xpred){
-              ss_model <- SSModel(
-                y ~ SSMtrend(
-                  degree = 2,
-                  Q = list(matrix(0), matrix(Qt.slope)),
-                  a1 = a1[1:2],
-                  P1 = P1[1:2, 1:2]
-                )+xpred,
-                H = Ht
-              )
-              n.pars <- 0
-            } else {
-              ss_model <- SSModel(
-                y ~SSMtrend(
-                  degree = 2,
-                  Q = list(matrix(0), matrix(Qt.slope)),
-                  a1 = a1[1:2],
-                  P1 = P1[1:2, 1:2]
-                ),
-                H = Ht
-              )
-              n.pars <- 0}
+                    P1 = P1[1:2, 1:2])+SSMcustom(Z=1,T=ar1_coeff,R=1,Q=Qt.ar1),
+                  H = Ht)
+              } else {
+                ss_model <- SSModel(
+                  y ~SSMtrend(
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope)),
+                    a1 = a1[1:2],
+                    P1 = P1[1:2, 1:2]),
+                  H = Ht)
+              }
+              }
           } else {
             stop(sprintf("sea.type= '%s' not implemented", sea.type))
           }
+          n.pars <- 0
         } else {
+          #Case 5: No prior info, yes seasonality, yes xpred
           if (need.xpred){
             if (sea.type == 'trigonometric') {
-              ss_model <- SSModel(
-                y ~
-                  SSMtrend(
-                    degree = 2,
-                    Q = list(matrix(0), matrix(Qt.slope))
-                  ) +
-                  SSMseasonal(
-                    period = sea.period,
-                    Q = Qt.seas,
-                    sea.type = sea.type)+xpred,
-                H = matrix(Ht)
-              )
-              n.pars <- if (is.null(q)) { 3 } else { 2 }
+              if(ar1){
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type)+
+                    SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")+xpred,
+                  H = matrix(Ht)
+                )
+              } else {
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type)+xpred,
+                  H = matrix(Ht)
+                )
+              }
+          #Case 6: No prior info, no seasonality, yes xpred
             } else if (sea.type == 'none') {
-              ss_model <- SSModel(
-                y ~
-                  SSMtrend(
-                    degree = 2,
-                    Q = list(matrix(0), matrix(Qt.slope))
-                  )+xpred,
-                H = matrix(Ht)
-              )
-              n.pars <- if (is.null(q)) { 2 } else { 1 }
+              if (ar1){
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    )+SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
+                  +xpred,
+                  H = matrix(Ht)
+                )
+              } else {
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    )+xpred,
+                  H = matrix(Ht)
+                )
+              }
             } else {
               stop(sprintf("sea.type= '%s' not implemented", sea.type))
             }
           } else {
+            #Case 7: No prior info, yes seasonality, no xpred
             if (sea.type == 'trigonometric') {
-              ss_model <- SSModel(
-                y ~
-                  SSMtrend(
-                    degree = 2,
-                    Q = list(matrix(0), matrix(Qt.slope))
-                  ) +
-                  SSMseasonal(
-                    period = sea.period,
-                    Q = Qt.seas,
-                    sea.type = sea.type),
-                H = matrix(Ht)
-              )
-              n.pars <- if (is.null(q)) { 3 } else { 2 }
+              if (ar1){
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type)+
+                    SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1"),
+                  H = matrix(Ht)
+                )
+              } else {
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    ) +
+                    SSMseasonal(
+                      period = sea.period,
+                      Q = Qt.seas,
+                      sea.type = sea.type),
+                  H = matrix(Ht)
+                )
+              }
             } else if (sea.type == 'none') {
-              ss_model <- SSModel(
-                y ~
-                  SSMtrend(
-                    degree = 2,
-                    Q = list(matrix(0), matrix(Qt.slope))
-                  ),
-                H = matrix(Ht)
-              )
-              n.pars <- if (is.null(q)) { 2 } else { 1 }
+              #Case 8: No prior info, no seasonality, no xpred
+              if (ar1){
+                ss_model <- SSModel(
+                  y ~
+                    SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))
+                    )+
+                    SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1"),
+                  H = matrix(Ht)
+                )
+              } else {
+                ss_model <- SSModel(
+                  y ~SSMtrend(
+                      degree = 2,
+                      Q = list(matrix(0), matrix(Qt.slope))),
+                  H = matrix(Ht))
+              }
             } else {
               stop(sprintf("sea.type= '%s' not implemented", sea.type))
             }
           }
+          n.pars <- sum(is.na(ss_model$Q)) + sum(is.na(ss_model$H))
+          if (!is.null(q)){n.pars<-n.pars-1}
         }
-        out <- list(model = ss_model, inits = rep(0, n.pars))
+        if (ar1){
+          out <- list(model = ss_model, inits = c(rep(0,n.pars),1))
+        } else {
+          out <- list(model = ss_model, inits = rep(0, n.pars))
+        }
         return(out)
       }
       
@@ -368,8 +495,8 @@ SSModelDynamicGompertz <- setRefClass(
           y, xpred=xpred, q = q, sea.type = sea.type, sea.period = sea.period
         )
         return(model)
-      }
-      else{
+      } else{
+        #Select relevant xpred
         xpred1<-xpred[zoo::index(xpred) <= reinit.date]
         xpred2<-xpred[zoo::index(xpred) > reinit.date]
         
@@ -389,17 +516,15 @@ SSModelDynamicGompertz <- setRefClass(
           if (is.null(original.results)) {
             # NB. Restrict sample to t<=r - date of reinitialisation.
             idx.est <- zoo::index(Y) <= reinit.date
-            model <- SSModelDynamicGompertz$new(Y = Y[idx.est], xpred=xpred1, q = q)
+            model <- SSModelDynamicGompertz$new(Y = Y[idx.est], 
+                                                sea.type=sea.type,
+                                                sea.period=sea.period, 
+                                                xpred=xpred1, q = q)
             res.original <- model$estimate()
             model_output <- output(res.original)
           } else {
             model_output <- output(original.results)
           }
-          model_seasonal <- seasonalComp(model_output)
-          season.type <- if (is.null(model_seasonal)) {'none'} else {
-            'trigonometric'}
-          season.period <- if (!is.null(model_seasonal)) {
-            ncol(att(model_output)) - 1-dim(xpred1)[2]}
           
           # 4.3 Reset slope to 0 and add constant to initial value for level.
           # where reinit.date is t=r
@@ -420,6 +545,7 @@ SSModelDynamicGompertz <- setRefClass(
           # b. Set slope to 0 and add correction (\ln(Y_r/y_r) to level.
           a1["slope",] <- 0
           a1["level",] <- a1["level",] + log(Y[idx] / (Y[idx] - Y.t.r_0))
+          ar1_coeff<-Tt[dim(Tt)[1],dim(Tt)[2]]
         } else {
           # Don't use presample info
           a1 <- NULL; P1 <- NULL; Qt <- NULL; Ht <- NULL
@@ -432,12 +558,12 @@ SSModelDynamicGompertz <- setRefClass(
           dimnames(newZ) <- list(NULL, dimnames(Zt)[[2]], NULL)
           
           out <- get_dynamic_gompertz_model(
-            y = y.reinit, xpred=xpred2, q = q,  sea.type = season.type, sea.period = season.period,
+            y = y.reinit, xpred=xpred2, q = q,  sea.type = sea.type, sea.period = sea.period,
             a1 = a1, P1 = P1, Q = Qt, H = Ht, T=Tt, R=Rt, newZ=newZ)
         } else {
           out <- get_dynamic_gompertz_model(
-            y = y.reinit, xpred=xpred2, q = q,  sea.type = season.type, sea.period = season.period,
-            a1 = a1, P1 = P1, Q = Qt, H = Ht)
+            y = y.reinit, xpred=xpred2, q = q,  sea.type = sea.type, sea.period = sea.period,
+            a1 = a1, P1 = P1, Q = Qt, H = Ht, ar1_coeff=ar1_coeff)
         }
         
         out[['index']] <- index(y.reinit)
@@ -449,18 +575,24 @@ SSModelDynamicGompertz <- setRefClass(
     y <- tsgc::df2ldl(Y)
     
     # 2. Add update / model methods
-    updatefn <- purrr::partial(
-      update, ... =, q = q, sea.type = sea.type
-    )
+    if (ar1){
+      updatefn <- updatear1 %>% partial(q=q,order=2,index=1)
+    } else {
+      updatefn <- purrr::partial(
+        update, ... =, q = q, sea.type = sea.type
+      )
+    }
+    
     model <- get_model(y, xpred=xpred, q = q, sea.type, sea.period)
-    # 2. Estimate via MLE unknown params
+    
+    # 3. Estimate via MLE unknown params
     model_fit <- fitSSM(model$model, inits = model$inits, updatefn = updatefn,
                         method = 'BFGS')
     
-    # 3. Run smoother/filter
+    # 4. Run smoother/filter
     model_output <- KFS(model_fit$model)
     
-    # 4. Get truncated index from model if using a reinitialisation in model
+    # 5. Get truncated index from model if using a reinitialisation in model
     date.index <- if (!is.null(model$index)) { model$index } else { index(y) }
     
     results <- FilterResults$new(
@@ -468,6 +600,7 @@ SSModelDynamicGompertz <- setRefClass(
       xpred=xpred,
       index = date.index,
       reinit.date=reinit.date,
+      ar1=ar1,
       output = model_output
     )
     return(results)
@@ -481,6 +614,7 @@ SSModelDynamicGompertz <- setRefClass(
     }
     reinit<-!is.null(reinit.date)
     dates<-index(Y)
+    ar1_comp<-matrixKFS(out,"T")["ar1","ar1",1]
     
     cat("Summary of SSModelDynamicGompertz Model")
     if (reinit) {
@@ -493,6 +627,10 @@ SSModelDynamicGompertz <- setRefClass(
     cat("Signal-to-Noise Ratio (q):", 
         ifelse(is.null(q), paste(signif(qest,3), "(estimated)"), 
                paste(q, ("(user specified)"))), "\n")
+    if (ar1){
+      cat("AR(1) coefficient:", signif(ar1_comp,3))
+      cat("\n")
+    }
     cat("Model Details:\n")
     cat("  - Model Type: Dynamic Gompertz Curve")
     if (reinit) {
@@ -510,6 +648,10 @@ SSModelDynamicGompertz <- setRefClass(
       cat("\n")
       cat("  - Use presample info:", use.presample.info)
       cat("\n")
+    }
+    if (!is.null(xpred)){
+      cat("  - Exogenous predictors dataset")
+      base::print(head(.self$xpred))
     }
     cat("  - Model States and Standard Errors\n")
     base::print(out)
@@ -538,6 +680,8 @@ SSModelDynamicGompertz <- setRefClass(
     cat("Seasonal components?",
         ifelse(is.null(seasonalComp(out)),
                "No","Yes"),"\n")
+    cat("Exogenous predictors?", ifelse(is.null(xpred),
+                                         "No","Yes"),"\n")
     if (!is.null(reinit.date)){
       cat("Reinit date:",format(as.Date(reinit.date, origin = "1970-01-01")))
       cat("\n")
