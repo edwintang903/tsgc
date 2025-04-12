@@ -4,12 +4,20 @@
 \alias{estimate_r0}
 \title{Calculate reproduction number estimates and credible intervals}
 \usage{
-estimate_r0(res, gen_int, show_plot = FALSE, title = "Reproduction number")
+estimate_r0(
+  res,
+  gen_int,
+  ndays = 7,
+  show_plot = FALSE,
+  title = "Reproduction number"
+)
 }
 \arguments{
 \item{res}{A \code{filterResults} object, obtained from \code{estimate()} method.}
 
 \item{gen_int}{Generation interval in days}
+
+\item{ndays}{Number of days to plot, counting from the end of estimation timeframe.}
 
 \item{show_plot}{A logical value indicating whether ti show the plot of R0}
 

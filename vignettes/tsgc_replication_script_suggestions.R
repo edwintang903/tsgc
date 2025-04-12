@@ -281,7 +281,6 @@ reinit.dates <- "2021-04-21"
 model <- SSModelDynamicGompertz$new(
   Y = y,
   q = q,
-  ar1=TRUE,
   reinit.date = as.Date(reinit.dates, format = date.format)
 )
 res.reinit <- estimate(model)
@@ -296,7 +295,7 @@ summary(res.reinit)
 #   Y = y,
 #   xpred=weather3,
 #   q = q,
-#   sea.period=7,
+#   ar1=TRUE,
 #   reinit.date = as.Date(reinit.dates, format = date.format)
 # )
 # res.reinit.x <- estimate(model.x)

@@ -277,3 +277,101 @@ plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
   res$plot_holdout(Y, n.ahead, confidence.level, date_format, series.name, 
                       title, caption)
 }
+
+#' @title Forecast comparison plot
+#'
+#' @description Plots the forecasts of the cumulated variable (both including and excluding the
+#' seasonal component, where a seasonal is specified) for selected models 
+#' and optionally the actual outcomes from the holdout sample. The
+#' forecast intervals are based on the prediction intervals for \eqn{\ln(g_t)}.
+#'
+#' @param results A list of `filterResults` or `filterResultsLI` object, obtained from
+#' \code{estimate()} method. 
+#' @param actual Values of the cumulated variable, including the holdout sample.
+#' sample (i.e. to which the forecasts should be compared to).
+#' @param sea.on Logical value indicating whether to plot the seasonality-adjusted
+#' forecasts. Defaults to \code{TRUE}.
+#' @param n.ahead The duration of the holdout sample. Default is 14.
+#' @param title Title for forecast plot. Enter as text string. \code{NULL}
+#' (i.e. no title) by default.
+#'
+#' @importFrom ggplot2 scale_color_manual scale_linetype_manual aes labs theme
+#' @importFrom ggplot2 element_blank element_text rel autoplot scale_x_date
+#' @importFrom ggplot2 geom_ribbon scale_size_manual
+#' @importFrom ggthemes theme_economist_white scale_fill_economist
+#'
+#' @returns A \code{ggplot2} plot.
+#'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' n.ahead=7
+#'
+#'
+#' @export
+plot_compare_forecast <- function(results, labels, sea.on = TRUE, actual = NULL, n.ahead = 14, 
+                                  title = "Comparison of forecasts") {
+  
+  # Check if labels match number of models
+  if (length(results) != length(labels)) {
+    stop("Length of 'results' must match length of 'labels'")
+  }
+  
+  # Extract forecast data from each model
+  prediction_list <- lapply(seq_along(results), function(i) {
+    xts_pred <- results[[i]]$predict_level(n.ahead = n.ahead, sea.on = sea.on)[, 1]
+    df_pred <- data.frame(
+      date = as.Date(index(xts_pred)),
+      forecast = as.numeric(xts_pred)
+    )
+    df_pred$model<- rep(labels[i], nrow(df_pred))
+    return(df_pred)
+  })
+  
+  # Combine all into one long-format data frame
+  df_forecasts <- bind_rows(prediction_list)
+  
+  # Process actual values if provided
+  if (!is.null(actual)) {
+    if (inherits(actual, "xts")) {
+      actual_df <- data.frame(
+        date = as.Date(index(actual)),
+        actual = as.numeric(actual)
+      )
+    } else {
+      actual_df <- data.frame(
+        date = as.Date(names(actual)),
+        actual = as.numeric(actual)
+      )
+    }
+  }
+  df_forecasts$model<-unlist(df_forecasts$model)
+  
+  # Begin plot
+  p <- ggplot(data = df_forecasts, aes(x = date)) +
+    geom_line(aes(y = forecast, color = model),
+              linewidth = 0.85) +
+    labs(x = "Date", y = "Forecast", title = title) +
+    theme_economist_white(gray_bg = FALSE, base_size = 14) +
+    theme(legend.title = element_blank()) +
+    theme(
+      text = element_text(size = rel(1)),
+      axis.text = element_text(size = rel(1)),
+      axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
+      axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
+      plot.title = element_text(margin = margin(b = 5)),
+      plot.subtitle = element_text(size = rel(1), hjust = 0, margin = margin(t = 3))
+    ) +
+    scale_linetype_manual(values = c("solid", "solid", "solid")) +
+    scale_x_date(labels = scales::date_format("%d %b %y")) +
+    scale_size_manual(values = c(1, 1.5, 1))
+  
+  # Add actuals
+  if (!is.null(actual)) {
+    p <- p + geom_line(data = actual_df, aes(x = date, y = actual),
+                       color = "black", linewidth = 1.1, linetype = "dashed")
+  }
+  
+  return(p)
+}

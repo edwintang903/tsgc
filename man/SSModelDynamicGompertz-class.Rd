@@ -80,6 +80,9 @@ attempt to use information from before the reinitialisation date is made.}
 
 \item{\code{xpred}}{An \code{xts} object containing the dataset of exogenous variables
 to include in the model. Defaults to \code{NULL}.}
+
+\item{\code{ar1}}{Logical value indicating whether an ar1 component should be
+included in the model. Default is \code{FALSE}.}
 }}
 
 \section{Methods}{
@@ -99,7 +102,8 @@ model.}}
   reinit.date = NULL,
   original.results = NULL,
   use.presample.info = TRUE,
-  xpred = NULL
+  xpred = NULL,
+  ar1 = FALSE
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
 are defined in `fields` section. 
   \subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,

@@ -62,7 +62,7 @@ variable (\eqn{Y}). Computed as
 \subsection{Return Value}{\code{xts} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
-\item{\code{initialize(data_xts, xpred, index, reinit.date, output)}}{Create an instance of the \code{FilterResults} class with fields defined
+\item{\code{initialize(data_xts, xpred, index, reinit.date, ar1, output)}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y, xpred.new = NULL)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
