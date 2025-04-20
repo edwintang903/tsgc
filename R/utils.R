@@ -466,7 +466,7 @@ mapes<-function(res,n.ahead,Y){
 #'
 #' @export
 cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=TRUE,
-                    LeadIndCol=1){
+                    LeadIndCol=1, criteria="mae"){
   if (vanilla){
     allall_lags<-c(0,all_lags)
   }
@@ -482,12 +482,12 @@ cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=
       Z = y[,-LeadIndCol]
       model_q <- SSModelDynamicGompertz$new(Y = Z[index(Z) <= est.end.date+(k-1)*freq])
       res <- model_q$estimate()
-      results[1,k+1]=round(mapes(res,n.ahead,Z)$sea,2)
+      results[1,k+1]=round(mapes(res,n.ahead,Z)[[criteria]],2)
     }
     for (i in all_lags){
       out<-SSModelLeadingIndicator(Y=y[index(y) <= est.end.date+(k-1)*freq],n.lag = i)
       res<-out$estimate()
-      results[vanilla+i,k+1]<-round(mapes(res,n.ahead,y)$sea,2)
+      results[vanilla+i,k+1]<-round(mapes(res,n.ahead,y)[[criteria]],2)
     }
     results[length(all_lags)+vanilla+1,k+1]=allall_lags[which.min(results[,k+1])]
   }

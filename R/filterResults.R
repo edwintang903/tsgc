@@ -494,19 +494,19 @@ FilterResults <- setRefClass(
       n.ahead = n.ahead, confidence.level = confidence.level,
       sea.on=TRUE
     )
-    y.hat.diff.final <- .self$predict_level(
-      n.ahead = n.ahead, confidence.level = confidence.level,
-      sea.on = TRUE
-    )
-    
+    # y.hat.diff.final <- .self$predict_level(
+    #   n.ahead = n.ahead, confidence.level = confidence.level,
+    #   sea.on = TRUE
+    # )
+    # 
     tmp.date <- min(estimation.date.end - 4, as.Date(plt.start.date, format=date_format))
     s <- sprintf("%s/", format(tmp.date, "%Y-%m-%d"))
     d.plot <- cbind(
       diff(y.level.est)[s],
-      y.hat.diff.final[, 1],
+      #y.hat.diff.final[, 1],
       y.hat.diff.final.ci[, 1]
     )
-    names(d.plot) <- c('Data', 'Forecast', 'ForecastTrend')
+    names(d.plot) <- c('Data', 'Forecast')
     
     ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
                               (as.Date(index(y.hat.diff.final.ci),
@@ -522,10 +522,7 @@ FilterResults <- setRefClass(
     ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(y = Data, color = "Data"), lwd = 0.85) +
       ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-      ggplot2::geom_line(
-        aes(y = ForecastTrend, color = "Forecast\nTrend"), lwd = 0.85
-      ) +
-      ggplot2::scale_color_manual(values = c("black", "grey", "#AA2045")) +
+      ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
       ggplot2::geom_ribbon(data = ci, aes(x = date, ymin = lower, ymax = upper),
                            linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
       labs(x = "Date", y = paste("New", series.name), title = title) +
@@ -540,7 +537,7 @@ FilterResults <- setRefClass(
         plot.caption = element_text(size = rel(1))
       ) +
       ggplot2::scale_linetype_manual(
-        values = c("solid", "solid", "solid")) +
+        values = c("solid", "solid")) +
       ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
       ggplot2::scale_size_manual(values = c(1, 1, 1))
     },
@@ -784,27 +781,27 @@ FilterResults <- setRefClass(
         n.ahead = n.ahead,  sea.on=TRUE,
         confidence.level = confidence.level
       )
-      y.hat.diff.final <-.self$predict_level(
-        n.ahead = n.ahead, 
-        confidence.level = confidence.level,
-        sea.on = TRUE
-      )
+      # y.hat.diff.final <-.self$predict_level(
+      #   n.ahead = n.ahead, 
+      #   confidence.level = confidence.level,
+      #   sea.on = TRUE
+      # )
       
       ids=(index(y.eval.diff)>estimation.date.end) & (index(y.eval.diff)<estimation.date.end+n.ahead+1)
       
       d <- cbind(
         y.eval.diff[ids,],
-        y.hat.diff.final[, 1],
+        # y.hat.diff.final[, 1],
         y.hat.diff.final.ci[, 1]
       )
-      names(d) <- c('Actual', 'Forecast', 'ForecastTrend')
+      names(d) <- c('Actual', 'Forecast')
       
       df_plot <- as.data.frame(d)
       df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
       
       d.eval <- na.omit(d)
-      mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
-                           d.eval$Actual) %>% mean %>% round(2)
+      # mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
+      #                      d.eval$Actual) %>% mean %>% round(2)
       mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
         mean %>% round(2)
       
@@ -818,15 +815,12 @@ FilterResults <- setRefClass(
       p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
         ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
         ggplot2::geom_line(aes(y = Forecast, color = "Forecast"),lwd = 0.85) +
-        ggplot2::geom_line(
-          aes(y = ForecastTrend, color = "Forecast\nTrend"),lwd = 0.85) +
-        ggplot2::scale_color_manual(values = c("black", "grey", "#AA2045")) +
+        ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
         ggplot2::geom_ribbon(data = ci, aes(x = date, ymin = lower, ymax = upper),
                              linetype = 0, linewidth = 0, fill = "#AA2045",
                              alpha = 0.1) +
         labs(x = "Date", y = paste("New",series.name), title = title,
-             subtitle = paste("MAPE: ",mape.sea,"%. Trend MAPE: ",
-                              mape.trend,"%.",sep="")) +
+             subtitle = paste("MAPE: ",mape.sea,"%.",sep="")) +
         theme_economist_white(gray_bg = FALSE, base_size = 14) +
         theme(legend.title = element_blank()) +
         theme(
@@ -839,11 +833,9 @@ FilterResults <- setRefClass(
             size = rel(1), hjust=0,  margin = margin(t=3))
         ) +
         scale_linetype_manual(
-          values = c("solid", "solid", "solid")) +
+          values = c("solid", "solid")) +
         scale_x_date(labels = scales::date_format("%d %b %y")) +
         scale_size_manual(values = c(1, 1.5, 1))
-      
-      
       return(p1)
     },
     mapes=function(n.ahead,Y){
@@ -855,9 +847,6 @@ FilterResults <- setRefClass(
           stop("xpred.new cannot be NULL.")
         } 
       }
-      
-        y.level.est <- data_xts
-        
         p <- attr(modelKFS(output), 'p')
         if(p!=1) { stop('NotImplementedError') }
         
@@ -868,9 +857,9 @@ FilterResults <- setRefClass(
         est.date.index <- as.Date(index)
         estimation.date.end <- tail(est.date.index, 1)
         
-        y.hat.diff.final.ci <- .self$predict_level(
-          n.ahead = n.ahead, confidence.level = 0.68
-        )
+        # y.hat.diff.final.ci <- .self$predict_level(
+        #   n.ahead = n.ahead, confidence.level = 0.68
+        # )
         y.hat.diff.final <- .self$predict_level(
           n.ahead = n.ahead, confidence.level =0.68,
           sea.on = TRUE
@@ -879,24 +868,28 @@ FilterResults <- setRefClass(
         # Extract the relevant columns
         filtered_y_eval_diff <- y.eval.diff[index(y.eval.diff) > estimation.date.end]
         forecast_column <- y.hat.diff.final[, 1]
-        forecast_trend_column <- y.hat.diff.final.ci[, 1]
+        # forecast_trend_column <- y.hat.diff.final.ci[, 1]
         
         #Form dataframe
         df_plot <- data.frame(
           Actual = coredata(filtered_y_eval_diff),  # Extract data from zoo
           Forecast = forecast_column,
-          ForecastTrend = forecast_trend_column,
+          #ForecastTrend = forecast_trend_column,
           row.names = index(filtered_y_eval_diff)  # Use index as row names
         )
         
         d.eval <- na.omit(df_plot)
-        colnames(d.eval)<-c('Actual', 'Forecast', 'ForecastTrend')
+        colnames(d.eval)<-c('Actual', 'Forecast')
         
-        mape.trend <- mean(100*(abs(d.eval$Actual - d.eval$ForecastTrend)/
-                             d.eval$Actual))
+        # mape.trend <- mean(100*(abs(d.eval$Actual - d.eval$ForecastTrend)/
+        #                      d.eval$Actual))
         mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
         
-        return(list(trend=mape.trend, sea=mape.sea))
+        mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean
+        rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2))
+        coverage<-100*sum(and(y.hat.diff.final[,2]<=y.eval.diff, y.hat.diff.final[,3]>=y.eval.diff))/n.forecasts
+        
+        return(list(mape=mape.sea, mae=mae, rmse=rmse, coverage=coverage))
       }
   )
 )

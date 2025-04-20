@@ -111,31 +111,31 @@ summary(res_q)
 # -----------------------------
 # Forecasting: Log Growth Rate
 # -----------------------------
-res_q$plot_log_forecast(
+plot_log_forecast(res_q,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   plt.start.date = tail(res_q$index, 1) - plt.length,
-  title = "Log Growth Rate Forecast"
+  title = "Log Growth Rate Forecast of new cases (Gauteng)"
 )
 
 # -----------------------------
 # Forecasting: New Cases and Holdout Evaluation
 # -----------------------------
-res_q$plot_new_cases(
+plot_new_cases(res_q,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   date_format = date.format,
   plt.start.date = tail(res_q$index, 1) - plt.length,
-  title="14-day forecast for new cases Gauteng",
+  title="14-day forecast for new cases (Gauteng)",
   series.name = "Cases"
 )
 
-res_q$plot_holdout(
+plot_holdout(res_q,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   date_format = date.format,
-  title="14-day forecast for new cases Gauteng",
+  title="14-day forecast for new cases (Gauteng)",
   series.name = "cases"
 )
 
@@ -167,18 +167,18 @@ new.weather<-subset(gauteng_weather,estimation.date.end+1)
 res_weather$xpred.new=new.weather
 
 # Generate Forecasts
-res_weather$plot_log_forecast(cumulative_cases,n.ahead=n.forecasts,
+plot_log_forecast(res_weather,Y=cumulative_cases,n.ahead=n.forecasts,
                               plt.start.date = tail(res_weather$index, 1) - plt.length,
                               title = "Log Growth Rate Forecast")
 
-res_weather$plot_new_cases(n.ahead=n.forecasts,
+plot_new_cases(res_weather,n.ahead=n.forecasts,
                            confidence.level = confidence.level,
                            date_format = date.format,
                            plt.start.date = tail(res_weather$index, 1) - plt.length,
                            title="14-day forecast for new cases Gauteng",
                            series.name = "Cases")
 
-res_weather$plot_holdout(cumulative_cases,n.ahead=n.forecasts,
+plot_holdout(res_weather,Y=cumulative_cases,n.ahead=n.forecasts,
                          confidence.level = confidence.level,
                          date_format = date.format,
                          title="14-day forecast for new cases Gauteng",
@@ -278,20 +278,18 @@ model <- SSModelDynamicGompertz$new(
 res.reinit <- estimate(model)
 summary(res.reinit)
 
-# # Estimate the reinitialized model with exogenous predictors.
-# idx.est3 <- (zoo::index(gauteng_weather) >= estimation.date.start) &
-#   (zoo::index(gauteng_weather) <= estimation.date.end)
-# weather3 <- gauteng_weather[idx.est3]
-# 
-# model.x <- SSModelDynamicGompertz$new(
-#   Y = y,
-#   xpred=weather3,
-#   q = q,
-#   ar1=TRUE,
-#   reinit.date = as.Date(reinit.dates, format = date.format)
-# )
-# res.reinit.x <- estimate(model.x)
-# summary(res.reinit.x)
+# Estimate the reinitialized model with exogenous predictors.
+idx.est3 <- subset(gauteng_weather,estimation.date.start,estimation.date.end)
+
+model.x <- SSModelDynamicGompertz$new(
+  Y = y,
+  xpred=weather3,
+  q = q,
+  ar1=TRUE,
+  reinit.date = as.Date(reinit.dates, format = date.format)
+)
+res.reinit.x <- estimate(model.x)
+summary(res.reinit.x)
 
 # -----------------------------
 # Plotting: Forecasts after Reinitialisation
