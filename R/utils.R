@@ -445,6 +445,8 @@ mapes<-function(res,n.ahead,Y){
 #' @param LeadIndCol (Only required for leading indicator models) Integer
 #' representing the column number in \code{y} that contains the leading
 #' indicator.
+#' @param criterion A string object indicating how to compare between different 
+#' models. Available choices are "mape" (by default), "mae" and "rmse". 
 #' 
 #' @importFrom zoo index
 #'
@@ -461,12 +463,12 @@ mapes<-function(res,n.ahead,Y){
 #' 
 #' #Output cross validation result
 #' cross_val(y=Y[index(Y)>=estimation.date.start],
-#' est.end.date=estimation.date.end,n.ahead=7,lags=1:9,totaldays=3, 
-#' vanilla=TRUE,freq=2,LeadIndCol=1)
+#' est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3, 
+#' vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
 #'
 #' @export
 cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=TRUE,
-                    LeadIndCol=1, criteria="mae"){
+                    LeadIndCol=1, criterion="mape"){
   if (vanilla){
     allall_lags<-c(0,all_lags)
   }
@@ -482,12 +484,12 @@ cross_val<-function(y,est.end.date,n.ahead,all_lags,totaldays=1,freq=1, vanilla=
       Z = y[,-LeadIndCol]
       model_q <- SSModelDynamicGompertz$new(Y = Z[index(Z) <= est.end.date+(k-1)*freq])
       res <- model_q$estimate()
-      results[1,k+1]=round(mapes(res,n.ahead,Z)[[criteria]],2)
+      results[1,k+1]=round(mapes(res,n.ahead,Z)[[criterion]],2)
     }
     for (i in all_lags){
       out<-SSModelLeadingIndicator(Y=y[index(y) <= est.end.date+(k-1)*freq],n.lag = i)
       res<-out$estimate()
-      results[vanilla+i,k+1]<-round(mapes(res,n.ahead,y)[[criteria]],2)
+      results[vanilla+i,k+1]<-round(mapes(res,n.ahead,y)[[criterion]],2)
     }
     results[length(all_lags)+vanilla+1,k+1]=allall_lags[which.min(results[,k+1])]
   }

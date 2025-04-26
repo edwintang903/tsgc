@@ -90,7 +90,7 @@
 #'
 #' @docType data
 #'
-#' @usage data(gauteng_weather)
+#' @usage data(gauteng_weather_2021)
 #'
 #' @format An object of class `"xts"`;
 #' \describe{
@@ -105,7 +105,31 @@
 #' @references Downloaded from https://power.larc.nasa.gov/data-access-viewer/
 #'
 #' @examples
-#' data(gauteng_weather)
+#' data(gauteng_weather_2021)
 #' # plot daily cases
-#' plot(diff(gauteng_weather))
-"gauteng_weather"
+#' plot(diff(gauteng_weather_2021))
+"gauteng_weather_2021"
+
+#' Weather data of England.
+#'
+#' @docType data
+#'
+#' @usage data(england_weather_2021)
+#'
+#' @format An object of class `"xts"`;
+#' \describe{
+#'   \item{TempC}{Mean air temperature in degree Celsius at 2 meters}
+#'   \item{TempC_max}{Maximum Temperature in degree Celsius at 2 meters}
+#'   \item{RelHumid}{Relative humidity (%)}
+#'   \item{WindSpeed}{Wind speed in m/s at 10 meters }
+#' }
+#'
+#' @keywords datasets
+#'
+#' @references Downloaded from https://power.larc.nasa.gov/data-access-viewer/
+#'
+#' @examples
+#' data(england_weather_2021)
+#' # plot daily cases
+#' plot(diff(gauteng_weather_2021))
+"england_weather_2021"

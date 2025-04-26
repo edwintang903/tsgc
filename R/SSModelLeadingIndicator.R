@@ -74,11 +74,11 @@ SSModelLeadingIndicator <- setRefClass(
     sea.period= "numeric",
     n.lag = "numeric",
     LeadIndCol ="numeric",
-    xpred1 = "ANY",  #separate xpred1 and xpred2? 
+    xpred1 = "ANY",  
     xpred2 = "ANY"
   ),
   methods = list(
-    initialize = function(Y, n.lag, sea.period=7, q = NA,
+    initialize = function(Y, n.lag, sea.period=7, q = NULL,
                           LeadIndCol=1, xpred1=NULL, xpred2=NULL)
     {
       "Create an instance of the \\code{SSModelLeadingIndicator} class with the 
@@ -88,8 +88,8 @@ SSModelLeadingIndicator <- setRefClass(
       sea.period<<-sea.period
       n.lag <<- n.lag
       LeadIndCol <<- LeadIndCol
-      xpred1<<-xpred1[index(Y)]
-      xpred2<<-xpred2[index(Y)]
+      xpred1<<-xpred1
+      xpred2<<-xpred2
     },
     estimate = function()
     {
@@ -105,10 +105,17 @@ SSModelLeadingIndicator <- setRefClass(
       data_ldl = y[,c("LDLcases","LDLhosp")]
 
       data_ldl$LDLcases = lag(data_ldl$LDLcases,n.lag)
-
+      
       data_ldl <- na.omit(data_ldl)
 
       data_mat = as.matrix(data_ldl)
+      
+      if (!is.null(xpred1)){
+        xpred1<<-subset(lag(xpred1,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
+      }
+      if (!is.null(xpred2)){
+        xpred2<<-subset(lag(xpred2,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
+      }
 
       # Standard update function - edited to allow the targeting of the signal-to-noise ratio
       # Signal-to-noise ratio is defined as the variance of the trend component of order 'order'
@@ -209,7 +216,7 @@ SSModelLeadingIndicator <- setRefClass(
       # We have a signal/noise ratio of 0.005, the signal is the slope and we are
       # targeting the variance of the irregular in cases
 
-      if (is.na(q)){
+      if (is.null(q)){
         fit = fitSSM(mod, rep(0,npar))
       }
       else{

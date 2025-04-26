@@ -96,10 +96,13 @@ FilterResultsLI <- setRefClass(
     output = "KFS",
     n.lag="numeric",
     sea.period="numeric",
-    LeadIndCol="numeric"
+    LeadIndCol="numeric",
+    new.xpred1="ANY",
+    new.xpred2="ANY"
   ),
   methods = list(
-    initialize = function(index,data_xts, output,n.lag,sea.period,LeadIndCol)
+    initialize = function(index,data_xts, output,n.lag,sea.period,LeadIndCol,
+                          new.xpred1=NULL, new.xpred2=NULL)
     {
       "Create an instance of the \\code{FilterResultsLI} class with fields defined
       earlier in the fields section."
@@ -109,6 +112,8 @@ FilterResultsLI <- setRefClass(
       n.lag <<- n.lag
       sea.period <<- sea.period
       LeadIndCol<<-LeadIndCol
+      new.xpred1<<-new.xpred1
+      new.xpred2<<-new.xpred2
     },
     predict_level = function(n.ahead=n.lag, 
                              confidence.level=0.68,
@@ -166,7 +171,7 @@ FilterResultsLI <- setRefClass(
                                                 Q = matrix(c(0,0,0,Qf[2,2]),2,2),
                                                 type = 'common')
                             +SSMseasonal(sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), 
-                                         sea.type='dummy', type='distinct')
+                                         sea.type='trigonometric', type='distinct')
                             +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = matrixKFS(output,"H"))
       }
       
@@ -311,6 +316,30 @@ FilterResultsLI <- setRefClass(
       \\eqn{\\gamma} (\\code{slope.t.t}), vector of states including the
       seasonals where applicable (\\code{a.t.t}) and covariance matrix of all
       states including seasonals where applicable (\\code{P.t.t}).}"
+      # new.model <- modelKFS(output)
+      # oldn<-attr(new.model, 'n')
+      # 
+      # na_vals<-matrix(NA, ncol = ncol(gety(new.model)), nrow = n.ahead)
+      # na_vals[1:n.lag,1] = as.vector(tail(data_xts,n.lag)$LDLcases)
+      # new.model$y <- rbind(gety(new.model),na_vals) %>% as.ts()
+      # 
+      # newdata<-SSModel(na_vals~-1+
+      #                    SSMcustom(Z=newZ, T=new.model$T, R=new.model$R, 
+      #                              Q=new.model$Q))
+      # 
+      # attr(new.model, 'n') <- as.integer(oldn + n.ahead)
+      # model_output <- KFS(new.model)
+      # 
+      # if (sea.on == TRUE) {
+      #   y.hat.kfas <- predict(
+      #     output$model, interval = 'prediction',
+      #     newdata = newdata, level = 0.68, states = 'all')
+      # } else {
+      #   y.hat.kfas <- predict(
+      #     output$model, interval = 'prediction',
+      #     newdata = newdata, level = 0.68, states = 'level')
+      # }
+      
       start_date<-index(data_xts)[1]
       end_date<-tail(index(data_xts),1)
       data_ldl = data_xts[,c("LDLcases","LDLhosp")] %>% na.omit
@@ -342,7 +371,7 @@ FilterResultsLI <- setRefClass(
                                                 Q = matrix(c(0,0,0,Qf[2,2]),2,2),
                                                 type = 'common')
                             +SSMseasonal(sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), 
-                                         sea.type='dummy', type='distinct')
+                                         sea.type='trigonometric', type='distinct')
                             +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = matrixKFS(output,"H"))
       }
       
@@ -369,7 +398,8 @@ FilterResultsLI <- setRefClass(
 
       # Assumes time invariant Z.t
       y.t.t <- output$att %*% t(drop(matrixKFS(output,"Z")))
-
+      
+      #====Change above===============================================
       y.hat <- xts::xts(
         c(y.t.t[,2], y.hat.kfas$LDLhosp[, 1] %>% as.matrix()),
         order.by = dates)
@@ -517,14 +547,13 @@ FilterResultsLI <- setRefClass(
         
         if (is.null(plt.start.date)){plt.start.date <- head(index(data_xts), 1)}
         # add forecasts to plotting dataframe
-        fadmits<-.self$predict_level(n.ahead=n.ahead, 
-                                     confidence.level=confidence.level, 
-                                     sea.on=FALSE)
+        # fadmits<-.self$predict_level(n.ahead=n.ahead, 
+        #                              confidence.level=confidence.level, 
+        #                              sea.on=FALSE)
         sea<-.self$predict_level(n.ahead=n.ahead, 
                                  confidence.level=confidence.level, 
                                  sea.on=TRUE)
-        sea <- sea[,1]
-        fadmits$zero=NA
+        # fadmits$zero=NA
         
         # Create smoothed admissions
         lcadmit = lag(data_xts$cAdmit) %>% na.omit()
@@ -533,23 +562,23 @@ FilterResultsLI <- setRefClass(
         smAdmit = smadmit %>% xts(index(data_xts[(n.lag+1):(length(lcadmit)),])+1)
         
         #Plot forecast graph
-        df_plot<-rbind(data_xts$newAdmit,fadmits$zero)
+        df_plot<-data_xts$newAdmit   #rbind(data_xts$newAdmit,fadmits$zero)
         #df_plot$Smooth<-smAdmit
-        df_plot$Forecast<-sea
-        df_plot$ForecastTrend<-fadmits$forc
+        df_plot$Forecast<-sea[,1]
+        #df_plot$ForecastTrend<-fadmits$forc
         df_plot<-subset(df_plot,plt.start.date)
         df_plot=fortify.zoo(df_plot)
         
-        ci<-fortify.zoo(fadmits)
+        ci<-fortify.zoo(sea)
         
         p2<-ggplot2::ggplot(data = df_plot, aes(x = Index)) +
           ggplot2::geom_line(aes(y = newAdmit, color = "Data"), lwd = 0.85) +
           #ggplot2::geom_line(aes(y = Smooth, color = "Smoothed\ndata"),lwd=0.85)+
           ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-          ggplot2::geom_line(
-            aes(y = ForecastTrend, color = "Forecast\nTrend"), lwd = 0.85
-          ) +
-          ggplot2::scale_color_manual(values = c("black", "grey", "#AA2045")) +
+          # ggplot2::geom_line(
+          #   aes(y = ForecastTrend, color = "Forecast\nTrend"), lwd = 0.85
+          # ) +
+          ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
           ggplot2::geom_ribbon(data = ci, aes(x = Index, ymin = lwr, ymax = upr),
                                linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
           labs(x = "Date", y = paste("New",series.name), title = title) +
@@ -564,7 +593,7 @@ FilterResultsLI <- setRefClass(
             plot.caption = element_text(size = rel(1))
           ) +
           ggplot2::scale_linetype_manual(
-            values = c("solid", "solid", "solid")) +
+            values = c("solid", "solid")) +
           ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
           ggplot2::scale_size_manual(values = c(1, 1, 1))
         return(p2)
@@ -602,15 +631,20 @@ FilterResultsLI <- setRefClass(
     forcdata[1:n.lag,1] = as.vector(tail(data_xts,n.lag)$LDLcases)
     
     # Extract estimate of Q from earlier model
-    Qf = output$model$Q[,,1]
+    Qf = matrixKFS(output, "Q")[,,1]
     if (is.na(.self$sea.period)) {
-      forcmodel = SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
-                          H = output$model$H)
+      forcmodel = 
+        SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')
+                +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
+                H = output$model$H)
     } else {
-      forcmodel = SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+SSMseasonal(.self$sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), sea.type='dummy', type='distinct')+SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = output$model$H)
+      forcmodel = 
+        SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')
+                +SSMseasonal(.self$sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), sea.type='trigonometric', type='distinct')
+                +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = output$model$H)
     }
-    forcout = predict(output$model,forcmodel,interval=c('prediction'),
-                      level=0.68,states=c('trend'))
+    forcout = predict(output$model,forcmodel,interval='prediction',
+                      level=0.68,states='trend')
     
     if (n.lag>=n.ahead){
       trend=xts(forcout$LDLhosp[,"fit"],tail(index(old),1)+(1:n.ahead))
@@ -766,29 +800,28 @@ FilterResultsLI <- setRefClass(
                         title= NULL, caption = NULL){
     "Plots the forecast of the target variable over a holdout sample. 
     For more details, please refer to \\link{plot_holdout}."
-    fadmits<-.self$predict_level(n.ahead=n.ahead, 
-                                 confidence.level=confidence.level, 
-                                 sea.on=FALSE)
+    # fadmits<-.self$predict_level(n.ahead=n.ahead, 
+    #                              confidence.level=confidence.level, 
+    #                              sea.on=FALSE)
     sea<-.self$predict_level(n.ahead=n.ahead, 
                              confidence.level=confidence.level, 
                              sea.on=TRUE)
     
     end_date<-tail(index(data_xts),1)
-    sea<-sea[,1] #get the forecast column
     
     future_data<-subset(add_daily_ldl(Y,LeadIndCol = .self$LeadIndCol), end_date+1)
     data_validation<-future_data[1:n.ahead, c("cAdmit", "newAdmit")]
     
     newAdmit_validation<-data_validation[,c("newAdmit")]
-    compare<-cbind(newAdmit_validation,fadmits[,1], sea)
-    names(compare)<-c("Actual", "ForecastTrend", "Forecast")
+    compare<-cbind(newAdmit_validation, sea[,1])
+    names(compare)<-c("Actual", "Forecast")
     
-    mape.trend <- 100*(abs(compare$Actual - compare$ForecastTrend)/
-                         compare$Actual) %>% mean %>% round(4)
+    # mape.trend <- 100*(abs(compare$Actual - compare$ForecastTrend)/
+    #                      compare$Actual) %>% mean %>% round(4)
     mape.sea <- 100*(abs(compare$Actual - compare$Forecast)/compare$Actual) %>%
       mean %>% round(4)
     
-    ci<-fadmits[,-1]
+    ci<-sea[,-1]
     colnames(ci) <- c('lower', 'upper')
     
     df_plot <- as.data.frame(compare)
@@ -800,14 +833,13 @@ FilterResultsLI <- setRefClass(
     p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
       ggplot2::geom_line(aes(y = Forecast, color = "Forecast"),lwd = 0.85) +
-      ggplot2::geom_line(
-        aes(y = ForecastTrend, color = "Forecast\nTrend"),lwd = 0.85) +
-      ggplot2::scale_color_manual(values = c("black", "grey", "#AA2045")) +
+      # ggplot2::geom_line(
+      #   aes(y = ForecastTrend, color = "Forecast\nTrend"),lwd = 0.85) +
+      ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
       ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lower, ymax = upper),linetype = 0, linewidth = 0, fill = "#AA2045",
                            alpha = 0.1) +
       labs(x = "Date", y = paste("New",series.name), title = title,
-           subtitle = paste("MAPE: ",mape.sea,"%. Trend MAPE: ",
-                            mape.trend,"%.",sep="")) +
+           subtitle = paste("MAPE: ",mape.sea,"%.",sep="")) +
       theme_economist_white(gray_bg = FALSE, base_size = 14) +
       theme(legend.title = element_blank()) +
       theme(
@@ -820,7 +852,7 @@ FilterResultsLI <- setRefClass(
           size = rel(1), hjust=0,  margin = margin(t=3))
       ) +
       scale_linetype_manual(
-        values = c("solid", "solid", "solid")) +
+        values = c("solid", "solid")) +
       scale_x_date(labels = scales::date_format("%d %b %y")) +
       scale_size_manual(values = c(1, 1.5, 1))
     
@@ -848,9 +880,9 @@ FilterResultsLI <- setRefClass(
       
       mae<-abs(compare$Actual - compare$Forecast) %>% mean
       rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2))
-      coverage<-100*sum(and(sea[,2]<=compare$Actual, sea[,3]>=compare$Actual))/n.forecasts
+      coverage<-100*sum(and(sea[,2]<=compare$Actual, sea[,3]>=compare$Actual))/n.ahead
       
-    return(list(sea=mape.sea, mae=mae, rmse=rmse, coverage=coverage))
+    return(list(mape=mape.sea, mae=mae, rmse=rmse, coverage=coverage))
   }
 )
 )

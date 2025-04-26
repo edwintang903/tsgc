@@ -13,7 +13,8 @@ cross_val(
   totaldays = 1,
   freq = 1,
   vanilla = TRUE,
-  LeadIndCol = 1
+  LeadIndCol = 1,
+  criterion = "mape"
 )
 }
 \arguments{
@@ -47,6 +48,9 @@ Note: If using the vanilla model, the date format must be "\%Y-\%m-\%d".}
 \item{LeadIndCol}{(Only required for leading indicator models) Integer
 representing the column number in \code{y} that contains the leading
 indicator.}
+
+\item{criterion}{A string object indicating how to compare between different
+models. Available choices are "mape" (by default), "mae" and "rmse".}
 }
 \value{
 A table summarizing the MAPE scores for each lag across the
@@ -68,7 +72,7 @@ estimation.date.end = as.Date("2021-07-24")
 
 #Output cross validation result
 cross_val(y=Y[index(Y)>=estimation.date.start],
-est.end.date=estimation.date.end,n.ahead=7,lags=1:9,totaldays=3, 
-vanilla=TRUE,freq=2,LeadIndCol=1)
+est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3, 
+vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
 
 }

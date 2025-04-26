@@ -38,7 +38,15 @@ class \code{SSModelLeadingIndicator}.
 containing the result output for the estimated Leading Indicator
 model.}}
 
-\item{\code{initialize(Y, n.lag, sea.period = 7, q = NA, LeadIndCol = 1, xpred = NULL)}}{Create an instance of the \code{SSModelLeadingIndicator} class with the 
+\item{\code{initialize(
+  Y,
+  n.lag,
+  sea.period = 7,
+  q = NULL,
+  LeadIndCol = 1,
+  xpred1 = NULL,
+  xpred2 = NULL
+)}}{Create an instance of the \code{SSModelLeadingIndicator} class with the 
 fields laid out at the beginning of the documentation.}
 
 \item{\code{plot(

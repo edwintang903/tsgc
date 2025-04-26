@@ -279,29 +279,30 @@ res.reinit <- estimate(model)
 summary(res.reinit)
 
 # Estimate the reinitialized model with exogenous predictors.
-idx.est3 <- subset(gauteng_weather,estimation.date.start,estimation.date.end)
+weather3 <- subset(gauteng_weather,estimation.date.start,estimation.date.end)
 
-model.x <- SSModelDynamicGompertz$new(
-  Y = y,
-  xpred=weather3,
-  q = q,
-  ar1=TRUE,
-  reinit.date = as.Date(reinit.dates, format = date.format)
-)
-res.reinit.x <- estimate(model.x)
-summary(res.reinit.x)
+# #AR1 is not successfully integrated here.
+# model.x <- SSModelDynamicGompertz$new(
+#   Y = y,
+#   xpred=weather3,
+#   q = q,
+#   ar1=TRUE,
+#   reinit.date = as.Date(reinit.dates, format = date.format)
+# )
+# res.reinit.x <- estimate(model.x)
+# summary(res.reinit.x)
 
 # -----------------------------
 # Plotting: Forecasts after Reinitialisation
 # -----------------------------
-res.reinit$plot_log_forecast(
+plot_log_forecast(res.reinit,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   plt.start.date = tail(res.reinit$index, 1) - plt.length, 
   title = "Forecast of ln(g_t) after reinitialisation."
 )
 
-res.reinit$plot_new_cases(
+plot_new_cases(res.reinit,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   date_format = date.format,
@@ -310,7 +311,7 @@ res.reinit$plot_new_cases(
   series.name = "cases"
 )
 
-res.reinit$plot_holdout(
+plot_holdout(res.reinit,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
@@ -323,7 +324,7 @@ res.reinit$plot_holdout(
 # Holdout Evaluation Comparison
 # -----------------------------
 # Without reinitialisation.
-res$plot_holdout(
+plot_holdout(res,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
@@ -341,7 +342,7 @@ eng <- tsgc::england[, 1:2]
 
 # Plot log daily new cases and admissions by calling the plot function.
 mod2<-SSModelLeadingIndicator$new(eng, n.lag=5) #Choose any n.lag if only plotting is needed
-mod2$plot(title="COVID Daily Cases and Hospitalizations in England",
+plot(mod2,title="COVID Daily Cases and Hospitalizations in England",
           series.name.lead="Cases", 
           series.name.target="Hospitalizations",
           take.log=TRUE)
@@ -357,8 +358,8 @@ y <- subset(eng, estimation.date.start,estimation.date.end)
 
 # Define the leading indicator model and plot the logged time series
 out <- SSModelLeadingIndicator(Y = y, n.lag = n.lag, 
-                               q = NA, LeadIndCol = 1, sea.period = 7)
-out$plot(title="COVID Daily Cases and Hospitalizations in England",
+                               q = NULL, LeadIndCol = 1, sea.period = 7)
+plot(out,title="COVID Daily Cases and Hospitalizations in England",
          series.name.lead="Cases", 
          series.name.target="Hospitalizations",
          take.log=TRUE)
@@ -368,21 +369,21 @@ res <- estimate(out)
 summary(res)
 
 # Plot forecasts.
-res$plot_log_forecast(
+plot_log_forecast(res,
   Y = eng,
   n.ahead = n.forecasts,
   plt.start.date = estimation.date.end - plt.length,
   title="Forecasts of Log Growth rate of England hospitalizations"
 )
 
-res$plot_new_cases(
+plot_new_cases(res,
   n.ahead = n.forecasts,
   plt.start.date = estimation.date.end - plt.length,
   series.name = "hospitalizations",
   title="Forecasts of England hospitalizations"
 )
 
-res$plot_holdout(
+plot_holdout(res,
   Y = eng,
   n.ahead = n.forecasts,
   series.name = "hospitalizations",
@@ -396,12 +397,24 @@ write_results(
   n.ahead = n.forecasts
 )
 
+# Cross-validation to identify the best n.lag
+cross_val(y=eng[index(eng)>=estimation.date.start],
+          est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3,
+          vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mape")
+
+# -----------------------------
+# Leading Indicator with exogenous predictors
+# -----------------------------
+xpred1<-xpred2<-england_weather_2021
+mod<-SSModelLeadingIndicator$new(y, n.lag=4, xpred1=xpred1, xpred2=xpred2)
+res_lead.x<-estimate(mod)
+
 # -----------------------------
 # 4. Leading Indicator vs Gompertz Growth curves: UK and Italy Examples
 # -----------------------------
 # Example: UK-Italy Data analysis.
 ukit<-SSModelLeadingIndicator$new(ukitaly, n.lag=4)
-ukit$plot(title="COVID Daily Cases in UK and Italy",
+plot(ukit, title="COVID Daily Cases in UK and Italy",
           series.name.lead="Italy", 
           series.name.target="UK", take.log=FALSE)
 
@@ -412,9 +425,7 @@ n.forecasts <- 14
 confidence.level <- 0.68
 plt.length <- 30
 estimation.date.end <- as.Date("2020-04-01")
-idx.est <- (zoo::index(Y) >= estimation.date.start) &
-  (zoo::index(Y) <= estimation.date.end)
-y <- Y[idx.est]
+y <- subset(Y, estimation.date.start, estimation.date.end)
 
 model_q <- SSModelDynamicGompertz$new(Y = y, q = 0.005)
 res <- estimate(model_q)
@@ -446,20 +457,22 @@ idx.est <- (zoo::index(ukitaly) >= estimation.date.start) &
 covid_xts <- ukitaly[idx.est]
 out <- SSModelLeadingIndicator(Y = covid_xts, n.lag = n.lag, sea.period = 7)
 res_lead <- estimate(out)
-res_lead$plot_new_cases(
+
+plot_new_cases(res_lead,
   n.ahead = n.forc,
   title = "UK predictions with leading indicator model",
   plt.start.date = estimation.date.end - 30,
   series.name = "UK cases"
 )
-res_lead$plot_holdout(
+
+plot_holdout(res_lead,
   Y = ukitaly,
   title = "UK predictions with leading indicator model",
   n.ahead = n.forc,
   series.name = "UK cases"
 )
 
-plot_compare_forecast(list(res,res_lead), actual=ukitaly)
+plot_compare_forecast(list(res,res_lead), actual=ukitaly[,"UK"])
 
 # Case 2: Future peaks.
 Y <- ukitaly[, "UK"]
@@ -497,22 +510,22 @@ plot_holdout(
 # For leading indicator.
 n.lag <- 14
 n.forc <- 14
-idx.est <- (zoo::index(ukitaly) >= estimation.date.start) &
-  (zoo::index(ukitaly) <= estimation.date.end)
-covid_xts <- ukitaly[idx.est]
+covid_xts <- subset(ukitaly,estimation.date.start,estimation.date.end)
 out <- SSModelLeadingIndicator(Y = covid_xts, n.lag = n.lag)
-res <- estimate(out)
+res_lead <- estimate(out)
 plot_new_cases(
-  res,
+  res_lead,
   n.ahead = n.forc,
   title = "UK predictions with leading indicator model",
   plt.start.date = estimation.date.end - plt.length,
   series.name = "UK cases"
 )
 plot_holdout(
-  res,
+  res_lead,
   Y = ukitaly,
   title = "UK predictions with leading indicator model",
   n.ahead = n.forc,
   series.name = "UK cases"
 )
+
+plot_compare_forecast(list(res,res_lead), actual=ukitaly[,"UK"])
