@@ -22,7 +22,7 @@
 #'
 #' @format An object of class `"xts"`;
 #' \describe{
-#'   \item{Cases}{Cumulative cases of Covid-19 from 10th March 2020}
+#'   \item{cum_cases}{Cumulative cases of Covid-19 from 10th March 2020}
 #' }
 #'
 #' @keywords datasets
@@ -37,7 +37,7 @@
 
 
 
-#' Cumulative cases of Covid-19 in England.
+#' Covid-19 metrics for England.
 #'
 #' @docType data
 #'
@@ -46,14 +46,14 @@
 #' @format An object of class `"xts"`;
 #' \describe{
 #'   \item{cum_cases}{Cumulative cases of Covid-19}
-#'   \item{cum_admissions}{Cumulative hospital admissions due to Covid-19}
-#'   \item{cum_deaths}{Cumulative deaths due to Covid-19}
-#'   \item{hospital_cases}{???}
+#'   \item{cum_admissions}{Cumulative hospital admissions with Covid-19 since the start of the pandemic.}
+#'   \item{cum_deaths}{Cumulative deaths with Covid-19 on the death certificate.}
+#'   \item{hospital_cases}{Number of patients in hospital with confirmed Covid-19 each day. Note this is NOT cumulative.}
 #' }
 #'
 #' @keywords datasets
 #'
-#' @references Downloaded from https://ukhsa-dashboard.data.gov.uk/topics/covid-19
+#' @references Downloaded from https://ukhsa-dashboard.data.gov.uk/topics/covid-19. Now at https://ukhsa-dashboard.data.gov.uk/covid-19-archive-data-download. Full documentation from UKHSA included in downloads from the website.  
 #'
 #' @examples
 #' data(england)
@@ -106,9 +106,6 @@
 #'
 #' @examples
 #' data(gauteng_weather_2021)
-#' # plot daily cases
-#' plot(diff(gauteng_weather_2021))
-"gauteng_weather_2021"
 
 #' Weather data of England.
 #'
@@ -118,10 +115,11 @@
 #'
 #' @format An object of class `"xts"`;
 #' \describe{
-#'   \item{TempC}{Mean air temperature in degree Celsius at 2 meters}
-#'   \item{TempC_max}{Maximum Temperature in degree Celsius at 2 meters}
-#'   \item{RelHumid}{Relative humidity (%)}
-#'   \item{WindSpeed}{Wind speed in m/s at 10 meters }
+#'   \item{temperature_C}{Daily mean air temperature in degree Celsius (C) at 2 metres}
+#'   \item{max_temp_C}{Daily maximum temperature in degree Celsius (C) at 2 metres}
+#'   \item{relhum_percnt}{Relative humidity at 2 metres (%)}
+#'   \item{windspd_mtrs_p_sec}{Wind speed in metres per second (m/s) at 10 metres}
+#'   \item{precip_mtrs}{Preciptation (millimetres per day; mm/day)}
 #' }
 #'
 #' @keywords datasets
