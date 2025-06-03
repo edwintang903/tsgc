@@ -21,8 +21,6 @@ Weather data of the South African province of Gauteng.
 }
 \examples{
 data(gauteng_weather_2021)
-# plot daily cases
-plot(diff(gauteng_weather_2021))
 }
 \references{
 Downloaded from https://power.larc.nasa.gov/data-access-viewer/

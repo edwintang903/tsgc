@@ -106,6 +106,7 @@
 #'
 #' @examples
 #' data(gauteng_weather_2021)
+"gauteng_weather_2021"
 
 #' Weather data of England.
 #'

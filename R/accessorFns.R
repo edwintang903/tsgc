@@ -129,7 +129,7 @@ gety<-function(object){
 
 #' @title Extract prediction y.hat in SSModel
 #
-#' @description Accessor method to access time series y in `SSModel` object
+#' @description Accessor method to access prediction y.hat in `SSModel` object
 #'
 #' @param object A `SSModel` object
 #'

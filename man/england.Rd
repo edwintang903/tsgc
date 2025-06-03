@@ -3,21 +3,21 @@
 \docType{data}
 \name{england}
 \alias{england}
-\title{Cumulative cases of Covid-19 in England.}
+\title{Covid-19 metrics for England.}
 \format{
 An object of class \code{"xts"};
 \describe{
 \item{cum_cases}{Cumulative cases of Covid-19}
-\item{cum_admissions}{Cumulative hospital admissions due to Covid-19}
-\item{cum_deaths}{Cumulative deaths due to Covid-19}
-\item{hospital_cases}{???}
+\item{cum_admissions}{Cumulative hospital admissions with Covid-19 since the start of the pandemic.}
+\item{cum_deaths}{Cumulative deaths with Covid-19 on the death certificate.}
+\item{hospital_cases}{Number of patients in hospital with confirmed Covid-19 each day. Note this is NOT cumulative.}
 }
 }
 \usage{
 data(england)
 }
 \description{
-Cumulative cases of Covid-19 in England.
+Covid-19 metrics for England.
 }
 \examples{
 data(england)
@@ -25,6 +25,6 @@ data(england)
 plot(diff(england))
 }
 \references{
-Downloaded from https://ukhsa-dashboard.data.gov.uk/topics/covid-19
+Downloaded from https://ukhsa-dashboard.data.gov.uk/topics/covid-19. Now at https://ukhsa-dashboard.data.gov.uk/covid-19-archive-data-download. Full documentation from UKHSA included in downloads from the website.
 }
 \keyword{datasets}

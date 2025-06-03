@@ -7,10 +7,11 @@
 \format{
 An object of class \code{"xts"};
 \describe{
-\item{TempC}{Mean air temperature in degree Celsius at 2 meters}
-\item{TempC_max}{Maximum Temperature in degree Celsius at 2 meters}
-\item{RelHumid}{Relative humidity (\%)}
-\item{WindSpeed}{Wind speed in m/s at 10 meters }
+\item{temperature_C}{Daily mean air temperature in degree Celsius (C) at 2 metres}
+\item{max_temp_C}{Daily maximum temperature in degree Celsius (C) at 2 metres}
+\item{relhum_percnt}{Relative humidity at 2 metres (\%)}
+\item{windspd_mtrs_p_sec}{Wind speed in metres per second (m/s) at 10 metres}
+\item{precip_mtrs}{Preciptation (millimetres per day; mm/day)}
 }
 }
 \usage{

@@ -10,5 +10,5 @@ gety.hat(object)
 \item{object}{A \code{SSModel} object}
 }
 \description{
-Accessor method to access time series y in \code{SSModel} object
+Accessor method to access prediction y.hat in \code{SSModel} object
 }

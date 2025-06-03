@@ -30,6 +30,9 @@ effect with daily data, this would be 7.}
 
 \item{\code{LeadIndCol}}{The column in \code{data_xts} that contains the leading
 indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.}
+
+\item{\code{xpred_logical}}{Vector of lenth 2 with logical values, indicating whether
+there are exogenous predictors for leading series and target series.}
 }}
 
 \section{Methods}{
@@ -74,8 +77,9 @@ variable (\eqn{Y}). Computed as
   n.lag,
   sea.period,
   LeadIndCol,
-  new.xpred1 = NULL,
-  new.xpred2 = NULL
+  xpred1.new = NULL,
+  xpred2.new = NULL,
+  xpred_logical
 )}}{Create an instance of the \code{FilterResultsLI} class with fields defined
 earlier in the fields section.}
 
@@ -131,7 +135,12 @@ variable, showing actual values, forecasts including seasonal components,
 and prediction intervals around the forecasts. For more details, see 
 \link{plot_new_cases}.}
 
-\item{\code{predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)}}{Returns forecasts of the incidence variable \eqn{y}, the state variables
+\item{\code{predict_all(
+  n.ahead,
+  sea.on = FALSE,
+  return.all = FALSE,
+  confidence.level = 0.68
+)}}{Returns forecasts of the incidence variable \eqn{y}, the state variables
  and the conditional covariance matrix
 for the states.
  \subsection{Parameters}{\itemize{
