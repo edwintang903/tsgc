@@ -125,7 +125,7 @@
 #'
 #' @keywords datasets
 #'
-#' @references Downloaded from 
+#' @references Downloaded from https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview and aggregated across the latitude and longitude corners for England by the authors.
 #'
 #' @examples
 #' data(england_weather_2021)
