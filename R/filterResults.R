@@ -6,14 +6,23 @@ setOldClass("KFS")
 #' methods to extract smoothed/filtered estimates of the states, the level of
 #' the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 #' 
-#' @field data_xts The non-reinitialized cumulated variable.
-#' @field xpred The exogeneous predictors used to estimate the FilterResults object.
-#' If no exogeneous predictors were used, this will be NULL.
+#' @field data_xts An xts object containing the non-reinitialized cummulated 
+#' variable.
+#' @field need.xpred Logical value indicating whether exogenous predictors were 
+#' used to estimate the FilterResults object. 
+#' @field varying_coef Logical value indicating whether regression
+#' coefficients on xpred should be modeled as a random walk (if \code{TRUE}) or 
+#' as a constant (if \code{FALSE}). Default is \code{FALSE}.
 #' @field index The list of dates in the index of \code{data_xts}.
 #' @field reinit.date The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable). 
 #' Should be specified as an object of class \code{\"Date\"}.
+#' @field ar1 Logical value indicating whether an ar1 component should be 
+#' included in the model.
 #' @field output A \code{KFS} results object obtained after fitting a 
 #' \code{SSModelDynamicGompertz} model.
+#' @field xpred.new An xts object containing exogenous predictors to be used in 
+#' prediction. Defaults to \code{NULL}, and should be provided if xpred is 
+#' used for model estimation.
 #' 
 #' @references Harvey, A. C. and Kattuman, P. (2021). A Farewell to R:
 #' Time Series Models for Tracking and
@@ -85,7 +94,8 @@ FilterResults <- setRefClass(
   "FilterResults",
   fields = list(
     data_xts = "xts",
-    xpred = "ANY",
+    need.xpred = "ANY",
+    varying_coef = "logical",
     xpred.new="ANY",
     index = "Date",
     reinit.date= "ANY",
@@ -93,14 +103,15 @@ FilterResults <- setRefClass(
     output = "KFS"
   ),
   methods = list(
-    initialize = function(data_xts,xpred,
+    initialize = function(data_xts,need.xpred,varying_coef,
                           index,reinit.date, ar1, output, xpred.new=NULL)
     {
       "Create an instance of the \\code{FilterResults} class with fields defined
       earlier in the fields section."
       data_xts<<-data_xts
       index <<- index
-      xpred<<-xpred
+      need.xpred<<-need.xpred
+      varying_coef<<-varying_coef
       xpred.new<<-xpred.new
       reinit.date<<-reinit.date
       ar1<<-ar1
@@ -256,7 +267,7 @@ FilterResults <- setRefClass(
       
       attr(new.model, 'n') <- as.integer(oldn + n.ahead)
       
-      if (!is.null(xpred)){
+      if (need.xpred){
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } else {
@@ -433,9 +444,11 @@ FilterResults <- setRefClass(
     summary=function(){
       "Supplies details of the filterResults object, such as estimated 
       parameter values, start and end dates of estimation."
+      reg.dim<-attr(output$model$terms,"specials")$SSMregression
+      if (is.null(reg.dim)) {reg.dim<-0}
       H <- matrixKFS(output, "H")[, , 1]
-      Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]
-      Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
+      Q_gamma <- matrixKFS(output, "Q")[2+reg.dim, 2+reg.dim, 1]
+      Q_seasonal <- matrixKFS(output, "Q")[3+reg.dim, 3+reg.dim, 1]
       
       start_date <- index[1]
       end_date <- index[length(index)]
@@ -471,7 +484,7 @@ FilterResults <- setRefClass(
       and prediction intervals around the forecasts. 
       For more details, see \\link{plot_new_cases}."
       
-      if (!is.null(xpred)){
+      if (need.xpred){
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } 
@@ -750,7 +763,7 @@ FilterResults <- setRefClass(
       variable) over a holdout sample. For more details, please refer to 
       \\link{plot_holdout}."
       
-      if (!is.null(xpred)){
+      if (need.xpred){
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } 
@@ -842,7 +855,7 @@ FilterResults <- setRefClass(
       "Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
     forecasts against a holdout sample. For more details, please refer to 
     \\link{mapes}."
-      if (!is.null(xpred)){
+      if (need.xpred){
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } 

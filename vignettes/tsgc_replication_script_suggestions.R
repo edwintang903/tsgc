@@ -156,7 +156,8 @@ data(gauteng_weather_2021, package = "tsgc")
 gauteng_weather<-gauteng_weather_2021[,1:4]
 
 # Set up model and estimate it
-model_weather <- SSModelDynamicGompertz$new(Y = y, xpred=gauteng_weather)
+model_weather <- SSModelDynamicGompertz$new(Y = y, xpred=gauteng_weather, 
+                                            varying_coef=TRUE)
 res_weather <- estimate(model_weather)
 summary(res_weather)
 

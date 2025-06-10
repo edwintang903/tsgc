@@ -83,6 +83,9 @@ setOldClass("KFS")
 #' attempt to use information from before the reinitialisation date is made.
 #' @field xpred An \code{xts} object containing the dataset of exogenous variables 
 #' to include in the model. Defaults to \code{NULL}.
+#' @field varying_coef Logical value indicating whether regression
+#' coefficients on xpred should be modeled as a random walk (if \code{TRUE}) or 
+#' as a constant (if \code{FALSE}). Default is \code{FALSE}.
 #' @field ar1 Logical value indicating whether an ar1 component should be 
 #' included in the model. Default is \code{FALSE}.
 #' 
@@ -129,11 +132,14 @@ SSModelDynamicGompertz <- setRefClass(
     original.results = "ANY",
     use.presample.info = "ANY",
     xpred="ANY",
+    varying_coef="logical",
     ar1="logical"
   ),
   methods = list(initialize = function(Y, q = NULL, sea.type = 'trigonometric',
-                                       sea.period = 7,reinit.date=NULL, original.results=NULL,
-                                       use.presample.info=TRUE, xpred=NULL, ar1=FALSE)
+                                       sea.period = 7,reinit.date=NULL, 
+                                       original.results=NULL,
+                                       use.presample.info=TRUE, xpred=NULL, 
+                                       varying_coef=FALSE, ar1=FALSE)
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
@@ -147,6 +153,7 @@ SSModelDynamicGompertz <- setRefClass(
     original.results <<- original.results
     use.presample.info <<- use.presample.info
     xpred<<-xpred[index(Y)]
+    varying_coef<<-varying_coef
     ar1<<-ar1
   },
   estimate = function() {
@@ -250,11 +257,7 @@ SSModelDynamicGompertz <- setRefClass(
       model
     }
     
-    get_model = function(
-    y,
-    xpred=NULL
-    )
-    {
+    get_model = function(y,xpred=NULL){
       get_dynamic_gompertz_model = function(
     y,
     xpred,
@@ -276,8 +279,15 @@ SSModelDynamicGompertz <- setRefClass(
         # 1. Set prior on state as ~ N(a1, P1) if a1 supplied.
         use.prior <- if (!is.null(a1)) { TRUE } else { FALSE }
         
-        # 2. Check whether there are exogeneous predictors in model
+        # 2. Check whether there are exogenous predictors in model
         need.xpred<-!is.null(xpred)
+        if (need.xpred){
+          xpred_dim<-dim(xpred)[2]
+          Q_pred<-if (varying_coef)
+          {diag(c(rep(NA, xpred_dim)))
+          } else {
+            matrix(0,nrow=xpred_dim, ncol=xpred_dim)}
+        }
         
         #Write out the model depending on case
         if (use.prior) {
@@ -370,8 +380,7 @@ SSModelDynamicGompertz <- setRefClass(
             if (sea.type == 'trigonometric') {
               if(ar1){
                 ss_model <- SSModel(
-                  y ~
-                    SSMtrend(
+                  y ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     ) +
@@ -379,7 +388,8 @@ SSModelDynamicGompertz <- setRefClass(
                       period = sea.period,
                       Q = Qt.seas,
                       sea.type = sea.type)+
-                    SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")+xpred,
+                    SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
+                  +SSMregression(~xpred, Q = Q_pred),
                   H = matrix(Ht)
                 )
               } else {
@@ -392,7 +402,8 @@ SSModelDynamicGompertz <- setRefClass(
                     SSMseasonal(
                       period = sea.period,
                       Q = Qt.seas,
-                      sea.type = sea.type)+xpred,
+                      sea.type = sea.type)
+                  +SSMregression(~xpred, Q = Q_pred),
                   H = matrix(Ht)
                 )
               }
@@ -405,7 +416,7 @@ SSModelDynamicGompertz <- setRefClass(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     )+SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
-                  +xpred,
+                  +SSMregression(~xpred, Q=Q_pred),
                   H = matrix(Ht)
                 )
               } else {
@@ -414,7 +425,7 @@ SSModelDynamicGompertz <- setRefClass(
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
-                    )+xpred,
+                    )+SSMregression(~xpred, Q = Q_pred),
                   H = matrix(Ht)
                 )
               }
@@ -593,7 +604,8 @@ SSModelDynamicGompertz <- setRefClass(
     
     results <- FilterResults$new(
       data_xts = Y,
-      xpred=xpred,
+      need.xpred=!is.null(xpred),
+      varying_coef=varying_coef,
       index = date.index,
       reinit.date=reinit.date,
       ar1=ar1,
