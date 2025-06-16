@@ -186,12 +186,17 @@ SSModelDynamicGompertz <- setRefClass(
           Q <- as.matrix(model$Q[, , 1])
           # Update diagonal elements
           naQd <- which(is.na(diag(Q)))
+          if (ar1) {
+            i.ar1 <- nrow(Q)
+            naQd <- setdiff(naQd, i.ar1)
+          }
+          
           Q[naQd, naQd][lower.tri(Q[naQd, naQd])] <- 0
           diag(Q)[naQd] <- exp(0.5 * pars[1])
           # Check for off-diagonal elements and raise error if found.
           naQnd <- which(upper.tri(Q[naQd, naQd]) & is.na(Q[naQd, naQd]))
           if (length(naQnd) > 0) {
-            stop("NotImplmentedError: Unexpected off-diaganol element updating")
+            stop("NotImplmentedError: Unexpected off-diagonal element updating")
           }
         }
         
@@ -215,41 +220,18 @@ SSModelDynamicGompertz <- setRefClass(
           Q.slope <- crossprod(H[naHd, naHd]) * q
         }
         model$Q[i.slope, i.slope, 1] <- Q.slope
+        
+        # 4. Set AR1 noise
+        if (ar1){
+          i.ar1 <- nrow(Q)
+          Q[i.ar1, i.ar1] <- exp(0.5 * pars[nparQ + 3])
+          model$Q[i.ar1, i.ar1, 1] <- Q[i.ar1, i.ar1]
+          
+          T = model$T[,,1]
+          model$T[nrow(T),ncol(T),1] = pars[nparQ + 4]
+        }
       }
       return(model)
-    }
-    updatear1=function(pars, model, q, order, index){
-      "Standard update function allow the targeting of the signal-to-noise ratio. 
-      Signal-to-noise ratio is defined as the variance of the trend component of order 'order' 
-      (= 1 for level, = 2 for slope, etc) relative to variance of irregular of series 'index'
-      (= 1 for 1st col of dataframe, = 2 for 2nd etc)."
-      np = sum(is.na(model$Q)) + sum(is.na(model$H))
-      if(any(is.na(model$Q))){
-        Q <- as.matrix(model$Q[,,1])
-        naQd  <- which(is.na(diag(Q)))
-        naQnd <- which(upper.tri(Q[naQd,naQd]) & is.na(Q[naQd,naQd]))
-        Q[naQd,naQd][lower.tri(Q[naQd,naQd])] <- 0
-        diag(Q)[naQd] <- exp(0.5 * pars[1:length(naQd)])
-        Q[naQd,naQd][naQnd] <- pars[length(naQd)+1:length(naQnd)]
-        model$Q[naQd,naQd,1] <- crossprod(Q[naQd,naQd])
-      }
-      if(!identical(model$H,'Omitted') && any(is.na(model$H))){
-        H<-as.matrix(model$H[,,1])
-        naHd  <- which(is.na(diag(H)))
-        naHnd <- which(upper.tri(H[naHd,naHd]) & is.na(H[naHd,naHd]))
-        H[naHd,naHd][lower.tri(H[naHd,naHd])] <- 0
-        diag(H)[naHd] <-
-          exp(0.5 * pars[length(naQd)+length(naQnd)+1:length(naHd)])
-        H[naHd,naHd][naHnd] <-
-          pars[length(naQd)+length(naQnd)+length(naHd)+1:length(naHnd)]
-        model$H[naHd,naHd,1] <- crossprod(H[naHd,naHd])
-        if (!is.null(q)) {
-          model$Q[order,order,1] <- q*crossprod(H[index,index])
-          }
-      }
-      T = model$T[,,1]
-      model$T[nrow(T),ncol(T),1] = pars[np+1]
-      model
     }
     
     get_model = function(y,xpred=NULL){
@@ -276,9 +258,6 @@ SSModelDynamicGompertz <- setRefClass(
         
         # 2. Check whether there are exogenous predictors in model
         need.xpred<-!is.null(xpred)
-        if (need.xpred){
-          xpred_dim<-dim(xpred)[2]
-          Q_pred<-matrix(0,nrow=xpred_dim, ncol=xpred_dim)}
         
         #Write out the model depending on case
         if (use.prior) {
@@ -380,13 +359,12 @@ SSModelDynamicGompertz <- setRefClass(
                       Q = Qt.seas,
                       sea.type = sea.type)+
                     SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
-                  +SSMregression(~xpred, Q = Q_pred),
+                  +SSMregression(~xpred),
                   H = matrix(Ht)
                 )
               } else {
                 ss_model <- SSModel(
-                  y ~
-                    SSMtrend(
+                  y ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     ) +
@@ -394,7 +372,7 @@ SSModelDynamicGompertz <- setRefClass(
                       period = sea.period,
                       Q = Qt.seas,
                       sea.type = sea.type)
-                  +SSMregression(~xpred, Q = Q_pred),
+                  +SSMregression(~xpred),
                   H = matrix(Ht)
                 )
               }
@@ -407,7 +385,7 @@ SSModelDynamicGompertz <- setRefClass(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     )+SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
-                  +SSMregression(~xpred, Q=Q_pred),
+                  +SSMregression(~xpred),
                   H = matrix(Ht)
                 )
               } else {
@@ -416,7 +394,7 @@ SSModelDynamicGompertz <- setRefClass(
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
-                    )+SSMregression(~xpred, Q = Q_pred),
+                    )+SSMregression(~xpred),
                   H = matrix(Ht)
                 )
               }
@@ -573,13 +551,9 @@ SSModelDynamicGompertz <- setRefClass(
     y <- tsgc::df2ldl(Y)
     
     # 2. Add update / model methods
-    if (ar1){
-      updatefn <- updatear1 %>% partial(q=q,order=2,index=1)
-    } else {
-      updatefn <- purrr::partial(
-        update, ... =, q = q, sea.type = sea.type
-      )
-    }
+    updatefn <- purrr::partial(
+      update, ... =, q = q, sea.type = sea.type
+    )
     
     model <- get_model(y, xpred=xpred)
 
@@ -608,9 +582,8 @@ SSModelDynamicGompertz <- setRefClass(
     "Supplies details of the SSModelDynamicGompertz object, such as estimated 
       parameter values, start and end dates of estimation."
     out <- suppressWarnings(output(.self$estimate()))
-    reg.dim<-if (!is.null(xpred)){dim(xpred)[2]} else {0}
     if(is.null(q)){
-      qest <- matrixKFS(out,"Q")[2+reg.dim, 2+reg.dim, 1]/matrixKFS(out,"H")[, , 1]
+      qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
     }
     reinit<-!is.null(reinit.date)
     dates<-index(Y)

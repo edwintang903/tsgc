@@ -282,17 +282,27 @@ FilterResults <- setRefClass(
           
           model_output <- KFS(new.model)
           new.Q <- new.model$Q
-          dim.xpred<-dim(xpred.new)[2]
-          newdata<-SSModel(rep(NA,dim(xpred.new)[1])
-                           ~SSMtrend(degree = 2, 
-                            Q = list(matrix(0), matrix(new.Q[2+dim.xpred,2+dim.xpred,1]))) 
-                          +SSMseasonal(
-                            period = sea.period, #Need to provide sea.period
-                            Q = new.Q[3+dim.xpred,3+dim.xpred,1],
-                            sea.type = "trigonometric")
-                          +SSMregression(~xpred.new, Q = new.Q[1:dim.xpred,1:dim.xpred,1]))
-                          #+SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1") #Need to add AR1
-                #SSMcustom(Z=newZ, T=new.model$T, R=new.model$R, Q=new.model$Q))
+          if (ar1){
+            ar1_index<-dim(new.Q)[1]
+            newdata<-SSModel(rep(NA,dim(xpred.new)[1])
+                             ~SSMtrend(degree = 2,
+                                       Q = list(matrix(0), matrix(new.Q[2,2,1])))
+                             +SSMseasonal(
+                               period = sea.period, #Need to provide sea.period
+                               Q = new.Q[3,3,1],
+                               sea.type = "trigonometric")
+                             +SSMregression(~xpred.new)
+                             +SSMcustom(Z=1,T=1,R=1,Q=new.Q[ar1_index,ar1_index,1],state_names="ar1"))
+          } else {
+            newdata<-SSModel(rep(NA,dim(xpred.new)[1])
+                             ~SSMtrend(degree = 2,
+                                       Q = list(matrix(0), matrix(new.Q[2,2,1])))
+                             +SSMseasonal(
+                               period = sea.period, #Need to provide sea.period
+                               Q = new.Q[3,3,1],
+                               sea.type = "trigonometric")
+                             +SSMregression(~xpred.new))
+          }
           if (sea.on == TRUE) {
             y.hat.kfas <- predict(
               output$model, interval = 'prediction',
@@ -329,7 +339,7 @@ FilterResults <- setRefClass(
       dates <- seq(index[1], by = 'day', length.out = (oldn + n.ahead))
 
       y.hat <- xts::xts(
-        c(y.t.t, y.hat.kfas[, 1+dim.xpred] %>% as.matrix()),
+        c(y.t.t, y.hat.kfas[, 1] %>% as.matrix()),
         order.by = dates)
       names(y.hat)<-c("y.hat")
       
@@ -450,11 +460,9 @@ FilterResults <- setRefClass(
     summary=function(){
       "Supplies details of the filterResults object, such as estimated 
       parameter values, start and end dates of estimation."
-      reg.dim<-attr(output$model$terms,"specials")$SSMregression
-      if (is.null(reg.dim)) {reg.dim<-0}
       H <- matrixKFS(output, "H")[, , 1]
-      Q_gamma <- matrixKFS(output, "Q")[2+reg.dim, 2+reg.dim, 1]
-      Q_seasonal <- matrixKFS(output, "Q")[3+reg.dim, 3+reg.dim, 1]
+      Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]
+      Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
       
       start_date <- index[1]
       end_date <- index[length(index)]
