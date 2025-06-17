@@ -277,12 +277,9 @@ res.reinit <- estimate(model)
 summary(res.reinit)
 
 # # Estimate the reinitialized model with exogenous predictors.
-# weather3 <- get_timeframe(gauteng_weather,estimation.date.start,estimation.date.end)
-# 
-# #can do this with xpred, but cannot do estimation with AR1 yet. 
 # model.x <- SSModelDynamicGompertz$new(
 #   Y = y,
-#   xpred=weather3,
+#   xpred=gauteng_weather,
 #   q = q,
 #   reinit.date = as.Date(reinit.dates, format = date.format)
 # )
