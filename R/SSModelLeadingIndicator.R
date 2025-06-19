@@ -150,7 +150,7 @@ SSModelLeadingIndicator <- setRefClass(
       # an extra trend [random walk] in LDLhosp only [degree = 1],
       # and 7 day dummy variable seasonal.
       
-      if (is.na(sea.period)){
+      if (sea.period<2){
         if (is.null(xpred1)){
           if (is.null(xpred2)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+

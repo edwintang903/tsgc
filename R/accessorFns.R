@@ -14,18 +14,34 @@
 #  A copy of the GNU General Public License is available at
 #  http://www.r-project.org/Licenses/
 
-#' @title Extract output of FilterResults
+#' @title Extract output of FilterResults or FilterResultsLI
 #
 #' @description Accessor method to provide new exogenous predictors for the 
 #' estimation period
 #'
-#' @param object FilterResults object
+#' @param object FilterResults or FilterReusltsLI object
 #' @param new.xts An xts object containing new exogenous predictors
+#' @param idx The series number (must be integers 1 or 2) for which exogenous variables are supplied. 
+#' Only applicable for FilterResultsLI object. Defaults to NULL.
 #'
 #' @export
-supply_xpred.new<-function(object, new.xts){
-  object$xpred.new<-new.xts
-  print("xpred.new registered.")
+supply_xpred.new<-function(object, new.xts, idx=NULL){
+  if (class(object)=="FilterResultsLI"){
+    if (idx==1){
+      object$xpred1.new<-new.xts
+      print("xpred1.new registered.")
+    } else if (idx==2){
+      object$xpred2.new<-new.xts
+      print("xpred2.new registered.")
+    } else {
+      stop("Please specify idx, which is either 1 or 2.")
+    }
+  } else if (class(object)=="FilterResults"){
+    object$xpred.new<-new.xts
+    print("xpred.new registered.")
+  } else {
+    stop("Object is not of class 'FilterResultsLI' or 'FilterResults'.")
+  }
 }
 
 #' @description Accessor method to access the fitted KFS model from `FilterResults`

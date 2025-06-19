@@ -344,7 +344,7 @@ plot(mod2,title="COVID Daily Cases and Hospitalizations in England",
 # Define estimation parameters for the leading indicator analysis.
 estimation.date.start <- as.Date("2021-04-30")
 estimation.date.end   <- as.Date("2021-07-24")
-plt.length            <- 14  # Adjusted for this analysis
+plt.length            <- 14  
 n.lag                 <- 4
 n.forecasts           <- 7
 
@@ -400,7 +400,8 @@ mod<-SSModelLeadingIndicator$new(y, n.lag=4, xpred1=xpred1, xpred2=xpred2)
 res_lead.x<-estimate(mod)
 summary(res_lead.x)
 
-res_lead.x$xpred1.new<-res_lead.x$xpred2.new<-england_weather_2021[,1:4]
+supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=1)
+supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=2)
 
 # Plot forecasts
 plot_new_cases(res_lead.x,
