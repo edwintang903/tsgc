@@ -23,6 +23,6 @@ Weather data of the South African province of Gauteng.
 data(gauteng_weather_2021)
 }
 \references{
-Downloaded from https://power.larc.nasa.gov/data-access-viewer/
+Downloaded from https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview and aggregated across the latitude and longitude corners for Gauteng province, South Africa by the authors.
 }
 \keyword{datasets}

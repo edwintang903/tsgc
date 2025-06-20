@@ -35,3 +35,10 @@ test_that("Test argmax", {
     str(zoo::index(x)[1])
   )
 })
+
+test_that("identify error", {
+  data(gauteng)
+  model <- SSModelDynamicGompertz$new(Y = gauteng$cum_cases[1:100])
+  res <- model$estimate()
+  expect_equal(1,1)
+})

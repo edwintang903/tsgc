@@ -102,7 +102,7 @@
 #'
 #' @keywords datasets
 #'
-#' @references Downloaded from https://power.larc.nasa.gov/data-access-viewer/
+#' @references Downloaded from https://cds.climate.copernicus.eu/datasets/reanalysis-era5-single-levels?tab=overview and aggregated across the latitude and longitude corners for Gauteng province, South Africa by the authors.
 #'
 #' @examples
 #' data(gauteng_weather_2021)

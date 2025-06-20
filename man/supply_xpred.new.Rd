@@ -2,17 +2,17 @@
 % Please edit documentation in R/accessorFns.R
 \name{supply_xpred.new}
 \alias{supply_xpred.new}
-\title{Extract output of FilterResults}
+\title{Extract output of FilterResults or FilterResultsLI}
 \usage{
-supply_xpred.new(object, new.xts)
+supply_xpred.new(object, new.xts, idx = NULL)
 }
 \arguments{
-\item{object}{FilterResults object}
+\item{object}{FilterResults or FilterReusltsLI object}
 
 \item{new.xts}{An xts object containing new exogenous predictors}
-}
-\value{
-The fitted KFS model
+
+\item{idx}{The series number (must be integers 1 or 2) for which exogenous variables are supplied.
+Only applicable for FilterResultsLI object. Defaults to NULL.}
 }
 \description{
 Accessor method to provide new exogenous predictors for the

@@ -19,10 +19,6 @@ variable.}
 \item{\code{need.xpred}}{Logical value indicating whether exogenous predictors were
 used to estimate the FilterResults object.}
 
-\item{\code{varying_coef}}{Logical value indicating whether regression
-coefficients on xpred should be modeled as a random walk (if \code{TRUE}) or
-as a constant (if \code{FALSE}). Default is \code{FALSE}.}
-
 \item{\code{index}}{The list of dates in the index of \code{data_xts}.}
 
 \item{\code{reinit.date}}{The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable).
@@ -77,11 +73,11 @@ variable (\eqn{Y}). Computed as
 \item{\code{initialize(
   data_xts,
   need.xpred,
-  varying_coef,
   index,
   reinit.date,
   ar1,
   output,
+  sea.period,
   xpred.new = NULL
 )}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}

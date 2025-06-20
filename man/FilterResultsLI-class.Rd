@@ -31,8 +31,14 @@ effect with daily data, this would be 7.}
 \item{\code{LeadIndCol}}{The column in \code{data_xts} that contains the leading
 indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.}
 
-\item{\code{xpred_logical}}{Vector of lenth 2 with logical values, indicating whether
+\item{\code{xpred_logical}}{Vector of length 2 with logical values, indicating whether
 there are exogenous predictors for leading series and target series.}
+
+\item{\code{xpred1.new}}{xts object containing the values of exogenous variables for
+series 1 over the prediction time frame}
+
+\item{\code{xpred2.new}}{xts object containing the values of exogenous variables for
+series 2 over the prediction time frame}
 }}
 
 \section{Methods}{
@@ -77,9 +83,9 @@ variable (\eqn{Y}). Computed as
   n.lag,
   sea.period,
   LeadIndCol,
+  xpred_logical,
   xpred1.new = NULL,
-  xpred2.new = NULL,
-  xpred_logical
+  xpred2.new = NULL
 )}}{Create an instance of the \code{FilterResultsLI} class with fields defined
 earlier in the fields section.}
 

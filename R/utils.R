@@ -249,7 +249,7 @@ write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
 #' @param show_plot A logical value indicating whether ti show the plot of R0
 #' @param title Title for the reproduction number plot. 
 #'
-#' @returns Forecast of number of periods until peak.
+#' @returns Graph of estimated Rt and forecast intervals.
 #' 
 #' @importFrom timetk tk_tbl
 #'

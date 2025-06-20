@@ -279,7 +279,7 @@ SSModelDynamicGompertz <- setRefClass(
             if (need.xpred){
               if (ar1){
                 ss_model <-SSModel(
-                  y ~ SSMtrend(
+                  as.matrix(y) ~ SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope)),
                       a1 = a1[trend_idx],
@@ -299,7 +299,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               } else {
                 ss_model <-SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope)),
                       a1 = a1[trend_idx],
@@ -318,7 +318,7 @@ SSModelDynamicGompertz <- setRefClass(
               #Case 2: With prior info, seasonality, no xpred
               if (ar1){
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope)),
@@ -338,7 +338,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               } else {
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope)),
@@ -360,7 +360,7 @@ SSModelDynamicGompertz <- setRefClass(
             if (need.xpred){
               if (ar1){
                  ss_model <-SSModel(
-                  y ~ SSMtrend(
+                  as.matrix(y) ~ SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[trend_idx],
@@ -373,7 +373,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               } else {
                 ss_model <-SSModel(
-                  y ~ SSMtrend(
+                  as.matrix(y) ~ SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[trend_idx],
@@ -385,7 +385,7 @@ SSModelDynamicGompertz <- setRefClass(
               #Case 4: With prior info, no seasonality, no xpred
               if (ar1){
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[1:2],
@@ -395,7 +395,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               } else {
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[1:2],
@@ -411,7 +411,7 @@ SSModelDynamicGompertz <- setRefClass(
             if (sea.period>1) {
               if(ar1){
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     ) +
@@ -425,7 +425,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               } else {
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     ) +
@@ -441,7 +441,7 @@ SSModelDynamicGompertz <- setRefClass(
             } else {
               if (ar1){
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
@@ -451,7 +451,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               } else {
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
@@ -465,7 +465,7 @@ SSModelDynamicGompertz <- setRefClass(
             if (sea.period>1) {
               if (ar1){
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
@@ -479,7 +479,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               } else {
                 ss_model <- SSModel(
-                  y ~
+                  as.matrix(y) ~
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
@@ -495,7 +495,7 @@ SSModelDynamicGompertz <- setRefClass(
               #Case 8: No prior info, no seasonality, no xpred
               if (ar1){
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     )+
@@ -504,7 +504,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               } else {
                 ss_model <- SSModel(
-                  y ~SSMtrend(
+                  as.matrix(y) ~SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))),
                   H = matrix(Ht))

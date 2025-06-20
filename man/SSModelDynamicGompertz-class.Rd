@@ -22,11 +22,11 @@ The trend component follows:
 Here, the observation disturbances \eqn{\varepsilon_{t}} and slope disturbances \eqn{\zeta_{t}} are independent and normally distributed. The signal-to-noise ratio,
 \eqn{q_{\zeta} = \sigma_{\zeta}^{2} / \sigma_{\varepsilon}^{2}},
 determines how rapidly the slope adjusts to new observations—higher values lead to faster changes, while lower values induce smoothness.
-For models without seasonal terms (\code{sea.type = 'none'}), the priors are given by:
+For models without seasonal terms (\code{sea.period = 0}), the priors are given by:
 \deqn{\begin{pmatrix} \delta_1 \ \gamma_1 \end{pmatrix}
 \sim N(a_1, P_1).}
 
-The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.type = 'trigonometric'}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
+The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.period>1}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
 
 See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{Q}, \eqn{H = \sigma^2_{\varepsilon}}.
 
@@ -54,14 +54,11 @@ initial states appropriately. See the vignette for details.
 variance). Defaults to \code{'NULL'}, in which case no
 signal-to-noise ratio will be imposed. Instead, it will be estimated.}
 
-\item{\code{sea.type}}{Seasonal type. Options are \code{'trigonometric'}
-and \code{'none'}. \code{'trigonometric'} will yield a model with a
-trigonometric seasonal component and \code{'none'} will yield a model
-with no seasonal component.}
-
-\item{\code{sea.period}}{The period of seasonality. For a day-of-the-week
-effect with daily data, this would be 7. Not required if
-\code{sea.type = 'none'}.}
+\item{\code{sea.period}}{A positive integer specifying the period of seasonality used in the
+trigonometric seasonal component of the model. For example, use \code{7} for daily
+data to model day-of-the-week effects. A value of \code{0} disables the seasonal
+component entirely. The default is \code{7}, which is suitable for capturing
+weekly seasonality in daily time series.}
 
 \item{\code{reinit.date}}{(Only needed for reinitialization.) The reinitialisation date \eqn{r}. Should be
 specified as an object of class \code{"Date"}. Defaults to NA, which
@@ -81,10 +78,6 @@ attempt to use information from before the reinitialisation date is made.}
 \item{\code{xpred}}{An \code{xts} object containing the dataset of exogenous variables
 to include in the model. Defaults to \code{NULL}.}
 
-\item{\code{varying_coef}}{Logical value indicating whether regression
-coefficients on xpred should be modeled as a random walk (if \code{TRUE}) or
-as a constant (if \code{FALSE}). Default is \code{FALSE}.}
-
 \item{\code{ar1}}{Logical value indicating whether an ar1 component should be
 included in the model. Default is \code{FALSE}.}
 }}
@@ -101,13 +94,11 @@ model.}}
 \item{\code{initialize(
   Y,
   q = NULL,
-  sea.type = "trigonometric",
   sea.period = 7,
   reinit.date = NULL,
   original.results = NULL,
   use.presample.info = TRUE,
   xpred = NULL,
-  varying_coef = FALSE,
   ar1 = FALSE
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
 are defined in `fields` section. 

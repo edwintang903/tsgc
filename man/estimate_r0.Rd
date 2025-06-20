@@ -24,10 +24,10 @@ estimate_r0(
 \item{title}{Title for the reproduction number plot.}
 }
 \value{
-Forecast of number of periods until peak.
+Graph of estimated Rt and forecast intervals.
 }
 \description{
-Since Harvey and Kattuman (2021)
+Following Harvey and Kattuman (2021)
 }
 \examples{
 library(tsgc)
