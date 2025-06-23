@@ -614,27 +614,45 @@ FilterResults <- setRefClass(
       
       if (p == 1) {
         EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
-        d <- cbind(y, filtered.level, y.pred, get_timeframe(y.eval, tail(est.date.index,1)+1))
-        if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
-        d <- d[index(d) <= tail(index(y.pred),1)]
-        names(d) <- c(
-          'EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData'
-        )
-        
+        if (need.xpred){
+          d <- cbind(y, y.pred, get_timeframe(y.eval, tail(est.date.index,1)+1))
+          if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
+          d <- d[index(d) <= tail(index(y.pred),1)]
+          names(d) <- c('EstimationSample', 'Forecast', 'RealisedData')
+        } else {
+          d <- cbind(y, filtered.level, y.pred, get_timeframe(y.eval, tail(est.date.index,1)+1))
+          if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
+          d <- d[index(d) <= tail(index(y.pred),1)]
+          names(d) <- c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
+        }
         df_plot <- as.data.frame(d)
         df_plot$Date <- as.Date(rownames(df_plot))
         
-        p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-          ggplot2::geom_line(aes(
-            y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85) +
-          ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"),
-                             lwd = 0.85) +
+        if (!need.xpred){
+          color_values <- c("Estimation\nSample" = 1, "Filtered\nLevel" = 2, 
+                            "Forecast" = 3, "Realised\nData" = "grey")
+          linetype_values <-c("solid",
+                              "solid",
+                              "solid",
+                              "dashed")
+          p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date))+
+            ggplot2::geom_line(aes(
+              y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85) +
+            ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"), lwd = 0.85)
+        } else {
+          color_values <-c("Estimation\nSample" = 1,
+            "Forecast" = 3, "Realised\nData" = "grey")
+          linetype_values<-c("solid", "solid", "dashed")
+          p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date))+
+            ggplot2::geom_line(aes(
+              y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
+        }
+        p1 <- p1+
           ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
           ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData"),
                              lwd = 0.85) +
-          ggplot2::scale_color_manual(values = c(1, 2, 3, 'grey')) +
-          scale_linetype_manual(
-            values = c("solid", "solid", "solid", "dashed")) +
+          ggplot2::scale_color_manual(values = color_values) +
+          scale_linetype_manual(values = linetype_values) +
           scale_x_date(labels = scales::date_format("%d %b %y")) +
           labs(x = "Date", y = "Log Growth Rate", caption = caption,
                title = title
