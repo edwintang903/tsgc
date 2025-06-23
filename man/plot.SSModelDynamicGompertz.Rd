@@ -4,7 +4,7 @@
 \alias{plot.SSModelDynamicGompertz}
 \title{Calling plot method for SSModelDynamicGompertz class}
 \usage{
-\method{plot}{SSModelDynamicGompertz}(model, title = NULL, series.name = "target variable", MA = TRUE)
+\method{plot}{SSModelDynamicGompertz}(model, title = NULL, series.name = "target variable", MA_period = 7)
 }
 \arguments{
 \item{model}{A \code{SSModelDynamicGompertz} object}

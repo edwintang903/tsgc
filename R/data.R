@@ -131,3 +131,23 @@
 #' data(england_weather_2021)
 #' 
 "england_weather_2021"
+
+#' Nintendo Sales
+#'
+#' @docType data
+#'
+#' @usage data(nintendo_sales)
+#'
+#' @format An object of class `"xts"`;
+#' \describe{
+#'   \item{wii}{Wii sales}
+#' }
+#'
+#' @keywords datasets
+#'
+#' @references Taken from https://vgsales.fandom.com/wiki/Wii
+#'
+#' @examples
+#' data(nintendo_sales)
+#' 
+"nintendo_sales"

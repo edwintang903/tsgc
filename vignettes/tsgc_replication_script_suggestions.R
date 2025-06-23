@@ -536,3 +536,33 @@ plot_holdout(
 )
 
 plot_compare_forecast(list(res,res_lead), actual=ukitaly[,"UK"])
+
+# -----------------------------
+# 5. Other data resolutions
+# 
+# Parameter Definitions
+# -----------------------------
+# Gather all parameters in one centralised block for easy modification.
+n.forecasts      <- 4
+q                <- NULL
+confidence.level <- 0.68
+estimation.date.start <- as.yearqtr("2006 Q4")
+estimation.date.end   <- as.yearqtr("2010 Q3")
+
+data(wii, package = "tsgc")
+wii<-cumsum(na.omit(nintendo_sales[,1]))
+
+# Get a glimpse of data by plotting its moving average series
+mod1<-SSModelDynamicGompertz$new(Y=wii)
+plot(mod1, title="Wii sales by quarter", series.name="Sales (Million)", MA_period=4)
+
+# -----------------------------
+# Model Estimation 
+# -----------------------------
+y <- get_timeframe(wii,estimation.date.start,estimation.date.end)
+mod_wii<-SSModelDynamicGompertz$new(Y=y, sea.period=4)
+res<-estimate(mod_wii)
+
+plot_log_forecast(res, Y=wii, n.ahead=8, title="Log forecasts of Wii sales")
+plot_new_cases(res, n.ahead=8, title="Wii sales")
+plot_holdout(res, Y=wii, n.ahead=8, title="Wii sales")

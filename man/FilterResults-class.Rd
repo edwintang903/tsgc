@@ -78,7 +78,8 @@ variable (\eqn{Y}). Computed as
   ar1,
   output,
   sea.period,
-  xpred.new = NULL
+  xpred.new = NULL,
+  resolution = "daily"
 )}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}
 

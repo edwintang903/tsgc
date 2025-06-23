@@ -704,7 +704,7 @@ SSModelDynamicGompertz <- setRefClass(
       cat("Use presample info:", use.presample.info)
     }
   },
-  plot =function(title=NULL, series.name="target variable", MA=TRUE){
+  plot =function(title=NULL, series.name="target variable", MA_period=7){
     "Plots the lagged differences of the cumulated dataset \\code{Y} in this 
       \\code{SSModelDynamicGompertz} object against time, which could represent 
       daily cases.
@@ -723,19 +723,27 @@ SSModelDynamicGompertz <- setRefClass(
       "
   cumulative_cases <- Y  
   
-  # Calculate a centred 7-day moving average of daily differences.
-  ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), 7, align = "center")
+  # Calculate a centred moving average of daily differences.
+  ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
   
   # Identify the date with maximum new cases.
   ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
   
   # Prepare data for plotting by combining actual new cases and the moving average.
   d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
-  colnames(d) <- c('New Cases', 'Centered 7-day MA')
+  colnames(d) <- c('New Cases', 'Centered MA')
+  
+  resolution<-get_time_resolution(index(Y))
+  date_col<-if(resolution=='daily'){
+    as.Date(index(d),format = date_format)
+    } else if (resolution=='quarterly') {
+    qtr2date(index(d))
+  }
+  
   d.df <- data.frame(
-    Date = index(d),
+    Date = date_col,
     New.Cases = coredata(d[, 1]),
-    Centered.7.day.MA = coredata(d[, 2])
+    Centered.MA = coredata(d[, 2])
   )
   
   # Create base plot
@@ -755,12 +763,12 @@ SSModelDynamicGompertz <- setRefClass(
     )
   
   # Conditionally add Centered 7-day MA line
-  if (MA) {
+  if (MA_period>2) {
     data_plot <- data_plot + 
-      geom_line(aes(y = Centered.7.day.MA, color = "Centered 7 day MA"), linewidth = 1)+ 
+      geom_line(aes(y = Centered.MA, color = "Centered MA"), linewidth = 1)+ 
       scale_color_manual(
         name = '',
-        values = c('Centered 7 day MA' = 'red')
+        values = c('Centered MA' = 'red')
       )
   } 
   data_plot

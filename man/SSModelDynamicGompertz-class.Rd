@@ -105,7 +105,7 @@ are defined in `fields` section.
   \subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,
   reinit.date = as.Date("2021-05-12",format = date.format))}}}
 
-\item{\code{plot(title = NULL, series.name = "target variable", MA = TRUE)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
+\item{\code{plot(title = NULL, series.name = "target variable", MA_period = 7)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
       \code{SSModelDynamicGompertz} object against time, which could represent 
       daily cases.
       \subsection{Parameters}{\itemize{

@@ -30,6 +30,7 @@ setOldClass("KFS")
 #' @importFrom magrittr %>%
 #' @importFrom methods new
 #' @importFrom abind abind
+#' @importFrom zoo as.yearqtr as.yearmon
 #' @examples
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
@@ -93,15 +94,16 @@ FilterResults <- setRefClass(
     data_xts = "xts",
     need.xpred = "ANY",
     xpred.new="ANY",
-    index = "Date",
+    index = "ANY",
     reinit.date= "ANY",
     ar1 = "logical",
     output = "KFS",
-    sea.period="numeric"
+    sea.period="numeric",
+    resolution="character"
   ),
   methods = list(
     initialize = function(data_xts,need.xpred,index,reinit.date, ar1, 
-                          output, sea.period, xpred.new=NULL)
+                          output, sea.period, xpred.new=NULL, resolution="daily")
     {
       "Create an instance of the \\code{FilterResults} class with fields defined
       earlier in the fields section."
@@ -113,6 +115,7 @@ FilterResults <- setRefClass(
       ar1<<-ar1
       output <<- output
       sea.period<<-sea.period
+      resolution<<-get_time_resolution(index)
     },
     predict_level = function(
       n.ahead,
@@ -162,9 +165,14 @@ FilterResults <- setRefClass(
       g.t <- exp(gety.hat(filtered.out))
 
       # Forecast dates
-      v_dates_end <- seq(last(index(y.cum)), last(
-        index(gety.hat(filtered.out))), by = freq
-      )
+      v_dates_end <- if (resolution=='daily'){
+        seq(last(index(y.cum)), last(
+          index(gety.hat(filtered.out))), by = freq)
+      } else if (resolution=='quarterly'){
+        as.yearqtr(seq(as.numeric(last(index(y.cum))),
+                                as.numeric(last(index(gety.hat(filtered.out)))),
+                                by=0.25))
+      }
 
       # Construct CI
       Ptt <- filtered.out$P.t.t
@@ -178,7 +186,8 @@ FilterResults <- setRefClass(
       y.hat[v_dates_end[1],] <- y.cum[v_dates_end[1]]
       for (i in seq_len(length(v_dates_end[-1]))) {
         date.forecast <- v_dates_end[i + 1]
-        date.lag <- date.forecast - 1
+        date.lag <- if (resolution=='daily'){date.forecast - 1} 
+        else if (resolution=='quarterly'){date.forecast - 0.25}
         # Update level
         y.hat[date.forecast, 1] <- as.numeric(y.hat[date.lag, 1]) *
           as.numeric(1 + g.t[date.forecast,])
@@ -354,7 +363,12 @@ FilterResults <- setRefClass(
         y.t.t <- output$att %*% drop(matrixKFS(output,"Z"))
       } 
       
-      dates <- seq(index[1], by = 'day', length.out = (oldn + n.ahead))
+      if (resolution=='daily'){
+        dates <- seq(index[1], by = 'day', length.out = (oldn + n.ahead))
+      } else if (resolution=='quarterly'){
+        dates <- as.yearqtr(seq(as.numeric(index[1]), by=0.25, 
+                                length.out=(oldn + n.ahead)))
+      }
 
       y.hat <- xts::xts(
         c(y.t.t, y.hat.kfas[, 1] %>% as.matrix()),
@@ -528,7 +542,13 @@ FilterResults <- setRefClass(
       
       Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
       if (is.null(title)) {title <- ""}
-      est.date.index <- index %>% as.Date()
+      
+      est.date.index <- if (resolution=='quarterly'){
+        index %>% as.yearqtr()
+      } else {
+        index %>% as.Date()
+      }
+       
       estimation.date.end <- tail(est.date.index, 1)
       
       if (!is.null(reinit.date)){
@@ -548,7 +568,11 @@ FilterResults <- setRefClass(
     #   sea.on = TRUE
     # )
     # 
-    tmp.date <- min(estimation.date.end - 4, as.Date(plt.start.date, format=date_format))
+    tmp.date <- if (resolution=='daily'){
+      as.Date(plt.start.date, format=date_format)
+    } else if (resolution=='quarterly'){
+      as.Date(format(as.yearmon(plt.start.date), format="%Y-%m-%d"))
+    }
     s <- sprintf("%s/", format(tmp.date, "%Y-%m-%d"))
     d.plot <- cbind(
       diff(y.level.est)[s],
@@ -557,16 +581,26 @@ FilterResults <- setRefClass(
     )
     names(d.plot) <- c('Data', 'Forecast')
     
+    date_col<-if(resolution=='daily'){
+      as.Date(index(y.hat.diff.final.ci),format = date_format)} 
+    else if (resolution=='quarterly') {
+      qtr2date(index(y.hat.diff.final.ci))
+      }
+    
     ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
-                              (as.Date(index(y.hat.diff.final.ci),
-                                       format = date_format))))
+                              date_col))
     colnames(ci) <- c('lower', 'upper', 'date')
     ci[, 'date'] <- as.Date(
       ci[, 'date'], format = date_format, origin = "1970-01-01"
     )
     
     df_plot <- as.data.frame(d.plot)
-    df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
+    
+    if (resolution=='quarterly'){
+      df_plot$Date<-qtr2date(as.yearqtr(rownames(df_plot)))
+    } else {
+      df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
+    }
     
     ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(y = Data, color = "Data"), lwd = 0.85) +
@@ -608,25 +642,39 @@ FilterResults <- setRefClass(
       y <- xts::xts(model$y %>% as.numeric(), order.by = est.date.index)
       p <- attr(model, 'p')
       
+      firstpred<-if (resolution=='quarterly'){
+        tail(est.date.index,1)+0.25
+      } else {
+        tail(est.date.index,1)+1
+      }
+      
       y.hat.all <- .self$predict_all(n.ahead, return.all = TRUE)
-      y.pred <-  get_timeframe(y.hat.all$y.hat, tail(est.date.index,1)+1)
+      y.pred <-  get_timeframe(y.hat.all$y.hat, firstpred)
       filtered.level <- y.hat.all$level
       
       if (p == 1) {
         EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
+        
         if (need.xpred){
-          d <- cbind(y, y.pred, get_timeframe(y.eval, tail(est.date.index,1)+1))
+          d <- cbind(y, y.pred, get_timeframe(y.eval, firstpred))
           if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
           d <- d[index(d) <= tail(index(y.pred),1)]
           names(d) <- c('EstimationSample', 'Forecast', 'RealisedData')
         } else {
-          d <- cbind(y, filtered.level, y.pred, get_timeframe(y.eval, tail(est.date.index,1)+1))
+          d <- cbind(y, filtered.level, y.pred, get_timeframe(y.eval, firstpred))
           if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
           d <- d[index(d) <= tail(index(y.pred),1)]
           names(d) <- c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
         }
+        
         df_plot <- as.data.frame(d)
-        df_plot$Date <- as.Date(rownames(df_plot))
+        
+        df_plot$Date<-if (resolution=='quarterly'){
+          qtr2date(as.yearqtr(rownames(df_plot)))
+        } else {
+          as.Date(rownames(df_plot))
+        }
+        
         
         if (!need.xpred){
           color_values <- c("Estimation\nSample" = 1, "Filtered\nLevel" = 2, 
@@ -676,7 +724,11 @@ FilterResults <- setRefClass(
         names(d) <- c('g_1', 'g_2', 'delta', 'Forecast', 'RealisedData')
         
         df_plot <- as.data.frame(d)
-        df_plot$Date <- as.Date(rownames(df_plot))
+        df_plot$Date <- if (resolution=='quarterly'){
+          qtr2date(as.yearqtr(rownames(df_plot)))
+        } else {
+          as.Date(rownames(df_plot), format = date_format)
+        }
         
         p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
           ggplot2::geom_line(aes(y = g_1, color = "g_1")) +
@@ -728,7 +780,11 @@ FilterResults <- setRefClass(
       names(d) <- c('gy.t','g.t','gamma.t')
       
       df_plot <- as.data.frame(d)
-      df_plot$Date <- as.Date(rownames(df_plot))
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot), format = date_format)
+      } 
       
       df_long <- df_plot %>%
         dplyr::filter(Date >= plt.start.date) %>%
@@ -768,7 +824,11 @@ FilterResults <- setRefClass(
       }
       
       df_plot <- as.data.frame(gy.ci)
-      df_plot$Date <- as.Date(rownames(df_plot))
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot), format = date_format)
+      } 
       
       p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=plt.start.date,], aes(x=Date)) +
         ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
@@ -833,16 +893,13 @@ FilterResults <- setRefClass(
       est.date.index <-.self$index
       
       y.level.est <- Y.est[est.date.index]
+      estimation.date.end <- tail(est.date.index, 1)
       
       p <- attr(model, 'p')
       if(p!=1) { stop('NotImplementedError') }
       
       #Evaluation values
-      
       y.eval.diff <- diff(Y) %>% na.omit
-      
-      est.date.index <- .self$index %>% as.Date()
-      estimation.date.end <- tail(est.date.index, 1)
       
       y.hat.diff.final.ci <-.self$predict_level(
         n.ahead = n.ahead,  sea.on=TRUE,
@@ -854,7 +911,13 @@ FilterResults <- setRefClass(
       #   sea.on = TRUE
       # )
       
-      ids=(index(y.eval.diff)>estimation.date.end) & (index(y.eval.diff)<estimation.date.end+n.ahead+1)
+      if (resolution=='daily'){
+        ids=(index(y.eval.diff)>estimation.date.end) & 
+          (index(y.eval.diff)<estimation.date.end+n.ahead+1)
+      } else if (resolution=='quarterly'){
+        ids=(index(y.eval.diff)>estimation.date.end) & 
+          (index(y.eval.diff)<estimation.date.end+(n.ahead+1)/4)
+      }
       
       d <- cbind(
         y.eval.diff[ids,],
@@ -862,19 +925,28 @@ FilterResults <- setRefClass(
         y.hat.diff.final.ci[, 1]
       )
       names(d) <- c('Actual', 'Forecast')
+      d.eval <- na.omit(d)
       
       df_plot <- as.data.frame(d)
-      df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot), format = date_format)
+      }
       
-      d.eval <- na.omit(d)
       # mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
       #                      d.eval$Actual) %>% mean %>% round(2)
       mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
         mean %>% round(2)
       
+      date_col<-if(resolution=='daily'){
+        as.Date(index(y.hat.diff.final.ci),format = date_format)} 
+      else if (resolution=='quarterly') {
+        qtr2date(index(y.hat.diff.final.ci))
+      }
+      
       ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
-                                (as.Date(index(y.hat.diff.final.ci),
-                                         format = date_format))))
+                                date_col))
       colnames(ci) <- c('lower', 'upper', 'date')
       ci[, 'date'] <- as.Date(ci[, 'date'], format = date_format,
                               origin = "1970-01-01")
@@ -917,7 +989,7 @@ FilterResults <- setRefClass(
         p <- attr(modelKFS(output), 'p')
         if(p!=1) { stop('NotImplementedError') }
         
-        Y.eval<-Y[(tail(index,1)+0:n.ahead)]
+        Y.eval<-Y[(tail(index,1)+0:n.ahead)]  #need to change for quarterly data
         
         y.eval.diff <- diff(Y.eval) %>% na.omit
         

@@ -311,10 +311,10 @@ summary.SSModelDynamicGompertz <- function(model) {
 #' 
 #' @export
 plot.SSModelDynamicGompertz <- function(model,title=NULL, 
-                                        series.name="target variable", MA=TRUE) {
+                                        series.name="target variable", MA_period=7) {
   # Call the object's plot() method if it exists
   if (!is.null(model$plot) && is.function(model$plot)) {
-    model$plot(title, series.name, MA)
+    model$plot(title, series.name, MA_period)
   } else {
     stop("The object does not have a valid 'plot' method.")
   }
