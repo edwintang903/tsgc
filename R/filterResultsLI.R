@@ -298,7 +298,7 @@ FilterResultsLI <- setRefClass(
       na_vals<-na_vals[1:n.ahead,]
       new.model$y <- rbind(gety(new.model),na_vals) %>% as.ts()
       
-      if (or(xpred_logical[1],xpred_logical[2])){
+      if (xpred_logical[1] || xpred_logical[2]){
         newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
@@ -622,56 +622,38 @@ FilterResultsLI <- setRefClass(
       the forecast and realised log cumulative growth rate of the target variable
       out of the estimation sample. For more details, see \\link{plot_log_forecast}."
     
-    forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
-    old=data_xts[,"LDLhosp"]
-    old=old[index(old)>head(index(old),1)+n.lag]
+    forcout_sea<-.self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat
+    old<-data_xts[,"LDLhosp"]
+    old<-old[index(old)>head(index(old),1)+n.lag]
     
     eng_full<-add_daily_ldl(Y)
     eng_full<-eng_full[index(eng_full)>tail(index(old),1),"LDLhosp"]
     actual=eng_full[1:n.ahead]
     
-    smldlh = predict(output$model,states='trend')$LDLhosp
-    filtered=xts(smldlh,(head(index(data_xts),1)+n.lag)+(1:length(smldlh)))
-    # 
-    # start_date<-index(data_xts)[1]
-    # end_date<-tail(index(data_xts),1)
-    # data_ldl = data_xts[,c("LDLcases","LDLhosp")] %>% na.omit
-    # 
-    # data_ldl$LDLcases = lag(data_ldl$LDLcases,n.lag)
-    # 
-    # data_ldl <- na.omit(data_ldl)
-    # 
-    # data_mat = as.matrix(data_ldl)
-    # # Create forecast data (using fact have some "future" case observations)
-    # forcdata <- matrix(NA,ncol=2,nrow=max(n.ahead,n.lag))
-    # colnames(forcdata) = colnames(data_mat)
-    # forcdata[1:n.lag,1] = as.vector(tail(data_xts,n.lag)$LDLcases)
-    # 
-    # # Extract estimate of Q from earlier model
-    # Qf = matrixKFS(output, "Q")[,,1]
-    # if (is.na(.self$sea.period)) {
-    #   forcmodel = 
-    #     SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')
-    #             +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
-    #             H = output$model$H)
-    # } else {
-    #   forcmodel = 
-    #     SSModel(forcdata ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')
-    #             +SSMseasonal(.self$sea.period,Q = matrix(c(Qf[4,4],0,0,Qf[5,5]),2,2), sea.type='trigonometric', type='distinct')
-    #             +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),H = output$model$H)
-    # }
-    # forcout = predict(output$model,forcmodel,interval='prediction',
-    #                   level=0.68,states='trend')
-    # if (n.lag>=n.ahead){
-    #   trend=xts(forcout$LDLhosp[,"fit"],tail(index(old),1)+(1:n.ahead))
-    # } else {
-    #   trend=xts(forcout$LDLhosp[1:n.ahead,"fit"],tail(index(old),1)+(1:n.ahead))
-    # }
+    # Show filtered level only when xpred_logical is both FALSE
+    if (!any(xpred_logical)){
+      forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
+      smldlh = predict(output$model,states='trend')$LDLhosp
+      
+      start_date_filtered <- as.Date(head(index(data_xts), 1)) + n.lag + 1
+      dates_filtered <- seq(from = start_date_filtered, by = "day", length.out = length(smldlh))
+      
+      filtered=as.xts(as.vector(smldlh), order.by=dates_filtered)
+      d.plot<-cbind(old,rbind(filtered,forcout),forcout_sea,actual)
+      colnames(d.plot)<-c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
+      
+      #Graphical settings
+      linetype_values<-c("solid", "solid", "solid", "dashed")
+      color_values<-c(1, 2, 3, 'grey')
+    } else {
+      d.plot<-cbind(old,forcout_sea,actual)
+      colnames(d.plot)<-c('EstimationSample', 'Forecast', 'RealisedData')
+      
+      #Graphical settings
+      linetype_values<-c("solid", "solid", "dashed")
+      color_values<-c(1, 3, 'grey')
+    }
     
-    trend=xts(forcout,tail(index(old),1)+(1:n.ahead))
-    
-    d.plot<-cbind(old,filtered,trend,actual)
-    colnames(d.plot)<-c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
     if (!is.null(plt.start.date)){
       d.plot<-d.plot[index(d.plot)>=plt.start.date]
       df_plot <- as.data.frame(d.plot)
@@ -679,18 +661,21 @@ FilterResultsLI <- setRefClass(
       df_plot <- as.data.frame(d.plot)
     }
     df_plot$Date <- as.Date(rownames(df_plot))
-    
-    ggplot2::ggplot(data = df_plot, aes(x = Date)) +
+    p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(
-        y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85) +
-      ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"),
-                         lwd = 0.85) +
-      ggplot2::geom_line(aes(y = Forecast, color = "Forecast\nTrend"), lwd = 0.85) +
+        y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
+    
+    if (!any(xpred_logical)){
+      p1<-p1 +ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"),
+                           lwd = 0.85)}
+    
+    p1<-p1+
+      ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
       ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData"),
                          lwd = 0.85) +
-      ggplot2::scale_color_manual(values = c(1, 2, 3, 'grey')) +
+      ggplot2::scale_color_manual(values = color_values) +
       scale_linetype_manual(
-        values = c("solid", "solid", "solid", "dashed")) +
+        values = linetype_values) +
       scale_x_date(labels = scales::date_format("%d %b %y")) +
       labs(x = "Date", y = "Log Growth Rate", caption = caption,
            title = title
@@ -704,8 +689,8 @@ FilterResultsLI <- setRefClass(
         axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
         axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
         plot.title = element_text(margin=margin(b=5)),
-        plot.caption = element_text(size = rel(1)),
-      )
+        plot.caption = element_text(size = rel(1)))
+    return(p1)
   }, 
   plot_gy_components = function(plt.start.date = NULL,
                                  smoothed = FALSE, title = NULL){

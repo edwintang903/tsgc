@@ -404,6 +404,10 @@ supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=1)
 supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=2)
 
 # Plot forecasts
+plot_log_forecast(res_lead.x, Y = eng, n.ahead = n.forecasts,
+                  plt.start.date = estimation.date.end - plt.length,
+                  title="Forecasts of Log Growth rate of England hospitalizations")
+
 plot_new_cases(res_lead.x,
                n.ahead = n.forecasts,
                plt.start.date = estimation.date.end - plt.length,
