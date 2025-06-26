@@ -549,7 +549,7 @@ confidence.level <- 0.68
 estimation.date.start <- as.yearqtr("2006 Q4")
 estimation.date.end   <- as.yearqtr("2010 Q3")
 
-data(wii, package = "tsgc")
+data(nintendo_sales, package = "tsgc")
 wii<-cumsum(na.omit(nintendo_sales[,1]))
 
 # Get a glimpse of data by plotting its moving average series
