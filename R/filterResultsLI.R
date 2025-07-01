@@ -97,7 +97,6 @@ setOldClass("KFS")
 FilterResultsLI <- setRefClass(
   "FilterResultsLI",
   fields = list(
-    index="ANY",
     data_xts = "ANY",
     output = "KFS",
     n.lag="numeric",
@@ -105,23 +104,29 @@ FilterResultsLI <- setRefClass(
     LeadIndCol="numeric",
     xpred1.new="ANY",
     xpred2.new="ANY",
-    xpred_logical="logical"
+    xpred_logical="logical",
+    resolution="character",
+    start.date="ANY",
+    end.date="ANY"
   ),
   methods = list(
-    initialize = function(index,data_xts, output,n.lag,sea.period,LeadIndCol,
-                          xpred_logical,xpred1.new=NULL, xpred2.new=NULL)
+    initialize = function(data_xts, output,n.lag,sea.period,LeadIndCol,
+                          xpred_logical, start.date, end.date, 
+                          xpred1.new=NULL, xpred2.new=NULL, resolution="daily")
     {
       "Create an instance of the \\code{FilterResultsLI} class with fields defined
       earlier in the fields section."
-      index <<-index
       data_xts <<- data_xts
       output <<- output
       n.lag <<- n.lag
       sea.period <<- sea.period
       LeadIndCol<<-LeadIndCol
+      start.date<<-start.date
+      end.date<<-end.date
       xpred1.new<<-xpred1.new
       xpred2.new<<-xpred2.new
       xpred_logical<<-xpred_logical
+      resolution<<-get_time_resolution(index(data_xts))
     },
     predict_level = function(n.ahead=n.lag, 
                              confidence.level=0.68,
@@ -188,7 +193,7 @@ FilterResultsLI <- setRefClass(
         colnames(cases_forecasts) = c('forc','lwr','upr')
         
         #Save forecast dates
-        startforc = (index %>% tail(1))+1
+        startforc = end.date+1
         finds = seq(startforc,length.out = n.ahead,by='day')
         
         fadmits = xts(admissions_forecasts[1:n.ahead,],finds)
@@ -224,7 +229,7 @@ FilterResultsLI <- setRefClass(
         colnames(forecasts_sea) = c('forc','lwr','upr')
         
         #Save forecast dates
-        startforc = (index %>% tail(1))+1
+        startforc = end.date+1
         finds = seq(startforc,length.out = n.ahead,by='day')
         sea = xts(forecasts_sea[1:n.ahead,],finds)
         
@@ -303,7 +308,7 @@ FilterResultsLI <- setRefClass(
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
           if (is.xts(xpred1.new)){
-            xpred1.new.subset<-get_timeframe(lag(xpred1.new,n.lag),tail(index,1)+1,tail(index,1)+n.ahead)
+            xpred1.new.subset<-get_timeframe(lag(xpred1.new,n.lag),end.date+1,end.date+n.ahead)
             d1<-dim(xpred1.new.subset)[2]
             newZ[1,1:d1,]<-t(xpred1.new.subset)
           } else {
@@ -312,7 +317,7 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is.xts(xpred2.new)){
-            xpred2.new.subset<-get_timeframe(xpred2.new,tail(index,1)+1,tail(index,1)+n.ahead)
+            xpred2.new.subset<-get_timeframe(xpred2.new,end.date+1,end.date+n.ahead)
             d2<-dim(xpred2.new.subset)[2]
             if (!xpred_logical[1]){d1=0}
             newZ[2,(d1+1):(d1+d2),]<-t(xpred2.new.subset)
@@ -414,7 +419,7 @@ FilterResultsLI <- setRefClass(
       }
       
       n <- attr(output$model, "n")
-      dates <- seq(index[1]+n.lag+1, by = 'day', length.out = (n + n.ahead))
+      dates <- seq(start.date+n.lag+1, by = 'day', length.out = (n + n.ahead))
 
       y.hat <- xts::xts(
         c(y.t.t[2,], y.hat.kfas$LDLhosp[, 1] %>% as.matrix()),
@@ -428,9 +433,9 @@ FilterResultsLI <- setRefClass(
         as.xts()
 
       if (!return.all) {
-        y.hat <- get_timeframe(y.hat, tail(index, 1)+1)
-        level.t.t <- get_timeframe(level.t.t, tail(index, 1)+1)
-        slope.t.t <-  get_timeframe(slope.t.t, tail(index, 1)+1)
+        y.hat <- get_timeframe(y.hat, end.date+1)
+        level.t.t <- get_timeframe(level.t.t, end.date+1)
+        slope.t.t <-  get_timeframe(slope.t.t, end.date+1)
       }
 
       out <- list(

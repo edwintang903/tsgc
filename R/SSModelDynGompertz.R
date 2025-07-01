@@ -139,7 +139,7 @@ SSModelDynamicGompertz <- setRefClass(
       \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
       reinit.date = as.Date(\"2021-05-12\",format = date.format))}}"
     if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
-      stop("sea.period must be a positive integer that is not 1.")
+      stop("sea.period must be a non-negative integer that is not 1.")
     }
     Y <<- Y
     q <<- q
@@ -723,28 +723,43 @@ SSModelDynamicGompertz <- setRefClass(
       "
   cumulative_cases <- Y  
   
-  # Calculate a centred moving average of daily differences.
-  ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
-  
-  # Identify the date with maximum new cases.
-  ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
-  
-  # Prepare data for plotting by combining actual new cases and the moving average.
-  d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
-  colnames(d) <- c('New Cases', 'Centered MA')
-  
   resolution<-get_time_resolution(index(Y))
-  date_col<-if(resolution=='daily'){
-    as.Date(index(d),format = date_format)
-    } else if (resolution=='quarterly') {
-    qtr2date(index(d))
-  }
   
-  d.df <- data.frame(
-    Date = date_col,
-    New.Cases = coredata(d[, 1]),
-    Centered.MA = coredata(d[, 2])
-  )
+  if (MA_period>1){
+    # Calculate a centred moving average of daily differences.
+    ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
+    
+    # Identify the date with maximum new cases.
+    ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
+    
+    # Prepare data for plotting by combining actual new cases and the moving average.
+    d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
+    colnames(d) <- c('New Cases', 'Centered MA')
+    
+    date_col<-if(resolution=='daily'){
+      as.Date(index(d),format = date_format)
+    } else if (resolution=='quarterly' || resolution=='yearly' || resolution=='monthly') {
+      qtr2date(index(d))
+    } 
+    
+    d.df <- data.frame(
+      Date = date_col,
+      New.Cases = coredata(d[, 1]),
+      Centered.MA = coredata(d[, 2])
+    )
+  } else {
+    # Prepare data for plotting by combining actual new cases and the moving average.
+    d <- diff(cumulative_cases)
+    colnames(d) <- c('New Cases')
+    
+    date_col<-if(resolution=='daily'){
+      as.Date(index(d),format = date_format)
+    } else if (resolution=='quarterly' || resolution=='yearly' || resolution=="monthly") {
+      qtr2date(index(d))
+    } 
+    
+    d.df <- data.frame(Date = date_col, New.Cases = coredata(d[, 1]))
+  }
   
   # Create base plot
   data_plot <- ggplot(data = d.df, aes(x = Date)) +
@@ -763,7 +778,7 @@ SSModelDynamicGompertz <- setRefClass(
     )
   
   # Conditionally add Centered 7-day MA line
-  if (MA_period>2) {
+  if (MA_period>1) {
     data_plot <- data_plot + 
       geom_line(aes(y = Centered.MA, color = "Centered MA"), linewidth = 1)+ 
       scale_color_manual(

@@ -78,11 +78,14 @@ SSModelLeadingIndicator <- setRefClass(
     LeadIndCol ="numeric",
     xpred1 = "ANY",  
     xpred2 = "ANY",
+    start.date = "ANY",
+    end.date = "ANY",
     ar1="logical"
   ),
   methods = list(
     initialize = function(Y, n.lag, sea.period=7, q = NULL,
-                          LeadIndCol=1, xpred1=NULL, xpred2=NULL, ar1=FALSE)
+                          LeadIndCol=1, xpred1=NULL, xpred2=NULL, ar1=FALSE, 
+                          start.date=index(Y)[1], end.date=tail(index(Y),1))
     {
       "Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
@@ -94,6 +97,8 @@ SSModelLeadingIndicator <- setRefClass(
       xpred1<<-xpred1
       xpred2<<-xpred2
       ar1<<-ar1
+      start.date<<-start.date
+      end.date<<-end.date
     },
     estimate = function()
     {
@@ -102,7 +107,8 @@ SSModelLeadingIndicator <- setRefClass(
       \\subsection{Return Value}{An object of class \\code{FilterResultsLI}
       containing the result output for the estimated Leading Indicator
       model.}"
-
+      
+      
       # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
 
@@ -111,6 +117,8 @@ SSModelLeadingIndicator <- setRefClass(
       data_ldl$LDLcases = lag(data_ldl$LDLcases,n.lag)
       
       data_ldl <- na.omit(data_ldl)
+      
+      data_ldl <- get_timeframe(data_ldl, estimation.date.start,estimation.date.end)
 
       data_mat = as.matrix(data_ldl)
       
@@ -326,13 +334,14 @@ SSModelLeadingIndicator <- setRefClass(
       out = KFS(fit$model)
 
       results <- FilterResultsLI$new(
-        index= index(y),
         data_xts = y,
         output = out,
         n.lag=n.lag,
         sea.period=sea.period,
         LeadIndCol=LeadIndCol,
-        xpred_logical=c(!is.null(xpred1),!is.null(xpred2)))
+        xpred_logical=c(!is.null(xpred1),!is.null(xpred2)),
+        start.date=start.date,
+        end.date=end.date)
       return(results)},
     summary = function() {
       out <- output(.self$estimate())

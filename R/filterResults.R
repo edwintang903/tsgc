@@ -172,7 +172,14 @@ FilterResults <- setRefClass(
         as.yearqtr(seq(as.numeric(last(index(y.cum))),
                                 as.numeric(last(index(gety.hat(filtered.out)))),
                                 by=0.25))
-      }
+      } else if (resolution=='yearly'){
+        as.yearmon(seq(as.numeric(last(index(y.cum))),
+                       as.numeric(last(index(gety.hat(filtered.out)))),
+                       by=1))
+      } else if (resolution=='monthly'){
+        as.yearmon(seq(as.numeric(last(index(y.cum))),
+                       as.numeric(last(index(gety.hat(filtered.out)))),
+                       by=1/12))}
 
       # Construct CI
       Ptt <- filtered.out$P.t.t
@@ -186,8 +193,9 @@ FilterResults <- setRefClass(
       y.hat[v_dates_end[1],] <- y.cum[v_dates_end[1]]
       for (i in seq_len(length(v_dates_end[-1]))) {
         date.forecast <- v_dates_end[i + 1]
-        date.lag <- if (resolution=='daily'){date.forecast - 1} 
+        date.lag <- if (resolution=='daily' || resolution=='yearly'){date.forecast - 1} 
         else if (resolution=='quarterly'){date.forecast - 0.25}
+        else if (resolution=='monthly'){date.forecast - 1/12}
         # Update level
         y.hat[date.forecast, 1] <- as.numeric(y.hat[date.lag, 1]) *
           as.numeric(1 + g.t[date.forecast,])
@@ -344,9 +352,10 @@ FilterResults <- setRefClass(
           y.t.t<-numeric(oldn)
           for (i in 1:oldn){
             y.t.t[i] <- output$att[i,] %*% drop(matrixKFS(output,"Z"))[,i]
+            }
           }
         }
-      }} else {
+        } else {
         model_output <- KFS(new.model)
         
         if (sea.on == TRUE) {
@@ -363,12 +372,17 @@ FilterResults <- setRefClass(
         y.t.t <- output$att %*% drop(matrixKFS(output,"Z"))
       } 
       
-      if (resolution=='daily'){
-        dates <- seq(index[1], by = 'day', length.out = (oldn + n.ahead))
+      dates <- if (resolution=='daily'){
+        seq(index[1], by = 'day', length.out = (oldn + n.ahead))
       } else if (resolution=='quarterly'){
-        dates <- as.yearqtr(seq(as.numeric(index[1]), by=0.25, 
+        as.yearqtr(seq(as.numeric(index[1]), by=0.25, 
                                 length.out=(oldn + n.ahead)))
-      }
+      } else if (resolution=='yearly'){
+        as.yearmon(seq(as.numeric(index[1]), by=1, 
+                       length.out=(oldn + n.ahead)))
+      } else if (resolution=='monthly'){
+        as.yearmon(seq(as.numeric(index[1]), by=1/12, 
+                       length.out=(oldn + n.ahead)))}
 
       y.hat <- xts::xts(
         c(y.t.t, y.hat.kfas[, 1] %>% as.matrix()),
@@ -545,6 +559,8 @@ FilterResults <- setRefClass(
       
       est.date.index <- if (resolution=='quarterly'){
         index %>% as.yearqtr()
+      } else if (resolution=='monthly' || resolution=='yearly') {
+        index %>% as.yearmon()
       } else {
         index %>% as.Date()
       }
@@ -570,7 +586,7 @@ FilterResults <- setRefClass(
     # 
     tmp.date <- if (resolution=='daily'){
       as.Date(plt.start.date, format=date_format)
-    } else if (resolution=='quarterly'){
+    } else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly'){
       as.Date(format(as.yearmon(plt.start.date), format="%Y-%m-%d"))
     }
     s <- sprintf("%s/", format(tmp.date, "%Y-%m-%d"))
@@ -583,7 +599,7 @@ FilterResults <- setRefClass(
     
     date_col<-if(resolution=='daily'){
       as.Date(index(y.hat.diff.final.ci),format = date_format)} 
-    else if (resolution=='quarterly') {
+    else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
       qtr2date(index(y.hat.diff.final.ci))
       }
     
@@ -598,6 +614,8 @@ FilterResults <- setRefClass(
     
     if (resolution=='quarterly'){
       df_plot$Date<-qtr2date(as.yearqtr(rownames(df_plot)))
+    } else if (resolution=='monthly'|| resolution=='yearly'){
+      df_plot$Date<-qtr2date(as.yearmon(rownames(df_plot)))
     } else {
       df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
     }
@@ -644,6 +662,8 @@ FilterResults <- setRefClass(
       
       firstpred<-if (resolution=='quarterly'){
         tail(est.date.index,1)+0.25
+      } else if (resolution=='monthly'){
+        tail(est.date.index,1)+1/12
       } else {
         tail(est.date.index,1)+1
       }
@@ -671,6 +691,8 @@ FilterResults <- setRefClass(
         
         df_plot$Date<-if (resolution=='quarterly'){
           qtr2date(as.yearqtr(rownames(df_plot)))
+        } else if (resolution=='monthly' || resolution=="yearly"){
+          qtr2date(as.yearmon(rownames(df_plot)))
         } else {
           as.Date(rownames(df_plot))
         }
@@ -726,6 +748,8 @@ FilterResults <- setRefClass(
         df_plot <- as.data.frame(d)
         df_plot$Date <- if (resolution=='quarterly'){
           qtr2date(as.yearqtr(rownames(df_plot)))
+        } else if (resolution=='monthly' || resolution=="yearly"){
+          qtr2date(as.yearmon(rownames(df_plot)))
         } else {
           as.Date(rownames(df_plot), format = date_format)
         }
@@ -782,6 +806,8 @@ FilterResults <- setRefClass(
       df_plot <- as.data.frame(d)
       df_plot$Date <- if (resolution=='quarterly'){
         qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
       } else {
         as.Date(rownames(df_plot), format = date_format)
       } 
@@ -826,6 +852,8 @@ FilterResults <- setRefClass(
       df_plot <- as.data.frame(gy.ci)
       df_plot$Date <- if (resolution=='quarterly'){
         qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
       } else {
         as.Date(rownames(df_plot), format = date_format)
       } 
@@ -911,12 +939,15 @@ FilterResults <- setRefClass(
       #   sea.on = TRUE
       # )
       
-      if (resolution=='daily'){
+      if (resolution=='daily' || resolution=='yearly'){
         ids=(index(y.eval.diff)>estimation.date.end) & 
           (index(y.eval.diff)<estimation.date.end+n.ahead+1)
       } else if (resolution=='quarterly'){
         ids=(index(y.eval.diff)>estimation.date.end) & 
           (index(y.eval.diff)<estimation.date.end+(n.ahead+1)/4)
+      } else if (resolution=='monthly'){
+        ids=(index(y.eval.diff)>estimation.date.end) & 
+          (index(y.eval.diff)<estimation.date.end+(n.ahead+1)/12)
       }
       
       d <- cbind(
@@ -930,6 +961,8 @@ FilterResults <- setRefClass(
       df_plot <- as.data.frame(d)
       df_plot$Date <- if (resolution=='quarterly'){
         qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
       } else {
         as.Date(rownames(df_plot), format = date_format)
       }
@@ -941,7 +974,7 @@ FilterResults <- setRefClass(
       
       date_col<-if(resolution=='daily'){
         as.Date(index(y.hat.diff.final.ci),format = date_format)} 
-      else if (resolution=='quarterly') {
+      else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
         qtr2date(index(y.hat.diff.final.ci))
       }
       

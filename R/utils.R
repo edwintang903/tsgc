@@ -430,6 +430,12 @@ get_time_resolution <- function(dates) {
   
   if (class(dates)=="yearqtr"){
     return('quarterly')
+  } else if (class(dates)=="yearmon"){
+    if (min(diff(dates))==1){
+      return('yearly')
+    } else {
+      return('monthly')
+    }
   } else {
     return('daily')
   }
@@ -464,7 +470,7 @@ get_time_resolution <- function(dates) {
 
 #' @title Change yearqtr object into date object 
 #'
-#' @description This function changes the yearqtr object into a date object, 
+#' @description This function changes the yearqtr or yearmon object into a date object, 
 #' the first day of the quarter in order to allow plotting in ggplot.
 #'
 #' @param dates

@@ -348,11 +348,11 @@ plt.length            <- 14
 n.lag                 <- 4
 n.forecasts           <- 7
 
-y <- get_timeframe(eng, estimation.date.start,estimation.date.end)
-
 # Define the leading indicator model
-out <- SSModelLeadingIndicator(Y = y, n.lag = n.lag, 
-                               q = NULL, LeadIndCol = 1, sea.period = 7)
+out <- SSModelLeadingIndicator(Y = eng, n.lag = n.lag, 
+                               q = NULL, LeadIndCol = 1, sea.period = 7, 
+                               start.date = estimation.date.start, 
+                               end.date = estimation.date.end)
 
 # Estimate the leading indicator model.
 res <- estimate(out)
@@ -549,6 +549,9 @@ confidence.level <- 0.68
 estimation.date.start <- as.yearqtr("2006 Q4")
 estimation.date.end   <- as.yearqtr("2010 Q3")
 
+# -----------------------------
+# Monthly Example
+# -----------------------------
 data(nintendo_sales, package = "tsgc")
 wii<-cumsum(na.omit(nintendo_sales[,1]))
 
@@ -556,13 +559,76 @@ wii<-cumsum(na.omit(nintendo_sales[,1]))
 mod1<-SSModelDynamicGompertz$new(Y=wii)
 plot(mod1, title="Wii sales by quarter", series.name="Sales (Million)", MA_period=4)
 
-# -----------------------------
+
 # Model Estimation 
-# -----------------------------
 y <- get_timeframe(wii,estimation.date.start,estimation.date.end)
 mod_wii<-SSModelDynamicGompertz$new(Y=y, sea.period=4)
-res<-estimate(mod_wii)
+res_wii<-estimate(mod_wii)
 
-plot_log_forecast(res, Y=wii, n.ahead=8, title="Log forecasts of Wii sales")
-plot_new_cases(res, n.ahead=8, title="Wii sales")
-plot_holdout(res, Y=wii, n.ahead=8, title="Wii sales")
+plot_log_forecast(res_wii, Y=wii, n.ahead=8, title="Log forecasts of Wii sales")
+plot_new_cases(res_wii, n.ahead=8, title="Wii sales")
+plot_holdout(res_wii, Y=wii, n.ahead=8, title="Wii sales")
+
+# Extend to leading indicator
+# Gather all parameters in one centralised block for easy modification.
+n.forecasts      <- 4
+estimation.date.start <- as.yearqtr("2017 Q1")
+estimation.date.end   <- as.yearqtr("2019 Q4")
+n.lag<-as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4")
+
+# Prepare dataset and estimate model
+switch<-na.omit(nintendo_sales$switch_all)
+y <- get_timeframe(switch,estimation.date.start,estimation.date.end)
+mod_wii<-SSModelLeadingIndicator$new(Y=y, sea.period=4, n.lag=n.lag)
+res_wii
+
+# -----------------------------
+# Yearly Example
+# -----------------------------
+# Gather all parameters in one centralised block for easy modification.
+n.forecasts      <- 2
+q                <- NULL
+confidence.level <- 0.68
+estimation.date.start <- yearmon(2011)
+estimation.date.end   <- yearmon(2021)
+
+# From Statista, annual battery-electric vehicle sales in the United States between 2011 and 2023
+# Since xts objects cannot have year by itself as date index, introduce it as yearmon. 
+ev_sales<-cumsum(c(10092,14587,48094,63525,71064,86731,104487,207062,233822,238540,459474,747982,1162669))
+ev_xts<-xts(ev_sales, order.by = yearmon(2011:2023))
+
+# Get a glimpse of data by plotting its moving average series
+mod1<-SSModelDynamicGompertz$new(Y=ev_xts)
+plot(mod1, title="Annual battery-electric vehicle sales in the US between 2011 and 2023", 
+     series.name="New Annual Sales (units)", 
+     MA_period=0)
+
+# Model Estimation 
+y <- get_timeframe(ev_xts,estimation.date.start,estimation.date.end)
+mod_ev<-SSModelDynamicGompertz$new(Y=y, sea.period=0)
+res_ev<-estimate(mod_ev)
+
+plot_log_forecast(res_ev, Y=ev_xts, n.ahead=2, title="Log Forecasts for upcoming annual EV sales in the US")
+plot_new_cases(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
+plot_holdout(res_ev, Y=ev_xts, n.ahead=2, title="Accuracy of predictions for upcoming annual EV sales in the US")
+
+# -----------------------------
+# Weekly Example
+# -----------------------------
+# Gather all parameters in one centralised block for easy modification.
+n.forecasts      <- 4
+q                <- NULL
+confidence.level <- 0.68
+estimation.date.start <- yearmon(2011)
+estimation.date.end   <- yearmon(2021)
+
+# Weekly downloads of deliveroo app in Italy in 2021-2022
+
+# Model Estimation 
+y <- get_timeframe(ev_xts,estimation.date.start,estimation.date.end)
+mod_ev<-SSModelDynamicGompertz$new(Y=y, sea.period=0)
+res_ev<-estimate(mod_ev)
+
+plot_log_forecast(res_ev, Y=ev_xts, n.ahead=2, title="Log Forecasts for upcoming annual EV sales in the US")
+plot_new_cases(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
+plot_holdout(res_ev, Y=ev_xts, n.ahead=2, title="Accuracy of predictions for upcoming annual EV sales in the US")
