@@ -2,7 +2,7 @@
 % Please edit documentation in R/accessorFns.R
 \name{supply_xpred.new}
 \alias{supply_xpred.new}
-\title{Extract output of FilterResults or FilterResultsLI}
+\title{Supply exogenous predictors for new predictions}
 \usage{
 supply_xpred.new(object, new.xts, idx = NULL)
 }
@@ -16,5 +16,5 @@ Only applicable for FilterResultsLI object. Defaults to NULL.}
 }
 \description{
 Accessor method to provide new exogenous predictors for the
-estimation period
+prediction period
 }

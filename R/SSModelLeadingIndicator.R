@@ -108,19 +108,20 @@ SSModelLeadingIndicator <- setRefClass(
       containing the result output for the estimated Leading Indicator
       model.}"
       
-      
       # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
-
-      data_ldl = y[,c("LDLcases","LDLhosp")]
-
-      data_ldl$LDLcases = lag(data_ldl$LDLcases,n.lag)
       
-      data_ldl <- na.omit(data_ldl)
+      y$newCases = lag(y$newCases,n.lag)
+      y$LDLcases = lag(y$LDLcases,n.lag)
+      y$cCases = lag(y$cCases,n.lag)
       
-      data_ldl <- get_timeframe(data_ldl, start.date, end.date)
+      y[is.infinite(y)] <- NA
+      
+      y <- get_timeframe(na.omit(y),start.date)
+      
+      data_ldl <- get_timeframe(y, start.date, end.date)[,c("LDLcases","LDLhosp")]
 
-      data_mat = as.matrix(data_ldl)
+      data_mat <- as.matrix(data_ldl)
       
       if (!is.null(xpred1)){
         xpred1<<-get_timeframe(lag(xpred1,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
@@ -334,7 +335,7 @@ SSModelLeadingIndicator <- setRefClass(
       out = KFS(fit$model)
 
       results <- FilterResultsLI$new(
-        data_xts = get_timeframe(y, index(data_ldl)[1], tail(index(data_ldl),1)),
+        data_xts = y,
         output = out,
         n.lag=n.lag,
         sea.period=sea.period,

@@ -413,12 +413,13 @@ plot_log_forecast(res_lead.x, Y = eng, n.ahead = n.forecasts,
 plot_new_cases(res_lead.x,
                n.ahead = n.forecasts,
                plt.start.date = estimation.date.end - plt.length,
-               title="Forecasts of Log Growth rate of England hospitalizations")
+               title="Forecasts of England hospitalizations",
+               series.name = "hospitalizations")
 
 plot_holdout(res_lead.x,
             Y = eng, n.ahead = n.forecasts,
-            title="Forecasts of Log Growth rate of England hospitalizations"
-)
+            title="Forecasts of England hospitalizations",
+            series.name = "hospitalizations")
 
 # -----------------------------
 # 4. Leading Indicator vs Gompertz Growth curves: UK and Italy Examples
@@ -463,7 +464,7 @@ plot_holdout(
 # Compare to leading indicator model.
 n.lag <- 14
 n.forc <- 14
-out <- SSModelLeadingIndicator(Y = covid_xts, n.lag = n.lag, sea.period = 7,
+out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, sea.period = 7,
                                start.date = estimation.date.start, 
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
@@ -491,6 +492,7 @@ n.forecasts <- 14
 confidence.level <- 0.68
 plt.length <- 30
 estimation.date.end <- as.Date("2020-04-15")
+
 idx.est <- (zoo::index(Y) >= estimation.date.start) &
   (zoo::index(Y) <= estimation.date.end)
 y <- Y[idx.est]
@@ -520,7 +522,7 @@ plot_holdout(
 # For leading indicator.
 n.lag <- 14
 n.forc <- 14
-out <- SSModelLeadingIndicator(Y = covid_xts, n.lag = n.lag,
+out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag,
                                start.date = estimation.date.start, 
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
@@ -578,13 +580,17 @@ plot_holdout(res_wii, Y=wii, n.ahead=8, title="Wii sales")
 n.forecasts      <- 4
 estimation.date.start <- as.yearqtr("2017 Q1")
 estimation.date.end   <- as.yearqtr("2019 Q4")
-n.lag<-as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4")
+n.lag<-(as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4"))*4  #Time difference (in number of quarters) in release dates for switch and wii
 
 # Prepare dataset and estimate model
-switch<-na.omit(nintendo_sales$switch_all)
-y <- get_timeframe(switch,estimation.date.start,estimation.date.end)
-mod_wii<-SSModelLeadingIndicator$new(Y=y, sea.period=4, n.lag=n.lag)
-res_wii
+y<-nintendo_sales[,c("wii", "switch_all")]
+mod_switch<-SSModelLeadingIndicator$new(Y=y, sea.period=4, n.lag=n.lag,
+                                     start.date=estimation.date.start,
+                                     end.date=estimation.date.end)
+res_switch<-estimate(mod_switch)
+plot_log_forecast(res_switch, Y=y, n.ahead=8, title="Log forecasts of switch sales")
+plot_new_cases(res_switch, n.ahead=8, title="Switch sales", series.name = "sales")
+plot_holdout(res_switch, Y=y, n.ahead=8, title="Switch sales", series.name = "sales")
 
 # -----------------------------
 # Yearly Example

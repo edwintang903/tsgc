@@ -166,8 +166,7 @@ FilterResults <- setRefClass(
 
       # Forecast dates
       v_dates_end <- if (resolution=='daily'){
-        seq(last(index(y.cum)), last(
-          index(gety.hat(filtered.out))), by = freq)
+        seq(last(index(y.cum)), last(index(gety.hat(filtered.out))), by = freq)
       } else if (resolution=='quarterly'){
         as.yearqtr(seq(as.numeric(last(index(y.cum))),
                                 as.numeric(last(index(gety.hat(filtered.out)))),
@@ -372,17 +371,8 @@ FilterResults <- setRefClass(
         y.t.t <- output$att %*% drop(matrixKFS(output,"Z"))
       } 
       
-      dates <- if (resolution=='daily'){
-        seq(index[1], by = 'day', length.out = (oldn + n.ahead))
-      } else if (resolution=='quarterly'){
-        as.yearqtr(seq(as.numeric(index[1]), by=0.25, 
-                                length.out=(oldn + n.ahead)))
-      } else if (resolution=='yearly'){
-        as.yearmon(seq(as.numeric(index[1]), by=1, 
-                       length.out=(oldn + n.ahead)))
-      } else if (resolution=='monthly'){
-        as.yearmon(seq(as.numeric(index[1]), by=1/12, 
-                       length.out=(oldn + n.ahead)))}
+      dates <- seq_dates(from=index[1], length.out = (oldn + n.ahead), 
+                         resolution=resolution)
 
       y.hat <- xts::xts(
         c(y.t.t, y.hat.kfas[, 1] %>% as.matrix()),

@@ -482,3 +482,48 @@ get_time_resolution <- function(dates) {
 qtr2date<-function(dates){
   return(as.Date(format(as.yearmon(dates), format="%Y-%m-%d")))
 }
+
+#' @title Regularly spaced time objects
+#'
+#' @description Create a regularly spaced object of class "yearqtr".
+#'
+#' @param dates
+#' 
+#' @importFrom zoo as.yearmon
+#'
+#' @export
+seq_dates<-function(from, resolution, to=NA, length.out=NA){
+  if (is.na(length.out) && is.na(to)){
+    stop("Both length.out and to inputs cannot be empty.")
+  } else if (!is.na(length.out) && !is.na(to)){
+    stop("Please supply only one of length.out or to.")
+  } else if (is.na(length.out)){
+    if (resolution=='daily'){
+      seq(from, to, by = 'day')
+    } else if (resolution=='quarterly'){
+      as.yearqtr(seq(as.numeric(from),
+                     as.numeric(to),
+                     by=0.25))
+    } else if (resolution=='yearly'){
+      as.yearmon(seq(as.numeric(from),
+                     as.numeric(to),
+                     by=1))
+    } else if (resolution=='monthly'){
+      as.yearmon(seq(as.numeric(from),
+                     as.numeric(to),
+                     by=1/12))}
+  } else if (is.na(to)) {
+    if (resolution=='daily'){
+      seq(from, by = 'day', length.out = length.out)
+    } else if (resolution=='quarterly'){
+      as.yearqtr(seq(as.numeric(from), by=0.25, 
+                     length.out=length.out))
+    } else if (resolution=='yearly'){
+      as.yearmon(seq(as.numeric(from), by=1, 
+                     length.out=length.out))
+    } else if (resolution=='monthly'){
+      as.yearmon(seq(as.numeric(from), by=1/12, 
+                     length.out=length.out))}
+  }
+}
+

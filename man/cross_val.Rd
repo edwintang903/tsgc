@@ -7,6 +7,7 @@ Percentage Error (MAPE)}
 \usage{
 cross_val(
   y,
+  est.start.date = index(y)[1],
   est.end.date,
   n.ahead,
   all_lags,

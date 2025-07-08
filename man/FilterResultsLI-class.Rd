@@ -13,7 +13,7 @@ level of the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 \section{Fields}{
 
 \describe{
-\item{\code{data_xts}}{A xts object with cumulated variables: leading indicator and
+\item{\code{data_xts}}{A xts object with cumulated variables: lagged leading indicator and
 target variable.}
 
 \item{\code{index}}{The list of dates in the index of \code{data_xts}.}
@@ -77,15 +77,17 @@ variable (\eqn{Y}). Computed as
  growth rates and upper and lower bounds for the confidence intervals.}}
 
 \item{\code{initialize(
-  index,
   data_xts,
   output,
   n.lag,
   sea.period,
   LeadIndCol,
   xpred_logical,
+  start.date,
+  end.date,
   xpred1.new = NULL,
-  xpred2.new = NULL
+  xpred2.new = NULL,
+  resolution = "daily"
 )}}{Create an instance of the \code{FilterResultsLI} class with fields defined
 earlier in the fields section.}
 

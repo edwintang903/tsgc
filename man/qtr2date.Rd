@@ -10,6 +10,6 @@ qtr2date(dates)
 \item{dates}{}
 }
 \description{
-This function changes the yearqtr object into a date object,
+This function changes the yearqtr or yearmon object into a date object,
 the first day of the quarter in order to allow plotting in ggplot.
 }

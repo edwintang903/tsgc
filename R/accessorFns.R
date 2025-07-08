@@ -14,10 +14,10 @@
 #  A copy of the GNU General Public License is available at
 #  http://www.r-project.org/Licenses/
 
-#' @title Extract output of FilterResults or FilterResultsLI
+#' @title Supply exogenous predictors for new predictions 
 #
 #' @description Accessor method to provide new exogenous predictors for the 
-#' estimation period
+#' prediction period
 #'
 #' @param object FilterResults or FilterReusltsLI object
 #' @param new.xts An xts object containing new exogenous predictors
@@ -44,6 +44,8 @@ supply_xpred.new<-function(object, new.xts, idx=NULL){
   }
 }
 
+#' @title Extract output of FilterResults or FilterResultsLI
+#' 
 #' @description Accessor method to access the fitted KFS model from `FilterResults`
 #'
 #' @param object FilterResults object

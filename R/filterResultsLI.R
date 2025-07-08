@@ -6,7 +6,7 @@ setOldClass("KFS")
 #' contains methods to extract smoothed/filtered estimates of the states, the
 #' level of the incidence variable \eqn{y}, and forecasts of \eqn{y}.
 #'
-#' @field data_xts A xts object with cumulated variables: leading indicator and 
+#' @field data_xts A xts object with cumulated variables: lagged leading indicator and 
 #' target variable.
 #' @field index The list of dates in the index of \code{data_xts}.
 #' @field output A \code{KFS} results object obtained after fitting a 
@@ -157,87 +157,64 @@ FilterResultsLI <- setRefClass(
       if (!sea.on){
         # Create the forecasts
         # This gives the forecasts of delta
-        forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE, confidence.level=confidence.level)$y.hat.kfas
-        
-        # Create empty dataframe to put forecasts in
-        forecasts <- matrix(NA,ncol=dim(data_xts)-n.lag-1,nrow=max(n.ahead,n.lag)) %>%
-          as.data.frame()
-        colnames(forecasts) = c('Admissions','Cases')
-        
-        # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
-        # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
-        forecasts$Cases[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,1])
-        forecasts$Cases[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,1])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),1]))
-        
-        forecasts$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,1])
-        forecasts$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),1]))
-        
-        forecasts$Cases.lwr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,2])
-        forecasts$Cases.lwr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,2])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),2]))
-        forecasts$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,2])
-        forecasts$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),2]))
-        
-        forecasts$Cases.upr[1] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[1,3])
-        forecasts$Cases.upr[2:n.ahead] = tail(as.vector(data_xts$cCases),(n.lag+1))[1]*exp(forcout$LDLcases[2:n.ahead,3])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),3]))
-        forecasts$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[1,3])
-        forecasts$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),3]))
-        
-        # Round forecasts to nearest whole number
-        forecasts = round(forecasts)
-        
-        # Put forecasts into a separate dataframe for admissions and cases
-        admissions_forecasts = cbind(forecasts$Admissions,forecasts$Admissions.lwr,forecasts$Admissions.upr)
-        colnames(admissions_forecasts) = c('forc','lwr','upr')
-        
-        cases_forecasts = cbind(forecasts$Cases,forecasts$Cases.lwr,forecasts$Cases.upr)
-        colnames(cases_forecasts) = c('forc','lwr','upr')
-        
-        #Save forecast dates
-        startforc = end.date+1
-        finds = seq(startforc,length.out = n.ahead,by='day')
-        
-        fadmits = xts(admissions_forecasts[1:n.ahead,],finds)
-        
-        if (unity){
-          return(fadmits[1,])
-        } else{
-          return(fadmits)
-        }
-        
+        forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE, 
+                                   confidence.level=confidence.level)$y.hat.kfas
       } else {
         #Re-do with seasonal component
-        forcout_sea = .self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat.kfas
-        
-        # Create empty dataframe to put forecasts in
-        forecasts_sea <- matrix(NA,ncol=dim(data_xts)-n.lag-1,nrow=max(n.ahead,n.lag)) %>%
-          as.data.frame()
-        colnames(forecasts_sea) = c('Admissions','Cases')
-        
-        # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
-        # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
-        forecasts_sea$Admissions[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,1])
-        forecasts_sea$Admissions[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),1]))
-        
-        forecasts_sea$Admissions.lwr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,2])
-        forecasts_sea$Admissions.lwr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),2]))
-        
-        forecasts_sea$Admissions.upr[1] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[1,3])
-        forecasts_sea$Admissions.upr[2:n.ahead] = tail(as.vector(data_xts$cAdmit),1)*exp(forcout_sea$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout_sea$LDLhosp[1:(n.ahead-1),3]))
-        
-        # Round forecasts to nearest whole number
-        forecasts_sea = cbind(forecasts_sea$Admissions,forecasts_sea$Admissions.lwr,forecasts_sea$Admissions.upr) %>% round()
-        colnames(forecasts_sea) = c('forc','lwr','upr')
-        
-        #Save forecast dates
-        startforc = end.date+1
-        finds = seq(startforc,length.out = n.ahead,by='day')
-        sea = xts(forecasts_sea[1:n.ahead,],finds)
-        
-        if (unity){
-          return(sea[1,])
-        } else{
-          return(sea)
-        }
+        forcout = .self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat.kfas
+      }
+      
+      # Create empty dataframe to put forecasts in
+      forecasts <- matrix(NA,ncol=2,nrow=n.ahead) %>%
+        as.data.frame()
+      colnames(forecasts) = c('Admissions','Cases')
+      
+      last_cases<-as.vector(get_timeframe(data_xts, end.date)[1,]$cCases)
+      last_admit<-as.vector(get_timeframe(data_xts, end.date)[1,]$cAdmit)
+      
+      # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
+      # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
+      #forecasts$Cases[1] = last_cases*exp(forcout$LDLcases[1,1])
+      #forecasts$Cases[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,1])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),1]))
+      #forecasts$Cases.lwr[1] = last_cases*exp(forcout$LDLcases[1,2])
+      #forecasts$Cases.lwr[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,2])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),2]))
+      #forecasts$Cases.upr[1] = last_cases*exp(forcout$LDLcases[1,3])
+      #forecasts$Cases.upr[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,3])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),3]))
+      
+      forecasts$Admissions[1] = last_admit*exp(forcout$LDLhosp[1,1])
+      forecasts$Admissions[2:n.ahead] = last_admit*exp(forcout$LDLhosp[2:n.ahead,1])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),1]))
+      
+      forecasts$Admissions.lwr[1] = last_admit*exp(forcout$LDLhosp[1,2])
+      forecasts$Admissions.lwr[2:n.ahead] = last_admit*exp(forcout$LDLhosp[2:n.ahead,2])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),2]))
+      
+      forecasts$Admissions.upr[1] = last_admit*exp(forcout$LDLhosp[1,3])
+      forecasts$Admissions.upr[2:n.ahead] = last_admit*exp(forcout$LDLhosp[2:n.ahead,3])*cumprod(1+exp(forcout$LDLhosp[1:(n.ahead-1),3]))
+      
+      # Round forecasts to nearest whole number
+      forecasts = round(forecasts,2)
+      
+      # Put forecasts into a separate dataframe for admissions and cases
+      admissions_forecasts = cbind(forecasts$Admissions,forecasts$Admissions.lwr,forecasts$Admissions.upr)
+      colnames(admissions_forecasts) = c('forc','lwr','upr')
+      
+      #cases_forecasts = cbind(forecasts$Cases,forecasts$Cases.lwr,forecasts$Cases.upr)
+      #colnames(cases_forecasts) = c('forc','lwr','upr')
+      
+      #Save forecast dates
+      startforc = if (resolution=="daily"){
+        end.date+1
+      } else if (resolution=="quarterly"){
+        end.date+0.25
+      }
+      
+      finds = seq_dates(startforc, length.out=n.ahead, resolution=resolution)
+      
+      fadmits = xts(admissions_forecasts[1:n.ahead,],finds)
+      
+      if (unity){
+        return(fadmits[1,])
+      } else{
+        return(fadmits)
       }
     },
     print_estimation_results = function() {
@@ -297,10 +274,16 @@ FilterResultsLI <- setRefClass(
       Qf = matrixKFS(output,"Q")[,,1]
       Hf = matrixKFS(output,"H")[,,1]
       oldn<-attr(new.model, 'n')
-
-      na_vals<-matrix(NA, ncol = ncol(gety(new.model)), nrow = max(n.ahead, n.lag))
-      na_vals[1:n.lag,1] = as.vector(tail(data_xts,n.lag)$LDLcases)
-      na_vals<-na_vals[1:n.ahead,]
+      
+      # Provide observed leading indicator data
+      future_rows<-min(n.ahead, n.lag)
+      na_vals<-matrix(NA, ncol = ncol(gety(new.model)), nrow = n.ahead)
+      
+      new_index<-which.max(index(data_xts)==end.date)
+      true_leading<-data_xts[(new_index+1):(new_index+future_rows)]
+      na_vals[1:future_rows,1] = as.vector(true_leading$LDLcases)
+      
+      #Supply the new data back to the new.model object
       new.model$y <- rbind(gety(new.model),na_vals) %>% as.ts()
       
       if (xpred_logical[1] || xpred_logical[2]){
@@ -308,7 +291,8 @@ FilterResultsLI <- setRefClass(
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
           if (is.xts(xpred1.new)){
-            xpred1.new.subset<-get_timeframe(lag(xpred1.new,n.lag),end.date+1,end.date+n.ahead)
+            new_index<-which.max(index(data_xts)==end.date)
+            xpred1.new.subset<-lag(xpred1.new,n.lag)[(new_index+1):(new_index+n.ahead)]
             d1<-dim(xpred1.new.subset)[2]
             newZ[1,1:d1,]<-t(xpred1.new.subset)
           } else {
@@ -317,7 +301,8 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is.xts(xpred2.new)){
-            xpred2.new.subset<-get_timeframe(xpred2.new,end.date+1,end.date+n.ahead)
+            new_index<-which.max(index(data_xts)==end.date)
+            xpred2.new.subset<-xpred2.new[(new_index+1):(new_index+n.ahead)]
             d2<-dim(xpred2.new.subset)[2]
             if (!xpred_logical[1]){d1=0}
             newZ[2,(d1+1):(d1+d2),]<-t(xpred2.new.subset)
@@ -418,7 +403,9 @@ FilterResultsLI <- setRefClass(
       }
       
       n <- attr(output$model, "n")
-      dates <- seq(start.date+1, by = 'day', length.out = (n + n.ahead))
+      
+      dates <- seq_dates(start.date, length.out = (n + n.ahead), 
+                         resolution=resolution)
 
       y.hat <- xts::xts(
         c(y.t.t[2,], y.hat.kfas$LDLhosp[, 1] %>% as.matrix()),
@@ -430,11 +417,12 @@ FilterResultsLI <- setRefClass(
       i.slope <- grep("slope", colnames(att(model_output)))
       slope.t.t <- xts::xts(att(model_output)[, i.slope], order.by = dates) %>%
         as.xts()
-
+      
+      newdate<-seq_dates(end.date,resolution=resolution,length.out=2)[2]
       if (!return.all) {
-        y.hat <- get_timeframe(y.hat, end.date+1)
-        level.t.t <- get_timeframe(level.t.t, end.date+1)
-        slope.t.t <-  get_timeframe(slope.t.t, end.date+1)
+        y.hat <- get_timeframe(y.hat, newdate)
+        level.t.t <- get_timeframe(level.t.t, newdate)
+        slope.t.t <-  get_timeframe(slope.t.t, newdate)
       }
 
       out <- list(
@@ -464,7 +452,7 @@ FilterResultsLI <- setRefClass(
       \\subsection{Return Value}{\\code{xts} object containing
       smoothed/filtered growth rates and components (\\eqn{\\delta} and
       \\eqn{\\gamma}), where applicable.}"
-      idx <- index(data_xts)
+      idx <- index(get_timeframe(data_xts, start.date, end.date))
 
       if (smoothed) {
         att <- alphahat(output)
@@ -502,7 +490,7 @@ FilterResultsLI <- setRefClass(
       \\subsection{Return Value}{\\code{xts} object containing smoothed/filtered
        growth rates and upper and lower bounds for the confidence intervals.}"
       
-      idx <- index(data_xts)
+      idx <- index(get_timeframe(data_xts, start.date, end.date))
       
       if (smoothed) {
         att <- alphahat(output)
@@ -539,9 +527,15 @@ FilterResultsLI <- setRefClass(
       Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
       cat("Summary of FilterResults Object\n")
       cat("Model Details:\n")
-      cat("  - Estimation start date:", format(as.Date(start.date, origin = "1970-01-01")))
-      cat("\n")
-      cat("  - Estimation end date:", format(as.Date(end.date, origin = "1970-01-01")))
+      if (resolution=="daily"){
+        cat("  - Estimation start date:", format(as.Date(start.date, origin = "1970-01-01"))) 
+        cat("\n")
+        cat("  - Estimation end date:", format(as.Date(end.date, origin = "1970-01-01")))
+      } else if (resolution=="quarterly"){
+        cat("  - Estimation start date:", format(as.yearqtr(start.date))) 
+        cat("\n")
+        cat("  - Estimation end date:", format(as.yearqtr(end.date)))
+      }
       cat("\n")
       cat("  - Model States and Standard Errors\n")
       base::print(output)
@@ -578,16 +572,34 @@ FilterResultsLI <- setRefClass(
         #smAdmit = smadmit %>% xts(index(data_xts[(n.lag+1):(length(lcadmit)),])+1)
         
         #Plot forecast graph
-        df_plot<-data_xts$newAdmit   #rbind(data_xts$newAdmit,fadmits$zero)
+        df_plot<-get_timeframe(data_xts, start.date, end.date)$newAdmit
         #df_plot$Smooth<-smAdmit
         df_plot$Forecast<-sea[,1]
         #df_plot$ForecastTrend<-fadmits$forc
         df_plot<-get_timeframe(df_plot,plt.start.date)
-        df_plot=fortify.zoo(df_plot)
+        dates<-if (resolution=='quarterly'){
+          qtr2date(as.yearqtr(index(df_plot)))
+        } else if (resolution=='monthly' || resolution=="yearly"){
+          qtr2date(as.yearmon(index(df_plot)))
+        } else {
+          as.Date(index(df_plot))
+        }
         
-        ci<-fortify.zoo(sea)
+        df_plot<-as.data.frame(df_plot)
+        df_plot$Date <- dates
         
-        p2<-ggplot2::ggplot(data = df_plot, aes(x = Index)) +
+        ci_plot<-sea
+        dates2<-if (resolution=='quarterly'){
+          qtr2date(as.yearqtr(index(ci_plot)))
+        } else if (resolution=='monthly' || resolution=="yearly"){
+          qtr2date(as.yearmon(index(ci_plot)))
+        } else {
+          as.Date(index(ci_plot))
+        }
+        ci_plot<-as.data.frame(ci_plot)
+        ci_plot$Date <- dates2
+        
+        p2<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
           ggplot2::geom_line(aes(y = newAdmit, color = "Data"), lwd = 0.85) +
           #ggplot2::geom_line(aes(y = Smooth, color = "Smoothed\ndata"),lwd=0.85)+
           ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
@@ -595,7 +607,7 @@ FilterResultsLI <- setRefClass(
           #   aes(y = ForecastTrend, color = "Forecast\nTrend"), lwd = 0.85
           # ) +
           ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
-          ggplot2::geom_ribbon(data = ci, aes(x = Index, ymin = lwr, ymax = upr),
+          ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lwr, ymax = upr),
                                linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
           labs(x = "Date", y = paste("New",series.name), title = title) +
           theme_economist_white(gray_bg = FALSE, base_size = 12) +
@@ -622,7 +634,7 @@ FilterResultsLI <- setRefClass(
       out of the estimation sample. For more details, see \\link{plot_log_forecast}."
     
     forcout_sea<-.self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat
-    old<-data_xts[,"LDLhosp"]
+    old<-get_timeframe(data_xts, start.date, end.date)[,"LDLhosp"]
     
     eng_full<-add_daily_ldl(Y)
     eng_full<-eng_full[index(eng_full)>end.date,"LDLhosp"]
@@ -633,8 +645,7 @@ FilterResultsLI <- setRefClass(
       forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
       smldlh = predict(output$model,states='trend')$LDLhosp
       
-      start_date_filtered <- start.date
-      dates_filtered <- seq(from = start_date_filtered, by = "day", length.out = length(smldlh))
+      dates_filtered <- seq_dates(from = start.date, length.out = length(smldlh), resolution=resolution)
       
       filtered=as.xts(as.vector(smldlh), order.by=dates_filtered)
       d.plot<-cbind(old,rbind(filtered,forcout),forcout_sea,actual)
@@ -658,7 +669,14 @@ FilterResultsLI <- setRefClass(
     } else{
       df_plot <- as.data.frame(d.plot)
     }
-    df_plot$Date <- as.Date(rownames(df_plot))
+    df_plot$Date <- if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(df_plot)))
+    } else if (resolution=='monthly' || resolution=="yearly"){
+      qtr2date(as.yearmon(rownames(df_plot)))
+    } else {
+      as.Date(rownames(df_plot))
+    }
+    
     p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(
         y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
@@ -712,7 +730,13 @@ FilterResultsLI <- setRefClass(
     names(d) <- c('gy.t','g.t','gamma.t')
     
     df_plot <- as.data.frame(d)
-    df_plot$Date <- as.Date(rownames(df_plot))
+    df_plot$Date <- if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(df_plot)))
+    } else if (resolution=='monthly' || resolution=="yearly"){
+      qtr2date(as.yearmon(rownames(df_plot)))
+    } else {
+      as.Date(rownames(df_plot))
+    }
     
     df_long <- df_plot %>%
       dplyr::filter(Date >= plt.start.date) %>%
@@ -754,7 +778,13 @@ FilterResultsLI <- setRefClass(
     }
     
     df_plot <- as.data.frame(gy.ci)
-    df_plot$Date <- as.Date(rownames(df_plot))
+    df_plot$Date <- if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(df_plot)))
+    } else if (resolution=='monthly' || resolution=="yearly"){
+      qtr2date(as.yearmon(rownames(df_plot)))
+    } else {
+      as.Date(rownames(df_plot))
+    }
     
     p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=plt.start.date,], aes(x=Date)) +
       ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
@@ -807,7 +837,8 @@ FilterResultsLI <- setRefClass(
                              confidence.level=confidence.level, 
                              sea.on=TRUE)
     
-    future_data<-get_timeframe(add_daily_ldl(Y,LeadIndCol = .self$LeadIndCol), end.date+1)
+    newdate<-seq_dates(end.date,resolution=resolution,length.out=2)[2]
+    future_data<-get_timeframe(add_daily_ldl(Y,LeadIndCol = .self$LeadIndCol), newdate)
     data_validation<-future_data[1:n.ahead, c("cAdmit", "newAdmit")]
     
     newAdmit_validation<-data_validation[,c("newAdmit")]
@@ -823,10 +854,23 @@ FilterResultsLI <- setRefClass(
     colnames(ci) <- c('lower', 'upper')
     
     df_plot <- as.data.frame(compare)
-    df_plot$Date <- as.Date(rownames(df_plot), format=date_format)
+    df_plot$Date <- if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(df_plot)))
+    } else if (resolution=='monthly' || resolution=="yearly"){
+      qtr2date(as.yearmon(rownames(df_plot)))
+    } else {
+      as.Date(rownames(df_plot))
+    }
     
     ci_plot <- as.data.frame(ci)
-    ci_plot$Date <- as.Date(rownames(ci_plot), format =date_format)
+    ci_plot$Date <- if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(ci_plot)))
+    } else if (resolution=='monthly' || resolution=="yearly"){
+      qtr2date(as.yearmon(rownames(ci_plot)))
+    } else {
+      as.Date(rownames(ci_plot))
+    }
+    
     
     p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
       ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
