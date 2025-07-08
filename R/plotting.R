@@ -31,7 +31,6 @@
 #' @param confidence.level Width of prediction interval for \eqn{\ln g_t} to
 #' use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
 #' approximately one standard deviation for a Normal distribution.
-#' @param date_format Date format. Default is \code{'\%Y-\%m-\%d'}.
 #' @param title Title for forecast plot. Enter as text string. \code{NULL}
 #' (i.e. no title) by default.
 #' @param plt.start.date First date of actual data (from estimation sample) to
@@ -65,11 +64,9 @@
 #'
 #' @export
 plot_new_cases <- function(res,n.ahead=7, confidence.level = 0.68, 
-                           date_format = "%Y-%m-%d",
                            title=NULL, plt.start.date=NULL, 
                            series.name="target variable") {
-  res$plot_new_cases(n.ahead, confidence.level, 
-                        date_format,
+  res$plot_new_cases(n.ahead, confidence.level,
                         title, plt.start.date, 
                         series.name)
 }
@@ -238,8 +235,6 @@ plot_gy_ci <- function(res,plt.start.date = NULL, smoothed = FALSE,
 #' @param series.name Name of the variable you are forecasting for the purposes
 #' of a $y$-axis label. E.g. if \code{series.name = "Cases"} the \eqn{y}-axis
 #' will show "New Cases".
-#' @param date_format Date format, e.g. \code{'\%Y-\%m-\%d'}, which is the
-#' default.
 #' @param title Title for forecast plot. Enter as text string. \code{NULL}
 #' (i.e. no title) by default.
 #' @param caption Caption for forecast plot. Enter as text string. \code{NULL}
@@ -272,9 +267,9 @@ plot_gy_ci <- function(res,plt.start.date = NULL, smoothed = FALSE,
 #'
 #' @export
 plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
-                         date_format = "%Y-%m-%d", series.name = "target variable",
+                         series.name = "target variable",
                          title= NULL, caption = NULL) {
-  res$plot_holdout(Y, n.ahead, confidence.level, date_format, series.name, 
+  res$plot_holdout(Y, n.ahead, confidence.level, series.name, 
                       title, caption)
 }
 

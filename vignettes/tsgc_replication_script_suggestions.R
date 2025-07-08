@@ -57,7 +57,7 @@ for (dir_path in list(results_dir, tables_dir, images_dir)) {
 # Parameter Definitions
 # -----------------------------
 # Gather all parameters in one centralised block for easy modification.
-date.format      <- "%Y-%m-%d"
+# Make sure all dates are formatted as "%Y-%m-%d"
 n.forecasts      <- 14
 q                <- 0.005
 confidence.level <- 0.68
@@ -82,21 +82,22 @@ plot(mod1, title="Gauteng daily cases", series.name="cases")
 
 # -----------------------------
 # Model Estimation Options for the Third Wave
-# -----------------------------
-y <- get_timeframe(cumulative_cases,estimation.date.start,estimation.date.end)
-
-# -----------------------------
+#
 # Estimation: Diffuse Prior Model
 # -----------------------------
 # The signal-to-noise ratio was estimated as a free parameter in this step.
-model <- SSModelDynamicGompertz$new(Y = y)
+model <- SSModelDynamicGompertz$new(Y = cumulative_cases, 
+                                    start.date=estimation.date.start, 
+                                    end.date=estimation.date.end)
 res <- estimate(model)
 summary(res)
 
 # -----------------------------
 # Estimation: Diffuse Prior Model with AR(1) component
 # -----------------------------
-model_ar1 <- SSModelDynamicGompertz$new(Y = y, ar1=TRUE)
+model_ar1 <- SSModelDynamicGompertz$new(Y = cumulative_cases, ar1=TRUE,
+                                        start.date=estimation.date.start, 
+                                        end.date=estimation.date.end)
 res_ar1 <- estimate(model_ar1)
 summary(res_ar1)
 
@@ -104,7 +105,9 @@ summary(res_ar1)
 # Estimation: Fixed Signal-to-Noise Ratio Model
 # -----------------------------
 # Estimate model
-model_q <- SSModelDynamicGompertz$new(Y = y, q = q)
+model_q <- SSModelDynamicGompertz$new(Y = cumulative_cases, q = q,
+                                      start.date=estimation.date.start, 
+                                      end.date=estimation.date.end)
 res_q <- estimate(model_q)
 summary(res_q)
 
@@ -124,20 +127,16 @@ plot_log_forecast(res_q,
 plot_new_cases(res_q,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  date_format = date.format,
   plt.start.date = tail(res_q$index, 1) - plt.length,
   title="14-day forecast for new cases (Gauteng)",
-  series.name = "Cases"
-)
+  series.name = "Cases")
 
 plot_holdout(res_q,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  date_format = date.format,
   title="14-day forecast for new cases (Gauteng)",
-  series.name = "cases"
-)
+  series.name = "cases")
 
 # Save the estimation results as CSV files.
 
@@ -156,7 +155,9 @@ data(gauteng_weather_2021, package = "tsgc")
 gauteng_weather<-gauteng_weather_2021[,c(1,3)]
 
 # Set up model and estimate it
-model_weather <- SSModelDynamicGompertz$new(Y = y, xpred=gauteng_weather)
+model_weather <- SSModelDynamicGompertz$new(Y = cumulative_cases, xpred=gauteng_weather,
+                                            start.date=estimation.date.start, 
+                                            end.date=estimation.date.end)
 res_weather <- estimate(model_weather)
 summary(res_weather)
 
@@ -171,14 +172,12 @@ plot_log_forecast(res_weather,Y=cumulative_cases,n.ahead=n.forecasts,
 
 plot_new_cases(res_weather,n.ahead=n.forecasts,
                            confidence.level = confidence.level,
-                           date_format = date.format,
                            plt.start.date = tail(res_weather$index, 1) - plt.length,
                            title="14-day forecast for new cases Gauteng",
                            series.name = "Cases")
 
 plot_holdout(res_weather,Y=cumulative_cases,n.ahead=n.forecasts,
                          confidence.level = confidence.level,
-                         date_format = date.format,
                          title="14-day forecast for new cases Gauteng",
                          series.name = "cases")
 
@@ -204,10 +203,11 @@ estimate_r0(res_q, gen_int, ndays, show_plot = TRUE,
 # -----------------------------
 # Update the estimation period.
 estimation.date.end <- as.Date("2021-06-25")
-y <- get_timeframe(cumulative_cases,estimation.date.start,estimation.date.end)
 
 # Re-estimate the model over the new period.
-model <- SSModelDynamicGompertz$new(Y = y, q = q)
+model <- SSModelDynamicGompertz$new(Y = cumulative_cases, q = q,
+                                    start.date=estimation.date.start,
+                                    end.date=estimation.date.end)
 res <- estimate(model)
 
 # Trigger reinitialisation.
@@ -246,8 +246,8 @@ ggplot(data = d2.df[d2.df$Date > '2021-02-11',], aes(x = Date)) +
   geom_line(aes(y = sd.smoothed.slope.2, color = "sd.smoothed.slope.2"), linetype = "solid", linewidth = 0.5) +
   scale_y_continuous(n.breaks = 10) +
   geom_hline(yintercept = 0, linetype = "solid", color = "black", linewidth = 1) +
-  geom_vline(data = trigger.df, aes(xintercept = Date), linetype = "solid", size = 0.5, color = "black") +
-  geom_vline(data = reinit_zero.df, aes(xintercept = Date), linetype = "solid", size = 1, color = "black") +
+  geom_vline(data = trigger.df, aes(xintercept = Date), linetype = "solid", linewidth = 0.5, color = "black") +
+  geom_vline(data = reinit_zero.df, aes(xintercept = Date), linetype = "solid", linewidth = 1, color = "black") +
   xlab("Day") +
   ylab("Slope") +
   scale_x_date(date_breaks = "10 days") +
@@ -269,9 +269,11 @@ reinit.dates <- "2021-04-21"
 
 # Estimate the reinitialized model.
 model <- SSModelDynamicGompertz$new(
-  Y = y, 
+  Y = cumulative_cases, 
   q = q,
-  reinit.date = as.Date(reinit.dates, format = date.format)
+  start.date=estimation.date.start,
+  end.date=estimation.date.end,
+  reinit.date = as.Date(reinit.dates)
 )
 res.reinit <- estimate(model)
 summary(res.reinit)
@@ -299,7 +301,6 @@ plot_log_forecast(res.reinit,
 plot_new_cases(res.reinit,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  date_format = date.format,
   plt.start.date = tail(res.reinit$index, 1) - plt.length,
   title="With reinitialization",
   series.name = "cases"
@@ -309,7 +310,6 @@ plot_holdout(res.reinit,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  date_format = date.format,
   title="With reinitialization",
   series.name = "cases"
 )
@@ -322,9 +322,7 @@ plot_holdout(res,
   Y = cumulative_cases,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  title="Without reinitialization",
-  date_format = date.format
-)
+  title="Without reinitialization")
 
 plot_compare_forecast(list(res,res.reinit), actual=cumulative_cases)
 
@@ -388,8 +386,8 @@ write_results(
 )
 
 # Cross-validation to identify the best n.lag
-cross_val(y=eng[index(eng)>=estimation.date.start],
-          est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3,
+cross_val(y=eng, est.start.date=estimation.date.start,
+          est.end.date=estimation.date.end, n.ahead=7, all_lags=1:9, totaldays=3,
           vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mape")
 
 # -----------------------------
@@ -431,15 +429,16 @@ plot(ukit, title="COVID Daily Cases in UK and Italy",
           series.name.target="UK", take.log=FALSE)
 
 # Case 1: First peak.
-Y <- ukitaly[, "UK"]
-estimation.date.start <- as.Date("2020-02-25")
 n.forecasts <- 14
 confidence.level <- 0.68
 plt.length <- 30
+estimation.date.start <- as.Date("2020-02-25")
 estimation.date.end <- as.Date("2020-04-01")
-y <- get_timeframe(Y, estimation.date.start, estimation.date.end)
 
-model_q <- SSModelDynamicGompertz$new(Y = y, q = 0.005)
+Y = ukitaly[, "UK"]
+model_q <- SSModelDynamicGompertz$new(Y = Y, q = 0.005,
+                                      start.date=estimation.date.start,
+                                      end.date=estimation.date.end)
 res <- estimate(model_q)
 
 plot_new_cases(
@@ -447,30 +446,27 @@ plot_new_cases(
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   title = "UK predictions with vanilla growth model",
-  date_format = date.format,
   plt.start.date = tail(res$index, 1) - plt.length,
   series.name = "UK cases"
 )
 
 plot_holdout(
   res,
-  Y = Y[(tail(res$index, 1) + 0:n.forecasts)],
+  Y = Y,
   title = "UK predictions with vanilla growth model",
   confidence.level = confidence.level,
-  date_format = date.format,
   series.name = "UK cases"
 )
 
 # Compare to leading indicator model.
 n.lag <- 14
-n.forc <- 14
 out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, sea.period = 7,
                                start.date = estimation.date.start, 
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
 
 plot_new_cases(res_lead,
-  n.ahead = n.forc,
+  n.ahead = n.forecasts,
   title = "UK predictions with leading indicator model",
   plt.start.date = estimation.date.end - 30,
   series.name = "UK cases"
@@ -479,25 +475,19 @@ plot_new_cases(res_lead,
 plot_holdout(res_lead,
   Y = ukitaly,
   title = "UK predictions with leading indicator model",
-  n.ahead = n.forc,
+  n.ahead = n.forecasts,
   series.name = "UK cases"
 )
 
 plot_compare_forecast(list(res,res_lead), actual=ukitaly[,"UK"])
 
 # Case 2: Future peaks.
-Y <- ukitaly[, "UK"]
 estimation.date.start <- as.Date("2020-02-25")
-n.forecasts <- 14
-confidence.level <- 0.68
-plt.length <- 30
 estimation.date.end <- as.Date("2020-04-15")
 
-idx.est <- (zoo::index(Y) >= estimation.date.start) &
-  (zoo::index(Y) <= estimation.date.end)
-y <- Y[idx.est]
-
-model_q <- SSModelDynamicGompertz$new(Y = y, q = 0.005)
+model_q <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, 
+                                      start.date=estimation.date.start,
+                                      end.date=estimation.date.end)
 res <- estimate(model_q)
 
 plot_new_cases(
@@ -505,30 +495,28 @@ plot_new_cases(
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   title = "UK predictions with vanilla growth model",
-  date_format = date.format,
   plt.start.date = tail(res$index, 1) - plt.length,
   series.name = "UK cases"
 )
+
 plot_holdout(
   res,
   n.ahead = n.forecasts,
   Y = Y,
   title = "UK predictions with vanilla growth model",
   confidence.level = confidence.level,
-  date_format = date.format,
   series.name = "UK cases"
 )
 
 # For leading indicator.
 n.lag <- 14
-n.forc <- 14
 out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag,
                                start.date = estimation.date.start, 
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
 plot_new_cases(
   res_lead,
-  n.ahead = n.forc,
+  n.ahead = n.forecasts,
   title = "UK predictions with leading indicator model",
   plt.start.date = estimation.date.end - plt.length,
   series.name = "UK cases"
@@ -537,7 +525,7 @@ plot_holdout(
   res_lead,
   Y = ukitaly,
   title = "UK predictions with leading indicator model",
-  n.ahead = n.forc,
+  n.ahead = n.forecasts,
   series.name = "UK cases"
 )
 
@@ -580,7 +568,7 @@ plot_holdout(res_wii, Y=wii, n.ahead=8, title="Wii sales")
 n.forecasts      <- 4
 estimation.date.start <- as.yearqtr("2017 Q1")
 estimation.date.end   <- as.yearqtr("2019 Q4")
-n.lag<-(as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4"))*4  #Time difference (in number of quarters) in release dates for switch and wii
+n.lag<-as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4")  #Time difference (in number of quarters) in release dates for switch and wii
 
 # Prepare dataset and estimate model
 y<-nintendo_sales[,c("wii", "switch_all")]

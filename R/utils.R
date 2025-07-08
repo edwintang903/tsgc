@@ -397,9 +397,9 @@ cross_val<-function(y,est.start.date=index(y)[1],est.end.date,n.ahead,all_lags,t
   )
   for (k in 1:totaldays){
     if (vanilla){
-      date_format="%Y-%m-%d"
       Z = y[,-LeadIndCol]
-      model_q <- SSModelDynamicGompertz$new(Y = Z[index(Z) <= est.end.date+(k-1)*freq])
+      model_q <- SSModelDynamicGompertz$new(Y = Z, start.date=est.start.date,
+                                            end.date=est.end.date+(k-1)*freq)
       res <- estimate(model_q)
       results[1,k+1]=round(mapes(res,n.ahead,Z)[[criterion]],2)
     }

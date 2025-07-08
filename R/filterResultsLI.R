@@ -547,7 +547,6 @@ FilterResultsLI <- setRefClass(
       cat("Seasonality noise:",format(Q_seasonal, digits = 4))
     },
     plot_new_cases = function(n.ahead=7, confidence.level = 0.68, 
-                              date_format = "%Y-%m-%d",
                               title=NULL, plt.start.date=NULL, 
                               series.name="target variable")
     {
@@ -825,7 +824,6 @@ FilterResultsLI <- setRefClass(
     return(p1)
   },
   plot_holdout=function(Y,n.ahead=14, confidence.level = 0.68,
-                        date_format = "%Y-%m-%d", 
                         series.name = "target variable",
                         title= NULL, caption = NULL){
     "Plots the forecast of the target variable over a holdout sample. 

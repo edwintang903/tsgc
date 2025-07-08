@@ -126,29 +126,33 @@ SSModelDynamicGompertz <- setRefClass(
     original.results = "ANY",
     use.presample.info = "ANY",
     xpred="ANY",
-    ar1="logical"
-  ),
+    ar1="logical",
+    start.date="ANY",
+    end.date="ANY"),
   methods = list(initialize = function(Y, q = NULL, 
                                        sea.period = 7,reinit.date=NULL, 
                                        original.results=NULL,
                                        use.presample.info=TRUE, xpred=NULL, 
-                                       ar1=FALSE)
+                                       ar1=FALSE, start.date=index(Y)[1], 
+                                       end.date=tail(index(Y),1))
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
       \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
-      reinit.date = as.Date(\"2021-05-12\",format = date.format))}}"
+      reinit.date = as.Date(\"2021-05-12\"))}}"
     if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
       stop("sea.period must be a non-negative integer that is not 1.")
-    }
-    Y <<- Y
+    } 
+    Y <<- get_timeframe(Y,start.date,end.date)
     q <<- q
     sea.period <<- sea.period
     reinit.date <<- reinit.date
     original.results <<- original.results
     use.presample.info <<- use.presample.info
-    xpred<<-xpred[index(Y)]
+    xpred<<-get_timeframe(xpred,start.date,end.date)
     ar1<<-ar1
+    start.date<<-start.date
+    end.date<<-end.date
   },
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
@@ -547,10 +551,11 @@ SSModelDynamicGompertz <- setRefClass(
           # Either estimate full model here or take results from previous model.
           if (is.null(original.results)) {
             # NB. Restrict sample to t<=r - date of reinitialisation.
-            idx.est <- zoo::index(Y) <= reinit.date
-            model <- SSModelDynamicGompertz$new(Y = Y[idx.est],
+            model <- SSModelDynamicGompertz$new(Y = Y,
                                                 sea.period=sea.period, 
-                                                xpred=xpred1, q = q, ar1=ar1)
+                                                xpred=xpred1, q = q, ar1=ar1,
+                                                start.date=start.date,
+                                                end.date=reinit.date)
             res.original <- model$estimate()
             model_output <- output(res.original)
           } else {
@@ -624,12 +629,15 @@ SSModelDynamicGompertz <- setRefClass(
   summary = function() {
     "Supplies details of the SSModelDynamicGompertz object, such as estimated 
       parameter values, start and end dates of estimation."
-    out <- suppressWarnings(output(.self$estimate()))
+    result<-.self$estimate()
+    out <- output(result)
+    start<-result$start.date
+    end<-result$end.date
+    
     if(is.null(q)){
       qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
     }
     reinit<-!is.null(reinit.date)
-    dates<-index(Y)
     ar1_comp<-matrixKFS(out,"T")["ar1","ar1",1]
     
     cat("Summary of SSModelDynamicGompertz Model")
@@ -655,9 +663,15 @@ SSModelDynamicGompertz <- setRefClass(
     cat("\n")
     cat("  - Seasonal Component: ", ifelse(sea.period>1, "Trigonometric", "None"), "\n")
     cat("  - Period of Seasonality: ", ifelse(sea.period>1, sea.period, "N/A"), "\n")
-    cat("  - Dataset start date:", format(as.Date(dates[1], origin = "1970-01-01")))
-    cat("\n")
-    cat("  - Dataset end date:", format(as.Date(tail(dates,1), origin = "1970-01-01")))
+    if (resolution=="daily"){
+      cat("  - Estimation start date:", format(as.Date(start, origin = "1970-01-01"))) 
+      cat("\n")
+      cat("  - Estimation end date:", format(as.Date(end, origin = "1970-01-01")))
+    } else if (resolution=="quarterly"){
+      cat("  - Estimation start date:", format(as.yearqtr(start))) 
+      cat("\n")
+      cat("  - Estimation end date:", format(as.yearqtr(end)))
+    }
     cat("\n")
     if (reinit){
       cat("  - Reinitialization date:",format(as.Date(reinit.date, origin = "1970-01-01")))
@@ -737,7 +751,7 @@ SSModelDynamicGompertz <- setRefClass(
     colnames(d) <- c('New Cases', 'Centered MA')
     
     date_col<-if(resolution=='daily'){
-      as.Date(index(d),format = date_format)
+      as.Date(index(d))
     } else if (resolution=='quarterly' || resolution=='yearly' || resolution=='monthly') {
       qtr2date(index(d))
     } 
@@ -753,7 +767,7 @@ SSModelDynamicGompertz <- setRefClass(
     colnames(d) <- c('New Cases')
     
     date_col<-if(resolution=='daily'){
-      as.Date(index(d),format = date_format)
+      as.Date(index(d))
     } else if (resolution=='quarterly' || resolution=='yearly' || resolution=="monthly") {
       qtr2date(index(d))
     } 

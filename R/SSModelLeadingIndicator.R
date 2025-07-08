@@ -89,10 +89,16 @@ SSModelLeadingIndicator <- setRefClass(
     {
       "Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
+      resolu<-get_time_resolution(index(Y))
       Y <<- Y
       q <<- q
       sea.period<<-sea.period
-      n.lag <<- n.lag
+      n.lag <<- if (resolu=="daily" || resolu=="yearly"){
+        n.lag
+      } else if (resolu=="quarterly"){
+        n.lag*4
+      } else if (resolu=="monthly"){
+        n.lag*12}
       LeadIndCol <<- LeadIndCol
       xpred1<<-xpred1
       xpred2<<-xpred2
@@ -345,12 +351,14 @@ SSModelLeadingIndicator <- setRefClass(
         end.date=tail(index(data_ldl),1))
       return(results)},
     summary = function() {
-      out <- output(.self$estimate())
+      result<-.self$estimate()
+      out <- output(result)
       # q<-.self$q
       # if(is.null(q)){
       #   qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
       # }
-      dates<-index(.self$Y)
+      start<-result$start.date
+      end<-result$end.date
       
       cat("Summary of SSModelLeadingIndicator Model")
       cat("\n")
@@ -365,9 +373,15 @@ SSModelLeadingIndicator <- setRefClass(
       cat("\n")
       cat("  - Seasonal Component: ", ifelse(is.na(sea.period), "None", "Trigonometric"), "\n")
       cat("  - Period of Seasonality: ", ifelse(is.na(sea.period), "N/A", sea.period), "\n")
-      cat("  - Dataset start date:", format(as.Date(dates[1], origin = "1970-01-01")))
-      cat("\n")
-      cat("  - Dataset end date:", format(as.Date(tail(dates,1), origin = "1970-01-01")))
+      if (resolution=="daily"){
+        cat("  - Estimation start date:", format(as.Date(start, origin = "1970-01-01"))) 
+        cat("\n")
+        cat("  - Estimation end date:", format(as.Date(end, origin = "1970-01-01")))
+      } else if (resolution=="quarterly"){
+        cat("  - Estimation start date:", format(as.yearqtr(start))) 
+        cat("\n")
+        cat("  - Estimation end date:", format(as.yearqtr(end)))
+      }
       cat("\n")
       cat("  - Model States and Standard Errors\n")
       base::print(out)

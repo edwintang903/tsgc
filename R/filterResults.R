@@ -530,7 +530,6 @@ FilterResults <- setRefClass(
       }
     }, 
     plot_new_cases=function(n.ahead=14, confidence.level = 0.68, 
-                            date_format = "%Y-%m-%d",
                             title=NULL, plt.start.date=NULL, 
                             series.name="target variable") {
       "Generates a forecast plot for the difference in the cumulative variable,
@@ -546,24 +545,16 @@ FilterResults <- setRefClass(
       
       Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
       if (is.null(title)) {title <- ""}
-      
-      est.date.index <- if (resolution=='quarterly'){
-        index %>% as.yearqtr()
-      } else if (resolution=='monthly' || resolution=='yearly') {
-        index %>% as.yearmon()
-      } else {
-        index %>% as.Date()
-      }
        
-      estimation.date.end <- tail(est.date.index, 1)
+      estimation.date.end <- tail(index, 1)
       
       if (!is.null(reinit.date)){
         Y<-reinitialise_dataframe(data_xts, reinit.date)
       } else{
         Y<-data_xts
       }
-    y.level.est <- Y[est.date.index]
-    if (is.null(plt.start.date)) {plt.start.date <- head(est.date.index, 1)}
+    y.level.est <- Y[index]
+    if (is.null(plt.start.date)) {plt.start.date <- head(index, 1)}
     
     y.hat.diff.final.ci <- .self$predict_level(
       n.ahead = n.ahead, confidence.level = confidence.level,
@@ -575,7 +566,7 @@ FilterResults <- setRefClass(
     # )
     # 
     tmp.date <- if (resolution=='daily'){
-      as.Date(plt.start.date, format=date_format)
+      as.Date(plt.start.date)
     } else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly'){
       as.Date(format(as.yearmon(plt.start.date), format="%Y-%m-%d"))
     }
@@ -588,7 +579,7 @@ FilterResults <- setRefClass(
     names(d.plot) <- c('Data', 'Forecast')
     
     date_col<-if(resolution=='daily'){
-      as.Date(index(y.hat.diff.final.ci),format = date_format)} 
+      as.Date(index(y.hat.diff.final.ci))} 
     else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
       qtr2date(index(y.hat.diff.final.ci))
       }
@@ -596,18 +587,16 @@ FilterResults <- setRefClass(
     ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
                               date_col))
     colnames(ci) <- c('lower', 'upper', 'date')
-    ci[, 'date'] <- as.Date(
-      ci[, 'date'], format = date_format, origin = "1970-01-01"
-    )
+    ci[, 'date'] <- as.Date(ci[, 'date'], origin = "1970-01-01")
     
     df_plot <- as.data.frame(d.plot)
     
-    if (resolution=='quarterly'){
-      df_plot$Date<-qtr2date(as.yearqtr(rownames(df_plot)))
+    df_plot$Date<-if (resolution=='quarterly'){
+      qtr2date(as.yearqtr(rownames(df_plot)))
     } else if (resolution=='monthly'|| resolution=='yearly'){
-      df_plot$Date<-qtr2date(as.yearmon(rownames(df_plot)))
+      dqtr2date(as.yearmon(rownames(df_plot)))
     } else {
-      df_plot$Date <- as.Date(rownames(df_plot), format = date_format)
+      as.Date(rownames(df_plot))
     }
     
     ggplot2::ggplot(data = df_plot, aes(x = Date)) +
@@ -638,24 +627,23 @@ FilterResults <- setRefClass(
       log cumulative growth rate out of the estimation sample. For more details,
       see \\link{plot_log_forecast}."
       model <- modelKFS(output)
-      est.date.index <- index
       if (!is.null(reinit.date)){
         y.eval <- Y %>%
           reinitialise_dataframe(., reinit.date) %>%
           df2ldl() %>%
-          subset(index(.) > tail(est.date.index,1))
+          subset(index(.) > tail(index,1))
       } else {y.eval<-Y %>%
-        df2ldl()%>% subset(zoo::index(.) > tail(est.date.index,1))}
+        df2ldl()%>% subset(zoo::index(.) > tail(index,1))}
       
-      y <- xts::xts(model$y %>% as.numeric(), order.by = est.date.index)
+      y <- xts::xts(model$y %>% as.numeric(), order.by = index)
       p <- attr(model, 'p')
       
       firstpred<-if (resolution=='quarterly'){
-        tail(est.date.index,1)+0.25
+        tail(index,1)+0.25
       } else if (resolution=='monthly'){
-        tail(est.date.index,1)+1/12
+        tail(index,1)+1/12
       } else {
-        tail(est.date.index,1)+1
+        tail(index,1)+1
       }
       
       y.hat.all <- .self$predict_all(n.ahead, return.all = TRUE)
@@ -731,7 +719,7 @@ FilterResults <- setRefClass(
       } else if (p == 2) {
         g_1 <- g_2 <- delta <- Forecast <- RealisedData <- NULL
         d <- cbind(y, filtered.level, y.pred[,2],
-                   y.eval[index(y.eval)>tail(index(est.date.index),1),2])
+                   y.eval[index(y.eval)>tail(index(index),1),2])
         d <- d[index(d) <= tail(index(y.pred),1)]
         names(d) <- c('g_1', 'g_2', 'delta', 'Forecast', 'RealisedData')
         
@@ -741,7 +729,7 @@ FilterResults <- setRefClass(
         } else if (resolution=='monthly' || resolution=="yearly"){
           qtr2date(as.yearmon(rownames(df_plot)))
         } else {
-          as.Date(rownames(df_plot), format = date_format)
+          as.Date(rownames(df_plot))
         }
         
         p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
@@ -799,7 +787,7 @@ FilterResults <- setRefClass(
       } else if (resolution=='monthly' || resolution=="yearly"){
         qtr2date(as.yearmon(rownames(df_plot)))
       } else {
-        as.Date(rownames(df_plot), format = date_format)
+        as.Date(rownames(df_plot))
       } 
       
       df_long <- df_plot %>%
@@ -845,7 +833,7 @@ FilterResults <- setRefClass(
       } else if (resolution=='monthly' || resolution=="yearly"){
         qtr2date(as.yearmon(rownames(df_plot)))
       } else {
-        as.Date(rownames(df_plot), format = date_format)
+        as.Date(rownames(df_plot))
       } 
       
       p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=plt.start.date,], aes(x=Date)) +
@@ -888,7 +876,6 @@ FilterResults <- setRefClass(
     }, 
     plot_holdout = function(Y, n.ahead=14,
                             confidence.level = 0.68,
-                             date_format = "%Y-%m-%d", 
                             series.name = "target variable",
                              title= NULL, caption = NULL) {
       "Plots the forecast of new cases (the difference of the cumulated
@@ -908,10 +895,9 @@ FilterResults <- setRefClass(
       }
       
       model <- modelKFS(output)
-      est.date.index <-.self$index
       
-      y.level.est <- Y.est[est.date.index]
-      estimation.date.end <- tail(est.date.index, 1)
+      y.level.est <- Y.est[index]
+      estimation.date.end <- tail(index, 1)
       
       p <- attr(model, 'p')
       if(p!=1) { stop('NotImplementedError') }
@@ -954,7 +940,7 @@ FilterResults <- setRefClass(
       } else if (resolution=='monthly' || resolution=="yearly"){
         qtr2date(as.yearmon(rownames(df_plot)))
       } else {
-        as.Date(rownames(df_plot), format = date_format)
+        as.Date(rownames(df_plot))
       }
       
       # mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
@@ -963,7 +949,7 @@ FilterResults <- setRefClass(
         mean %>% round(2)
       
       date_col<-if(resolution=='daily'){
-        as.Date(index(y.hat.diff.final.ci),format = date_format)} 
+        as.Date(index(y.hat.diff.final.ci))} 
       else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
         qtr2date(index(y.hat.diff.final.ci))
       }
@@ -971,8 +957,7 @@ FilterResults <- setRefClass(
       ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
                                 date_col))
       colnames(ci) <- c('lower', 'upper', 'date')
-      ci[, 'date'] <- as.Date(ci[, 'date'], format = date_format,
-                              origin = "1970-01-01")
+      ci[, 'date'] <- as.Date(ci[, 'date'], origin = "1970-01-01")
       
       p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
         ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
@@ -1012,12 +997,9 @@ FilterResults <- setRefClass(
         p <- attr(modelKFS(output), 'p')
         if(p!=1) { stop('NotImplementedError') }
         
-        Y.eval<-Y[(tail(index,1)+0:n.ahead)]  #need to change for quarterly data
+        estimation.date.end <- tail(index, 1)
         
-        y.eval.diff <- diff(Y.eval) %>% na.omit
-        
-        est.date.index <- as.Date(index)
-        estimation.date.end <- tail(est.date.index, 1)
+        y.eval.diff <-diff(Y[seq_dates(estimation.date.end, resolution, length.out=n.ahead+1)]) %>% na.omit
         
         # y.hat.diff.final.ci <- .self$predict_level(
         #   n.ahead = n.ahead, confidence.level = 0.68
