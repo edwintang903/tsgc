@@ -70,7 +70,7 @@ setOldClass("KFS")
 #' plt.start.date=estimation.date.end-plt.length)
 #' 
 #' # Plot forecast of new cases 7 days ahead
-#' res$plot_new_cases(n.ahead=7,
+#' res$plot_forecast(n.ahead=7,
 #' plt.start.date = estimation.date.end-plt.length,
 #' series.name="hospitalizations")
 #' 
@@ -529,13 +529,13 @@ FilterResults <- setRefClass(
         cat("Seasonality noise:",format(Q_seasonal, digits = 4))
       }
     }, 
-    plot_new_cases=function(n.ahead=14, confidence.level = 0.68, 
+    plot_forecast=function(n.ahead=14, confidence.level = 0.68, 
                             title=NULL, plt.start.date=NULL, 
                             series.name="target variable") {
       "Generates a forecast plot for the difference in the cumulative variable,
       showing actual values, forecasts including seasonal components,
       and prediction intervals around the forecasts. 
-      For more details, see \\link{plot_new_cases}."
+      For more details, see \\link{plot_forecast}."
       
       if (need.xpred){
         if (is.null(xpred.new)){
@@ -594,7 +594,7 @@ FilterResults <- setRefClass(
     df_plot$Date<-if (resolution=='quarterly'){
       qtr2date(as.yearqtr(rownames(df_plot)))
     } else if (resolution=='monthly'|| resolution=='yearly'){
-      dqtr2date(as.yearmon(rownames(df_plot)))
+      qtr2date(as.yearmon(rownames(df_plot)))
     } else {
       as.Date(rownames(df_plot))
     }

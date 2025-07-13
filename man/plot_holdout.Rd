@@ -10,7 +10,6 @@ plot_holdout(
   Y,
   n.ahead = 14,
   confidence.level = 0.68,
-  date_format = "\%Y-\%m-\%d",
   series.name = "target variable",
   title = NULL,
   caption = NULL
@@ -28,9 +27,6 @@ sample (i.e. to which the forecasts should be compared to).}
 \item{confidence.level}{Width of prediction interval for \eqn{\ln(g_t)} to
 use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
 approximately one standard deviation for a Normal distribution.}
-
-\item{date_format}{Date format, e.g. \code{'\%Y-\%m-\%d'}, which is the
-default.}
 
 \item{series.name}{Name of the variable you are forecasting for the purposes
 of a $y$-axis label. E.g. if \code{series.name = "Cases"} the \eqn{y}-axis

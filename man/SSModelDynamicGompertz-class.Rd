@@ -99,11 +99,13 @@ model.}}
   original.results = NULL,
   use.presample.info = TRUE,
   xpred = NULL,
-  ar1 = FALSE
+  ar1 = FALSE,
+  start.date = index(Y)[1],
+  end.date = tail(index(Y), 1)
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
 are defined in `fields` section. 
   \subsection{Usage}{\code{SSModelDynGompertzReinit$new(y, q = 0.005,
-  reinit.date = as.Date("2021-05-12",format = date.format))}}}
+  reinit.date = as.Date("2021-05-12"))}}}
 
 \item{\code{plot(title = NULL, series.name = "target variable", MA_period = 7)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
       \code{SSModelDynamicGompertz} object against time, which could represent 

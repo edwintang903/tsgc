@@ -95,6 +95,17 @@ earlier in the fields section.}
 forecasts against a holdout sample. For more details, please refer to 
 \link{mapes}.}
 
+\item{\code{plot_forecast(
+  n.ahead = 7,
+  confidence.level = 0.68,
+  title = NULL,
+  plt.start.date = NULL,
+  series.name = "target variable"
+)}}{Generates a forecast plot for the difference in the cumulative target 
+variable, showing actual values, forecasts including seasonal components,
+and prediction intervals around the forecasts. For more details, see 
+\link{plot_forecast}.}
+
 \item{\code{plot_gy_ci(
   plt.start.date = NULL,
   smoothed = FALSE,
@@ -113,7 +124,6 @@ For more details, please see \link{plot_gy_components}.}
   Y,
   n.ahead = 14,
   confidence.level = 0.68,
-  date_format = "\%Y-\%m-\%d",
   series.name = "target variable",
   title = NULL,
   caption = NULL
@@ -130,18 +140,6 @@ For more details, please refer to \link{plot_holdout}.}
 (\eqn{\ln(g_t)}) of the target variable in the estimation sample and 
 the forecast and realised log cumulative growth rate of the target variable
 out of the estimation sample. For more details, see \link{plot_log_forecast}.}
-
-\item{\code{plot_new_cases(
-  n.ahead = 7,
-  confidence.level = 0.68,
-  date_format = "\%Y-\%m-\%d",
-  title = NULL,
-  plt.start.date = NULL,
-  series.name = "target variable"
-)}}{Generates a forecast plot for the difference in the cumulative target 
-variable, showing actual values, forecasts including seasonal components,
-and prediction intervals around the forecasts. For more details, see 
-\link{plot_new_cases}.}
 
 \item{\code{predict_all(
   n.ahead,
@@ -237,7 +235,7 @@ res$plot_log_forecast(Y=Y, n.ahead=7,
 plt.start.date=estimation.date.end-plt.length)
 
 # Plot forecast of new cases 7 days ahead
-res$plot_new_cases(n.ahead=7,
+res$plot_forecast(n.ahead=7,
 plt.start.date = estimation.date.end-plt.length,
 series.name="hospitalizations")
 

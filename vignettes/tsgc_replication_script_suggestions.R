@@ -124,7 +124,7 @@ plot_log_forecast(res_q,
 # -----------------------------
 # Forecasting: New Cases and Holdout Evaluation
 # -----------------------------
-plot_new_cases(res_q,
+plot_forecast(res_q,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   plt.start.date = tail(res_q$index, 1) - plt.length,
@@ -170,7 +170,7 @@ plot_log_forecast(res_weather,Y=cumulative_cases,n.ahead=n.forecasts,
                               plt.start.date = tail(res_weather$index, 1) - plt.length,
                               title = "Log Growth Rate Forecast")
 
-plot_new_cases(res_weather,n.ahead=n.forecasts,
+plot_forecast(res_weather,n.ahead=n.forecasts,
                            confidence.level = confidence.level,
                            plt.start.date = tail(res_weather$index, 1) - plt.length,
                            title="14-day forecast for new cases Gauteng",
@@ -298,7 +298,7 @@ plot_log_forecast(res.reinit,
   title = "Forecast of ln(g_t) after reinitialisation."
 )
 
-plot_new_cases(res.reinit,
+plot_forecast(res.reinit,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
   plt.start.date = tail(res.reinit$index, 1) - plt.length,
@@ -364,7 +364,7 @@ plot_log_forecast(res,
   title="Forecasts of Log Growth rate of England hospitalizations"
 )
 
-plot_new_cases(res,
+plot_forecast(res,
   n.ahead = n.forecasts,
   plt.start.date = estimation.date.end - plt.length,
   series.name = "hospitalizations",
@@ -408,7 +408,7 @@ plot_log_forecast(res_lead.x, Y = eng, n.ahead = n.forecasts,
                   plt.start.date = estimation.date.end - plt.length,
                   title="Forecasts of Log Growth rate of England hospitalizations")
 
-plot_new_cases(res_lead.x,
+plot_forecast(res_lead.x,
                n.ahead = n.forecasts,
                plt.start.date = estimation.date.end - plt.length,
                title="Forecasts of England hospitalizations",
@@ -441,7 +441,7 @@ model_q <- SSModelDynamicGompertz$new(Y = Y, q = 0.005,
                                       end.date=estimation.date.end)
 res <- estimate(model_q)
 
-plot_new_cases(
+plot_forecast(
   res,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
@@ -465,7 +465,7 @@ out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, sea.period = 7,
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
 
-plot_new_cases(res_lead,
+plot_forecast(res_lead,
   n.ahead = n.forecasts,
   title = "UK predictions with leading indicator model",
   plt.start.date = estimation.date.end - 30,
@@ -490,7 +490,7 @@ model_q <- SSModelDynamicGompertz$new(Y = Y, q = 0.005,
                                       end.date=estimation.date.end)
 res <- estimate(model_q)
 
-plot_new_cases(
+plot_forecast(
   res,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
@@ -514,7 +514,7 @@ out <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag,
                                start.date = estimation.date.start, 
                                end.date = estimation.date.end)
 res_lead <- estimate(out)
-plot_new_cases(
+plot_forecast(
   res_lead,
   n.ahead = n.forecasts,
   title = "UK predictions with leading indicator model",
@@ -547,20 +547,21 @@ estimation.date.end   <- as.yearqtr("2010 Q3")
 # Monthly Example
 # -----------------------------
 data(nintendo_sales, package = "tsgc")
-wii<-cumsum(na.omit(nintendo_sales[,1]))
+wii<-nintendo_sales[,1]
 
 # Get a glimpse of data by plotting its moving average series
 mod1<-SSModelDynamicGompertz$new(Y=wii)
 plot(mod1, title="Wii sales by quarter", series.name="Sales (Million)", MA_period=4)
 
-
 # Model Estimation 
 y <- get_timeframe(wii,estimation.date.start,estimation.date.end)
-mod_wii<-SSModelDynamicGompertz$new(Y=y, sea.period=4)
+mod_wii<-SSModelDynamicGompertz$new(Y=y, sea.period=4,
+                                    start.date=estimation.date.start, 
+                                    end.date=estimation.date.end)
 res_wii<-estimate(mod_wii)
 
 plot_log_forecast(res_wii, Y=wii, n.ahead=8, title="Log forecasts of Wii sales")
-plot_new_cases(res_wii, n.ahead=8, title="Wii sales")
+plot_forecast(res_wii, n.ahead=8, title="Wii sales")
 plot_holdout(res_wii, Y=wii, n.ahead=8, title="Wii sales")
 
 # Extend to leading indicator
@@ -577,7 +578,7 @@ mod_switch<-SSModelLeadingIndicator$new(Y=y, sea.period=4, n.lag=n.lag,
                                      end.date=estimation.date.end)
 res_switch<-estimate(mod_switch)
 plot_log_forecast(res_switch, Y=y, n.ahead=8, title="Log forecasts of switch sales")
-plot_new_cases(res_switch, n.ahead=8, title="Switch sales", series.name = "sales")
+plot_forecast(res_switch, n.ahead=8, title="Switch sales", series.name = "sales")
 plot_holdout(res_switch, Y=y, n.ahead=8, title="Switch sales", series.name = "sales")
 
 # -----------------------------
@@ -602,12 +603,13 @@ plot(mod1, title="Annual battery-electric vehicle sales in the US between 2011 a
      MA_period=0)
 
 # Model Estimation 
-y <- get_timeframe(ev_xts,estimation.date.start,estimation.date.end)
-mod_ev<-SSModelDynamicGompertz$new(Y=y, sea.period=0)
+mod_ev<-SSModelDynamicGompertz$new(Y=ev_xts, sea.period=0, 
+                                   start.date=estimation.date.start, 
+                                   end.date=estimation.date.end)
 res_ev<-estimate(mod_ev)
 
 plot_log_forecast(res_ev, Y=ev_xts, n.ahead=2, title="Log Forecasts for upcoming annual EV sales in the US")
-plot_new_cases(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
+plot_forecast(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
 plot_holdout(res_ev, Y=ev_xts, n.ahead=2, title="Accuracy of predictions for upcoming annual EV sales in the US")
 
 # -----------------------------
@@ -628,5 +630,5 @@ mod_ev<-SSModelDynamicGompertz$new(Y=y, sea.period=0)
 res_ev<-estimate(mod_ev)
 
 plot_log_forecast(res_ev, Y=ev_xts, n.ahead=2, title="Log Forecasts for upcoming annual EV sales in the US")
-plot_new_cases(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
+plot_forecast(res_ev, n.ahead=2, title="Forecasts for upcoming annual EV sales in the US")
 plot_holdout(res_ev, Y=ev_xts, n.ahead=2, title="Accuracy of predictions for upcoming annual EV sales in the US")

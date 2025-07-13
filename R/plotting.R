@@ -59,14 +59,14 @@
 #' res <- estimate(model)
 #'
 #' # Plot forecast of new cases 7 days ahead
-#' plot_new_cases(res, n.ahead=7, confidence.level = 0.68, date_format = "%Y-%m-%d",
+#' plot_forecast(res, n.ahead=7, confidence.level = 0.68, date_format = "%Y-%m-%d",
 #' title = "Forecast new cases", plt.start.date = as.Date("2020-07-13"),series.name="cases")
 #'
 #' @export
-plot_new_cases <- function(res,n.ahead=7, confidence.level = 0.68, 
+plot_forecast <- function(res,n.ahead=7, confidence.level = 0.68, 
                            title=NULL, plt.start.date=NULL, 
                            series.name="target variable") {
-  res$plot_new_cases(n.ahead, confidence.level,
+  res$plot_forecast(n.ahead, confidence.level,
                         title, plt.start.date, 
                         series.name)
 }

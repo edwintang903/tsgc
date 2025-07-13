@@ -366,6 +366,7 @@ mapes<-function(res,n.ahead,Y){
 #' models. Available choices are "mape" (by default), "mae" and "rmse". 
 #' 
 #' @importFrom zoo index
+#' @importFrom magrittr and
 #'
 #' @returns A table summarizing the MAPE scores for each lag across the
 #' specified dates.
