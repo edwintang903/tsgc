@@ -49,7 +49,12 @@ df2ldl <- function(dt) {
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
 #'
-#'
+#' # Select data between 2020-04-01 and 2020-08-01, inclusive
+#' get_timeframe(gauteng, as.Date("2020-04-01"), as.Date("2020-08-01"))
+#' 
+#' # Select all data after 2020-04-01, inclusive
+#' get_timeframe(gauteng, as.Date("2020-04-01"))
+#' 
 #' @export
 get_timeframe<-function(df, start.date, end.date=NULL){
   if (is.null(end.date)){
@@ -256,9 +261,26 @@ write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
+#' cumulative_cases <- gauteng[, 1] 
+#' 
+#' # Estimate model
+#' model_q <- SSModelDynamicGompertz$new(Y = cumulative_cases, q = 0.005,
+#'                                       start.date=as.Date("2021-02-01"), 
+#'                                       end.date=as.Date("2021-04-19"))
+#' res_q <- estimate(model_q)
+#' summary(res_q)
+#' 
+#' # Calculate reproduction number estimates and credible intervals.
+#' gen_int <- 4  # Generation interval in days
+#' ndays<-7 #Number of days to plot
+#' r.t <- estimate_r0(res_q, gen_int, ndays)
+#' r.t 
+#' 
+#'  # Plot reproduction numbers.
+#' estimate_r0(res_q, gen_int, ndays, show_plot = TRUE, title="Gauteng Reproduction numbers")
 #'
 #' @export
-estimate_r0<-function(res,gen_int, ndays=7, show_plot=FALSE, 
+estimate_r0<-function(res, gen_int, ndays=7, show_plot=FALSE, 
                       title="Reproduction number"){
   r.t <- tail(exp(res$get_gy_ci() * gen_int), ndays) %>% tk_tbl
   names(r.t) <- c("Date", "Rt", "lower", "upper")
@@ -308,21 +330,12 @@ estimate_r0<-function(res,gen_int, ndays=7, show_plot=FALSE,
 #' @examples
 #' library(tsgc)
 #' 
-#' #Setup
-#' date_format="%Y-%m-%d"
-#' estimation.date.start=as.Date("2021-04-30")
-#' estimation.date.end=as.Date("2021-07-24")
-#' n.ahead=7
-#' Y=gauteng
-#' idx.est =(zoo::index(Y) >= estimation.date.start) & (zoo::index(Y) <= estimation.date.end)
-#' y = Y[idx.est]
-#' 
 #' #Estimate the model
-#' model_q <- SSModelDynamicGompertz$new(Y = y)
+#' model_q <- SSModelDynamicGompertz$new(Y = gauteng, start.date=as.Date("2021-04-30"), end.date=as.Date("2021-07-24"))
 #' res <- estimate(model_q)
 #' 
 #' #Return MAPE of forecast
-#' mapes(res,n.ahead=n.ahead,Y)
+#' mapes(res,n.ahead=7,Y)
 #' 
 #' 
 #' @export
@@ -436,7 +449,11 @@ get_time_resolution <- function(dates) {
   if (!all.equal(min(date_diff),max(date_diff))){
     stop("The dates are not separated by the same time resolution.")
   } else if (class(dates)=="yearqtr"){
-    return('quarterly')
+    if (min(diff(dates))==1){
+      return('yearly')
+    } else {
+      return('quarterly')
+    }
   } else if (class(dates)=="yearmon"){
     if (min(diff(dates))==1){
       return('yearly')

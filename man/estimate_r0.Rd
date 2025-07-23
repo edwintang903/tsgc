@@ -32,5 +32,22 @@ Following Harvey and Kattuman (2021)
 \examples{
 library(tsgc)
 data(gauteng,package="tsgc")
+cumulative_cases <- gauteng[, 1] 
+
+# Estimate model
+model_q <- SSModelDynamicGompertz$new(Y = cumulative_cases, q = 0.005,
+                                      start.date=as.Date("2021-02-01"), 
+                                      end.date=as.Date("2021-04-19"))
+res_q <- estimate(model_q)
+summary(res_q)
+
+# Calculate reproduction number estimates and credible intervals.
+gen_int <- 4  # Generation interval in days
+ndays<-7 #Number of days to plot
+r.t <- estimate_r0(res_q, gen_int, ndays)
+r.t 
+
+ # Plot reproduction numbers.
+estimate_r0(res_q, gen_int, ndays, show_plot = TRUE, title="Gauteng Reproduction numbers")
 
 }

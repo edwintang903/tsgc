@@ -23,5 +23,10 @@ Helper method to subset a data frame for a specified time frame
 library(tsgc)
 data(gauteng,package="tsgc")
 
+# Select data between 2020-04-01 and 2020-08-01, inclusive
+get_timeframe(gauteng, as.Date("2020-04-01"), as.Date("2020-08-01"))
+
+# Select all data after 2020-04-01, inclusive
+get_timeframe(gauteng, as.Date("2020-04-01"))
 
 }

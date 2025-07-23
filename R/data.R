@@ -140,7 +140,14 @@
 #'
 #' @format An object of class `"xts"`;
 #' \describe{
-#'   \item{wii}{Wii sales}
+#'   \item{wii}{Cumulative Wii sales}
+#'   \item{wiiu}{Cumulative Wii U sales}
+#'   \item{switch_all}{Cumulative Switch sales (original, lite and OLED combined)}
+#'   \item{switch_base}{Cumulative original Switch sales}
+#'   \item{switch_Lite}{Cumulative Switch Lite sales}
+#'   \item{switch_OLED}{Cumulative switch OLED sales}
+#'   \item{3ds}{Cumulative 3DS sales}
+#'   \item{nds}{Cumulative NDS sales}
 #' }
 #'
 #' @keywords datasets
@@ -159,7 +166,7 @@
 #'
 #' @usage data(etrading_apps)
 #'
-#' @format An object of class `"xts"`
+#' @format An object of class `"xts"` with cumulative downloads of each trading app
 #'
 #' @keywords datasets
 #'

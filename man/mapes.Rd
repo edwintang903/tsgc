@@ -28,21 +28,12 @@ providing a measure of forecast accuracy.
 \examples{
 library(tsgc)
 
-#Setup
-date_format="\%Y-\%m-\%d"
-estimation.date.start=as.Date("2021-04-30")
-estimation.date.end=as.Date("2021-07-24")
-n.ahead=7
-Y=gauteng
-idx.est =(zoo::index(Y) >= estimation.date.start) & (zoo::index(Y) <= estimation.date.end)
-y = Y[idx.est]
-
 #Estimate the model
-model_q <- SSModelDynamicGompertz$new(Y = y)
+model_q <- SSModelDynamicGompertz$new(Y = gauteng, start.date=as.Date("2021-04-30"), end.date=as.Date("2021-07-24"))
 res <- estimate(model_q)
 
 #Return MAPE of forecast
-mapes(res,n.ahead=n.ahead,Y)
+mapes(res,n.ahead=7,Y)
 
 
 }

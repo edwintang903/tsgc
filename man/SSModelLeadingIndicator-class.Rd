@@ -60,7 +60,6 @@ model.}}
   LeadIndCol = 1,
   xpred1 = NULL,
   xpred2 = NULL,
-  ar1 = FALSE,
   start.date = index(Y)[1],
   end.date = tail(index(Y), 1)
 )}}{Create an instance of the \code{SSModelLeadingIndicator} class with the 

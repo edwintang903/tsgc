@@ -16,5 +16,5 @@ Only applicable for FilterResultsLI object. Defaults to NULL.}
 }
 \description{
 Accessor method to provide new exogenous predictors for the
-prediction period
+prediction period.
 }

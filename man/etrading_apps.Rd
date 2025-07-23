@@ -6,7 +6,7 @@
 \title{Monthly number of downloads of selected leading apps that allow for online
 share trading in France from January 2017 to July 2021, by app}
 \format{
-An object of class \code{"xts"}
+An object of class \code{"xts"} with cumulative downloads of each trading app
 }
 \usage{
 data(etrading_apps)

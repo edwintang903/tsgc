@@ -17,7 +17,7 @@
 #' @title Supply exogenous predictors for new predictions 
 #
 #' @description Accessor method to provide new exogenous predictors for the 
-#' prediction period
+#' prediction period.
 #'
 #' @param object FilterResults or FilterReusltsLI object
 #' @param new.xts An xts object containing new exogenous predictors

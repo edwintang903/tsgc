@@ -566,7 +566,11 @@ plot_holdout(res_wii, Y=wii, n.ahead=n.forecasts, title="Wii sales")
 n.forecasts      <- 8
 estimation.date.start <- as.yearqtr("2017 Q1")
 estimation.date.end   <- as.yearqtr("2019 Q4")
-n.lag<-as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4")  #Time difference (in number of quarters) in release dates for switch and wii
+
+# n.lag is the time difference in release dates for switch and wii. 
+# Though this can result in a non-integer, there is no need to multiply by 4, 
+# this is done within our functions
+n.lag<-as.yearqtr("2017 Q1")-as.yearqtr("2006 Q4")  
 
 # Prepare dataset and estimate model
 y<-nintendo_sales[,c("wii", "switch_all")]
