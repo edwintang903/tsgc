@@ -798,7 +798,7 @@ SSModelDynamicGompertz <- setRefClass(
     theme(
       legend.position = "inside",
       legend.position.inside = c(0.2, 0.85),
-      legend.title = element_text(size = 2),
+      legend.title = element_text(size = 5),
       legend.text = element_text(size = 10),
       axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
       plot.title = element_text(face = "bold")

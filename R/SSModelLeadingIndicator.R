@@ -470,22 +470,17 @@ SSModelLeadingIndicator <- setRefClass(
         geom_line(aes(y = newCases, color = series.name.lead), lwd = 0.85) +
         geom_line(aes(y = newAdmit, color = series.name.target), lwd = 0.85) +
         scale_color_manual(values = c("red", "blue"))+
-        theme_economist_white(gray_bg = FALSE, base_size = 12) +
         theme(
-          legend.title = element_blank(),
-          legend.position = "top",
-          text = element_text(size = rel(1.1)),
-          axis.text = element_text(size = rel(1)),
-          axis.title.y = element_text(size = rel(1), margin = margin(r = 10)),
-          axis.title.x = element_text(size = rel(1), margin = margin(t = 10)),
-          plot.title = element_text(margin = margin(b = 5), face = "bold"),
-          plot.caption = element_text(size = rel(1))
+          legend.position = "inside",
+          legend.position.inside = c(0.2, 0.85),
+          legend.title = element_text(size = 5),
+          legend.text = element_text(size = 10),
+          axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+          plot.title = element_text(face = "bold")
         ) 
       if (!is.null(date_break)) {
-        data_plot <- data_plot + scale_x_date(date_breaks = date_break, labels = scales::date_format("%d %b %y"))
-      } else {
-        data_plot <- data_plot + scale_x_date(labels = scales::date_format("%d %b %y"))
-      }
+        data_plot <- data_plot + scale_x_date(date_breaks = date_break)
+      } 
       data_plot
     }
   )

@@ -546,6 +546,8 @@ estimation.date.end   <- as.yearqtr("2010 Q3")
 
 # Get a glimpse of data by plotting its moving average series
 mod1<-SSModelDynamicGompertz$new(Y=wii)
+
+# Consecutive dates on x-axis are 1 year apart by setting date_break="1 year".
 plot(mod1, title="Wii sales by quarter", series.name="Sales (Million)", 
      MA_period=4, date_break = "1 year")
 
