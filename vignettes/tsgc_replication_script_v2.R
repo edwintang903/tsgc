@@ -51,9 +51,8 @@ theme_set(ggthemes::theme_economist_white(gray_bg = FALSE, base_size = 16))
 options(scipen = 7)  # fewer scientific notations
 
 # ---- Project Paths  ----
-setwd("C:/tsgc-incorporatedClasses")
+setwd("C:/Users/u2001328/OneDrive - University of Warwick/Documents/CAM MATH/Time series resesarch")
 # Ensure your working directory is the project root (where .Rproj or .here lives).
-#base_path   <- here::here()
 base_path   <- getwd()
 results_dir <- file.path(base_path, "results")
 tables_dir  <- file.path(results_dir, "Tables")
@@ -80,29 +79,18 @@ safe_ggsave <- function(plot, filename, width = FIG_WIDTH, height = FIG_HEIGHT, 
   })
 }
 
-# ---- Model estimation wrapper  ----
-run_estimate <- function(model) {
-  tryCatch({
-    res <- tsgc::estimate(model)
-    if (is.null(res$output)) warning("Estimate returned but 'output' slot is NULL.")
-    res
-  }, error = function(e) {
-    stop("Estimation failed: ", e$message)
-  })
-}
-
 # ---- Plot + save helpers ----
-plot_and_save <- function(plot_obj, fname) {
-  if (inherits(plot_obj, "ggplot")) {
-    safe_ggsave(plot_obj, file.path(images_dir, fname))
-  } else {
-    message("Plot object is not a ggplot; displaying to console instead.")
-    print(plot_obj)
-  }
-}
-
 # Standard wrappers to trap errors but keep the session alive:
 do_plot <- function(expr, fname = NULL) {
+  plot_and_save <- function(plot_obj, fname) {
+    if (inherits(plot_obj, "ggplot")) {
+      safe_ggsave(plot_obj, file.path(images_dir, fname))
+    } else {
+      message("Plot object is not a ggplot; displaying to console instead.")
+      print(plot_obj)
+    }
+  }
+  
   tryCatch({
     p <- eval.parent(substitute(expr))
     if (!is.null(fname)) plot_and_save(p, fname)
@@ -126,7 +114,7 @@ do_write_results <- function(res, fname_prefix = NULL, n.ahead = n.forecasts.def
 # Convenience for date windows used in plots
 tail_date_minus <- function(index_vec, k) {
   if (length(index_vec) == 0) return(NA)
-  tail(index_vec, 1) - k
+  tail(index_vec, k)[1]
 }
 
 ## ================================
@@ -153,8 +141,8 @@ model_free <- tsgc::SSModelDynamicGompertz$new(
   start.date = est.start.1,
   end.date   = est.end.1
 )
-res_free <- run_estimate(model_free)
-suppressMessages(print(summary(res_free)))
+res_free <- estimate(model_free)
+summary(res_free)
 
 # 1b) Diffuse prior with AR(1)
 model_ar1 <- tsgc::SSModelDynamicGompertz$new(
@@ -162,8 +150,8 @@ model_ar1 <- tsgc::SSModelDynamicGompertz$new(
   start.date = est.start.1,
   end.date   = est.end.1
 )
-res_ar1 <- run_estimate(model_ar1)
-suppressMessages(print(summary(res_ar1)))
+res_ar1 <- estimate(model_ar1)
+summary(res_ar1)
 
 # 1c) Fixed q
 model_q <- tsgc::SSModelDynamicGompertz$new(
@@ -171,8 +159,8 @@ model_q <- tsgc::SSModelDynamicGompertz$new(
   start.date = est.start.1,
   end.date   = est.end.1
 )
-res_q <- run_estimate(model_q)
-suppressMessages(print(summary(res_q)))
+res_q <- estimate(model_q)
+summary(res_q)
 
 # ---- Forecasts & evaluation (using res_q as reference) ----
 n.forecasts <- n.forecasts.default
@@ -217,13 +205,13 @@ do_plot(
 )
 
 # Save estimation tables (message only)
-do_write_results(res_free, "gauteng_cases_gomp_free", n.ahead = n.forecasts, confidence.level = CONF_LEVEL)
+write_results(res_free, res.dir = tables_dir, n.ahead = n.forecasts, confidence.level = CONF_LEVEL)
 
 ## ==================================================
 ## 1d. With Exogenous Predictors (Weather), Gauteng
 ## ==================================================
 data(gauteng_weather_2021, package = "tsgc")
-gauteng_weather <- gauteng_weather_2021[, c(1, 3)]  # as in your script
+gauteng_weather <- gauteng_weather_2021[, c(1, 3)]   #Pick wind speed and temperature
 
 model_weather <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases,
@@ -231,8 +219,8 @@ model_weather <- tsgc::SSModelDynamicGompertz$new(
   start.date = est.start.1,
   end.date   = est.end.1
 )
-res_weather <- run_estimate(model_weather)
-suppressMessages(print(summary(res_weather)))
+res_weather <- estimate(model_weather)
+summary(res_weather)
 
 # Provide future xpred
 tryCatch({
@@ -293,10 +281,10 @@ if (inherits(p, "ggplot")) {
   p <- p + labs(
     caption = paste(
       "Models compared:",
-      "res_free: Free SNR (diffuse prior),",
+      "res_free: Free SNR,",
       "res_q: Fixed q=0.005,",
       "res_ar1: AR(1) SNR,",
-      "res_weather: With Weather as regressors."
+      "res_weather: With weather as regressors."
     )
   )
 }
