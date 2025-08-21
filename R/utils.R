@@ -75,11 +75,11 @@ get_timeframe<-function(df, start.date, end.date=NULL){
 #' 2-column data frame, which will then be used to predict or estimate with the
 #' leading indicator model.
 #'
-#' @param data Cumulated data series in xts format with date index and columns:
+#' @param data Cumulated data series in xts format with date index and 2 columns:
 #' leading indicator and target variable. Can specify which column is leading
 #' indicator by \code{LeadIndCol} parameter.
 #' @param LeadIndCol Column number of \code{data} that contains the leading
-#' indicator
+#' indicator. An integer that can only take values 1 (by default) or 2.
 #' @returns A data frame with original cumulative variable, successive increments
 #' and log growth rates.
 #'
@@ -92,11 +92,16 @@ get_timeframe<-function(df, start.date, end.date=NULL){
 #'
 #' @export
 add_daily_ldl <- function(data, LeadIndCol=1){
+  if (!is.xts(data)){
+    stop("data is not an xts object.")
+  }
   if (LeadIndCol==1){
     names(data)<-c("cCases", "cAdmit")
-  } else {
+  } else if (LeadIndCol==2) {
     names(data)<-c("cAdmit", "cCases")
     data<-data[,c(2,1)]
+  } else {
+    stop("LeadIndCol must be an integer, either 1 or 2.")
   }
   data$newCases = diff(data$cCases)
   data$newAdmit = diff(data$cAdmit)
@@ -136,8 +141,8 @@ reinitialise_dataframe <- function(dt, reinit.date) {
 
 
 #' @title Return index and value of maximum
-#' @description Something similar to Python's argmax.
-#' @param x Object to have its maximum found
+#' @description Similar to Python's argmax function.
+#' @param x Object to have its maximum found, usually an xts object.
 #' @param decreasing Logical value indicating whether \code{x} should be
 #' ordered in decreasing order. Default is \code{TRUE}. Setting this to
 #' \code{FALSE} would find the minimum.
