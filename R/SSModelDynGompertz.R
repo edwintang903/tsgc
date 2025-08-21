@@ -599,13 +599,13 @@ SSModelDynamicGompertz <- setRefClass(
     }
     
     # 1. Get LDL of cumulative series Y.
-    y <- na.omit(tsgc::df2ldl(Y))
+    y <- tsgc::df2ldl(Y)
     
     # 2. Obtain the SSModel 
     model <- get_model(y, xpred=xpred)
     
     # 3. Add update methods to enforce signal-to-noise ratio
-    if (!is.null(q)){
+    if (!is.null(q) || ar1){
       updatefn <- purrr::partial(update, ... =, q = q)
       
       # Estimate via MLE unknown params
