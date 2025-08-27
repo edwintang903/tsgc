@@ -27,7 +27,7 @@ estimate_r0(
 Graph of estimated Rt and forecast intervals.
 }
 \description{
-Following Harvey and Kattuman (2021)
+Reproduction number is estimated based on the method described in Harvey and Kattuman (2021).
 }
 \examples{
 library(tsgc)
@@ -50,4 +50,8 @@ r.t
  # Plot reproduction numbers.
 estimate_r0(res_q, gen_int, ndays, show_plot = TRUE, title="Gauteng Reproduction numbers")
 
+}
+\references{
+Harvey A, Kattuman P (2021). “A farewell to R: time-series models
+for tracking and forecasting epidemics.” Journal of the Royal Society Interface, 18. URL http://doi.org/10.1098/rsif.2021.0179.
 }

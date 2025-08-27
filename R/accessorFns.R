@@ -115,7 +115,18 @@ att<-function(object){
 #' covariance matrix in KFS object
 #'
 #' @param object KFS object
-#'
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Return filtered state estimates
+#' Ptt(output(res))
 #'
 #' @export
 Ptt<-function(object){
@@ -184,11 +195,13 @@ alphahat<-function(object){
   object$alphahat
 }
 
-#' @title Calling estimate method for SSModelDynamicGompertz class
+#' @title Calling estimate method for SSModelDynamicGompertz or SSModelLeadingIndicator class
 #'
 #' @description Accessor method to obtain estimated model for `SSModelDynamicGompertz` class
 #'
 #' @param model A `SSModelDynamicGompertz` or `SSModelLeadingIndicator` object
+#' 
+#' @method estimate SSModelDynamicGompertz
 #' 
 #' @export
 estimate<-function(model){

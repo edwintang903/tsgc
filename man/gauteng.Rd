@@ -3,7 +3,7 @@
 \docType{data}
 \name{gauteng}
 \alias{gauteng}
-\title{Cumulative cases of Covid-19 in the South African province of Gauteng.}
+\title{Cumulative daily cases of Covid-19 in the South African province of Gauteng.}
 \format{
 An object of class \code{"xts"};
 \describe{
@@ -14,7 +14,7 @@ An object of class \code{"xts"};
 data(gauteng)
 }
 \description{
-Cumulative cases of Covid-19 in the South African province of Gauteng.
+Cumulative daily cases of Covid-19 in the South African province of Gauteng.
 }
 \examples{
 data(gauteng)

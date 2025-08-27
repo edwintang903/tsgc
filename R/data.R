@@ -14,7 +14,7 @@
 #  A copy of the GNU General Public License is available at
 #  http://www.r-project.org/Licenses/
 
-#' Cumulative cases of Covid-19 in the South African province of Gauteng.
+#' Cumulative daily cases of Covid-19 in the South African province of Gauteng.
 #'
 #' @docType data
 #'
@@ -37,13 +37,13 @@
 
 
 
-#' Covid-19 metrics for England.
+#' Daily Covid-19 metrics for England.
 #'
 #' @docType data
 #'
 #' @usage data(england)
 #'
-#' @format An object of class `"xts"`;
+#' @format An object of class `"xts"` with columns:
 #' \describe{
 #'   \item{cum_cases}{Cumulative cases of Covid-19}
 #'   \item{cum_admissions}{Cumulative hospital admissions with Covid-19 since the start of the pandemic.}
@@ -64,13 +64,13 @@
 
 
 
-#' Cumulative cases of Covid-19 in Italy and UK, before 14 Dec 2020.
+#' Cumulative daily cases of Covid-19 in Italy and UK, before 14 Dec 2020.
 #'
 #' @docType data
 #'
 #' @usage data(ukitaly)
 #'
-#' @format An object of class `"xts"`;
+#' @format An object of class `"xts"` with columns
 #' \describe{
 #'   \item{UK}{Cumulative cases of Covid-19 in the UK}
 #'   \item{Italy}{Cumulative cases of Covid-19 in Italy}
@@ -86,7 +86,7 @@
 #' plot(diff(ukitaly))
 "ukitaly"
 
-#' Weather data of the South African province of Gauteng.
+#' Daily weather data of the South African province of Gauteng in 2021.
 #'
 #' @docType data
 #'
@@ -108,7 +108,7 @@
 #' data(gauteng_weather_2021)
 "gauteng_weather_2021"
 
-#' Weather data of England.
+#' Daily Weather data of England in 2021.
 #'
 #' @docType data
 #'
@@ -132,13 +132,13 @@
 #' 
 "england_weather_2021"
 
-#' Nintendo Sales
+#' Quarterly Sales of Nintendo consoles from 2004 Q4 to 2024 Q1
 #'
 #' @docType data
 #'
 #' @usage data(nintendo_sales)
 #'
-#' @format An object of class `"xts"`;
+#' @format An object of class `"xts"` with columns:
 #' \describe{
 #'   \item{wii}{Cumulative Wii sales}
 #'   \item{wiiu}{Cumulative Wii U sales}
@@ -159,9 +159,12 @@
 #' 
 "nintendo_sales"
 
-#' Monthly number of downloads of selected leading apps that allow for online 
-#' share trading in France from January 2017 to July 2021, by app
+#' @title Monthly downloads of French leading apps from January 2017 to July 2021
 #'
+#' @description
+#' Monthly downloads of selected leading apps that allow for online 
+#' share trading in France from January 2017 to July 2021, by app.
+#' 
 #' @docType data
 #'
 #' @usage data(etrading_apps)

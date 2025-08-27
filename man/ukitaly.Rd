@@ -3,9 +3,9 @@
 \docType{data}
 \name{ukitaly}
 \alias{ukitaly}
-\title{Cumulative cases of Covid-19 in Italy and UK, before 14 Dec 2020.}
+\title{Cumulative daily cases of Covid-19 in Italy and UK, before 14 Dec 2020.}
 \format{
-An object of class \code{"xts"};
+An object of class \code{"xts"} with columns
 \describe{
 \item{UK}{Cumulative cases of Covid-19 in the UK}
 \item{Italy}{Cumulative cases of Covid-19 in Italy}
@@ -15,7 +15,7 @@ An object of class \code{"xts"};
 data(ukitaly)
 }
 \description{
-Cumulative cases of Covid-19 in Italy and UK, before 14 Dec 2020.
+Cumulative daily cases of Covid-19 in Italy and UK, before 14 Dec 2020.
 }
 \examples{
 data(ukitaly)

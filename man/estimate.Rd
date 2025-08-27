@@ -2,9 +2,9 @@
 % Please edit documentation in R/accessorFns.R
 \name{estimate}
 \alias{estimate}
-\title{Calling estimate method for SSModelDynamicGompertz class}
+\title{Calling estimate method for SSModelDynamicGompertz or SSModelLeadingIndicator class}
 \usage{
-estimate(model)
+\method{estimate}{SSModelDynamicGompertz}(model)
 }
 \arguments{
 \item{model}{A \code{SSModelDynamicGompertz} or \code{SSModelLeadingIndicator} object}

@@ -254,7 +254,7 @@ write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
 
 #' @title Calculate reproduction number estimates and credible intervals
 #'
-#' @description Following Harvey and Kattuman (2021)
+#' @description Reproduction number is estimated based on the method described in Harvey and Kattuman (2021).
 #'
 #' @param res A `filterResults` object, obtained from \code{estimate()} method.
 #' @param gen_int Generation interval in days
@@ -265,6 +265,9 @@ write_results <- function(res, res.dir, n.ahead, confidence.level=0.68) {
 #' @returns Graph of estimated Rt and forecast intervals.
 #' 
 #' @importFrom timetk tk_tbl
+#' 
+#' @references Harvey A, Kattuman P (2021). “A farewell to R: time-series models 
+#' for tracking and forecasting epidemics.” Journal of the Royal Society Interface, 18. URL http://doi.org/10.1098/rsif.2021.0179.
 #'
 #' @examples
 #' library(tsgc)

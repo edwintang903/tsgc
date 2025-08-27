@@ -3,7 +3,7 @@
 \docType{data}
 \name{england_weather_2021}
 \alias{england_weather_2021}
-\title{Weather data of England.}
+\title{Daily Weather data of England in 2021.}
 \format{
 An object of class \code{"xts"};
 \describe{
@@ -18,7 +18,7 @@ An object of class \code{"xts"};
 data(england_weather_2021)
 }
 \description{
-Weather data of England.
+Daily Weather data of England in 2021.
 }
 \examples{
 data(england_weather_2021)

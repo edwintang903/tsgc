@@ -3,9 +3,9 @@
 \docType{data}
 \name{england}
 \alias{england}
-\title{Covid-19 metrics for England.}
+\title{Daily Covid-19 metrics for England.}
 \format{
-An object of class \code{"xts"};
+An object of class \code{"xts"} with columns:
 \describe{
 \item{cum_cases}{Cumulative cases of Covid-19}
 \item{cum_admissions}{Cumulative hospital admissions with Covid-19 since the start of the pandemic.}
@@ -17,7 +17,7 @@ An object of class \code{"xts"};
 data(england)
 }
 \description{
-Covid-19 metrics for England.
+Daily Covid-19 metrics for England.
 }
 \examples{
 data(england)

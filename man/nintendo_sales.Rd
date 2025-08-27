@@ -3,9 +3,9 @@
 \docType{data}
 \name{nintendo_sales}
 \alias{nintendo_sales}
-\title{Nintendo Sales}
+\title{Quarterly Sales of Nintendo consoles from 2004 Q4 to 2024 Q1}
 \format{
-An object of class \code{"xts"};
+An object of class \code{"xts"} with columns:
 \describe{
 \item{wii}{Cumulative Wii sales}
 \item{wiiu}{Cumulative Wii U sales}
@@ -21,7 +21,7 @@ An object of class \code{"xts"};
 data(nintendo_sales)
 }
 \description{
-Nintendo Sales
+Quarterly Sales of Nintendo consoles from 2004 Q4 to 2024 Q1
 }
 \examples{
 data(nintendo_sales)
