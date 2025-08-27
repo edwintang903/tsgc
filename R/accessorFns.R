@@ -201,8 +201,6 @@ alphahat<-function(object){
 #'
 #' @param model A `SSModelDynamicGompertz` or `SSModelLeadingIndicator` object
 #' 
-#' @method estimate SSModelDynamicGompertz
-#' 
 #' @export
 estimate<-function(model){
    model$estimate()

@@ -4,7 +4,7 @@
 \alias{estimate}
 \title{Calling estimate method for SSModelDynamicGompertz or SSModelLeadingIndicator class}
 \usage{
-\method{estimate}{SSModelDynamicGompertz}(model)
+estimate(model)
 }
 \arguments{
 \item{model}{A \code{SSModelDynamicGompertz} or \code{SSModelLeadingIndicator} object}
