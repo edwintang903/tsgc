@@ -245,7 +245,7 @@ SSModelLeadingIndicator <- setRefClass(
         fit = fitSSM(mod, rep(0,npar))
       }
       else{
-        update = updatesn %>% partial(snr=q,order=2,index=1)
+        update = updatesn %>% partial(snr=q,order=2,index=2)
 
         # Fit the state-space model (ML, diffuse prior)
         fit = fitSSM(mod, rep(0,npar), updatefn = update)
