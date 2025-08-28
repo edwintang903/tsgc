@@ -33,7 +33,7 @@ model_q <- SSModelDynamicGompertz$new(Y = gauteng, start.date=as.Date("2021-04-3
 res <- estimate(model_q)
 
 #Return MAPE of forecast
-mapes(res,n.ahead=7,Y)
+mapes(res,n.ahead=7,gauteng)
 
 
 }

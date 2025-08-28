@@ -4,11 +4,12 @@
 \name{FilterResults-class}
 \alias{FilterResults-class}
 \alias{FilterResults}
-\title{FilterResults}
+\title{Class for estimated Dynamic Gompertz Curve model}
 \description{
 Class for estimated Dynamic Gompertz Curve model and contains
 methods to extract smoothed/filtered estimates of the states, the level of
-the incidence variable \eqn{y}, and forecasts of \eqn{y}.
+the incidence variable \eqn{y}, and forecasts of \eqn{y}. The output from the estimate method
+of the SSModelDynGompertz class is of the class FilterResults.
 }
 \section{Fields}{
 

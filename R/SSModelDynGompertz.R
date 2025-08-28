@@ -17,7 +17,7 @@
 setOldClass("xts")
 setOldClass("KFS")
 #'
-#' @title Class for Dynamic Gompertz Curve State-Space Model
+#' @title Class for designing a Dynamic Gompertz Curve State-Space Model
 #'
 #' @description Class for Dynamic Gompertz Curve State-Space Model Object, which encapsulates
 #' model settings and provides methods to obtain a FilterResults object and plot time series.

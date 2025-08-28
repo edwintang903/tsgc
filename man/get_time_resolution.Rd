@@ -7,7 +7,7 @@
 get_time_resolution(dates)
 }
 \arguments{
-\item{dates}{A vector of dates}
+\item{dates}{A vector of dates, length at least 2}
 }
 \value{
 A character string from "daily", "monthly, "quarterly" and "yearly".
@@ -16,4 +16,10 @@ A character string from "daily", "monthly, "quarterly" and "yearly".
 This function identifies the time resolution of a vector of
 dates, where all dates must come from the same class ("yearmon", "yearqtr",
 "date").
+}
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+get_time_resolution(index(gauteng))
+
 }

@@ -13,3 +13,16 @@ alphahat(object)
 Accessor method to access alphahat (smoothed state estimates)
 from a fitted \code{SSModel} object which has had the Kalman filter applied to it
 }
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+# Specify a model
+model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+# Estimate a specified model
+res <- estimate(model)
+
+#Return alphahat
+alphahat(modelKFS(output(res)))
+
+}

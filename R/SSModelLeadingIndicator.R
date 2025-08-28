@@ -16,9 +16,9 @@
 
 setOldClass("KFS")
 #'
-#' @title Class for leading indicator state space model object
+#' @title Class for designing a Leading Indicator Model
 #'
-#' @description Class for leading indicator state space model object. The model 
+#' @description A class for specifying the parameters of a leading indicator model. The model 
 #' settings are stored in the fields of this object, and the class contains 
 #' methods to obtain FilterResultsLI object for further analysis and plotting 
 #' the time series under investigation as an exploratory data analysis.
@@ -385,7 +385,7 @@ SSModelLeadingIndicator <- setRefClass(
         geom_line(aes(y = newAdmit, color = series.name.target), lwd = 0.85) +
         scale_color_manual(values = c("red", "blue"))+
         theme(
-          legend.title = element_text(size = 5),
+          legend.title = element_text(size = 10),
           legend.text = element_text(size = 10),
           axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
           plot.title = element_text(face = "bold")

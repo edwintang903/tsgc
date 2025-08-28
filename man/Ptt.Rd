@@ -22,7 +22,7 @@ model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
 res <- estimate(model)
 
-#Return filtered state estimates
+#Return covariance matrix
 Ptt(output(res))
 
 }

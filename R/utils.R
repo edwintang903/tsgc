@@ -346,7 +346,7 @@ estimate_r0<-function(res, gen_int, ndays=7, show_plot=FALSE,
 #' res <- estimate(model_q)
 #' 
 #' #Return MAPE of forecast
-#' mapes(res,n.ahead=7,Y)
+#' mapes(res,n.ahead=7,gauteng)
 #' 
 #' 
 #' @export
@@ -448,12 +448,20 @@ cross_val<-function(y,est.end.date,n.ahead,all_lags,est.start.date=index(y)[1],
 #' dates, where all dates must come from the same class ("yearmon", "yearqtr", 
 #' "date"). 
 #'
-#' @param dates A vector of dates
+#' @param dates A vector of dates, length at least 2
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' get_time_resolution(index(gauteng))
 #' 
 #' @returns A character string from "daily", "monthly, "quarterly" and "yearly".
 #'
 #' @export
 get_time_resolution <- function(dates) {
+  if (!is_date_class(dates) || length(dates)<=1){
+    stop("Input is not a vector of dates.")
+  }
   # Ensure dates are sorted
   dates <- sort(unique(dates))
   date_diff<-diff(dates)  
