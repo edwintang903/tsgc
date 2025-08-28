@@ -19,16 +19,16 @@ test_that("tsgc produces same LI output as KFAS", {
   ukitaly_ldl$Italy <- lag(as.vector(ukitaly_ldl$Italy), n.lag)
   ukitaly_ldl <- na.omit(ukitaly_ldl)
   kfas_mod <- SSModel(as.matrix(ukitaly_ldl) ~ SSMtrend(degree = 2, 
-                                        Q = matrix(c(0,0,0,NA),2,2),
-                                        type = 'common') +
-                   SSMtrend(degree = 1, Q = matrix(NA),index=1),
-                 H = matrix(c(NA,0,0,NA),2,2))
+                                                        Q = matrix(c(0,0,0,NA),2,2),
+                                                        type = 'common') +
+                        SSMtrend(degree = 1, Q = matrix(NA),index=1),
+                      H = matrix(c(NA,0,0,NA),2,2))
   npar <- sum(is.na(kfas_mod$Q)) + sum(is.na(kfas_mod$H))
   kfas_fit <- fitSSM(kfas_mod, rep(0,npar))
   kfas_est <- KFS(kfas_fit$model)
   
-  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)), 
-               unname(as.matrix(kfas_est$alphahat)))
+  expect_equal(unname(as.matrix(tsgc_est$output$alphahat), 
+                      unname(as.matrix(kfas_est$alphahat))))
 })
 
 test_that("tsgc produces same LI output as KFAS with fixed q", {
@@ -75,8 +75,8 @@ test_that("tsgc produces same LI output as KFAS with fixed q", {
   ukitaly_ldl$Italy <- lag(as.vector(ukitaly_ldl$Italy), n.lag)
   ukitaly_ldl <- na.omit(ukitaly_ldl)
   kfas_mod <- SSModel(as.matrix(ukitaly_ldl) ~ SSMtrend(degree = 2, 
-                                                    Q = matrix(c(0,0,0,NA),2,2),
-                                                    type = 'common') +
+                                                        Q = matrix(c(0,0,0,NA),2,2),
+                                                        type = 'common') +
                         SSMtrend(degree = 1, Q = matrix(NA),index=1),
                       H = matrix(c(NA,0,0,NA),2,2))
   npar <- sum(is.na(kfas_mod$Q)) + sum(is.na(kfas_mod$H))
@@ -103,7 +103,7 @@ test_that("Summary method works", {
   tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = NULL,
                                       sea.period = 0, start.date = est.start, 
                                       end.date = est.end, LeadIndCol = 1)
-
+  
   expect_no_error(expect_no_warning(tsgc_mod$summary()))
 })
 
@@ -140,5 +140,121 @@ test_that("Plot method works", {
 test_that("Leading indicator model + seasonal has correct number of elements", {
   eng <- tsgc::england[, 1:2]
   
-  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5)
+  est.start.eng <- as.Date("2021-04-30")
+  est.end.eng   <- as.Date("2021-07-24")
+  sea <- 7
+  
+  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
+                                     end.date = est.end.eng, sea.period = sea)
+  res <- mod$estimate()
+  expect_equal(ncol(res$output$alphahat), 3 + 2*(sea-1))
+})
+
+test_that("LI model + xpred1 + seasonal has correct number of elements", {
+  eng <- tsgc::england[, 1:2]
+  
+  est.start.eng <- as.Date("2021-04-30")
+  est.end.eng   <- as.Date("2021-07-24")
+  sea <- 7
+  
+  xp <- england_weather_2021[, 1:4]
+  
+  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
+                                     end.date = est.end.eng, sea.period = sea,
+                                     xpred1 = xp)
+  res <- mod$estimate()
+  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + ncol(xp))
+})
+
+test_that("LI model + xpred2 has correct number of elements", {
+  eng <- tsgc::england[, 1:2]
+  
+  est.start.eng <- as.Date("2021-04-30")
+  est.end.eng   <- as.Date("2021-07-24")
+  sea <- 0
+  
+  xp <- england_weather_2021[, 1:4]
+  
+  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
+                                     end.date = est.end.eng, sea.period = sea,
+                                     xpred2 = xp)
+  res <- mod$estimate()
+  expect_equal(ncol(res$output$alphahat),3 + ncol(xp))
+})
+
+test_that("LI + xpred1 + xpred2 + seasonal has correct number of elements", {
+  eng <- tsgc::england[, 1:2]
+  
+  est.start.eng <- as.Date("2021-04-30")
+  est.end.eng   <- as.Date("2021-07-24")
+  sea <- 7
+  
+  xp <- england_weather_2021[, 1:4]
+  
+  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
+                                     end.date = est.end.eng, sea.period = sea,
+                                     xpred1 = xp, xpred2 = xp)
+  res <- mod$estimate()
+  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + 2*ncol(xp))
+})
+
+test_that("LI with quarterly data has correct number of components", {
+  data(nintendo_sales, package = "tsgc")
+  
+  sea <- 4
+  
+  est.start.q2  <- zoo::as.yearqtr("2017 Q1")
+  est.end.q2    <- zoo::as.yearqtr("2019 Q4")
+  n.lag.q       <- zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")
+  
+  y_q <- nintendo_sales[, c("wii", "switch_all")]
+  
+  mod_switch <- tsgc::SSModelLeadingIndicator$new(
+    Y = y_q, sea.period = sea, n.lag = n.lag.q,
+    start.date = est.start.q2, end.date = est.end.q2
+  )
+  res <- mod_switch$estimate()
+  
+  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1))
+})
+
+test_that("LI with monthly data has correct number of components", {
+  data(etrading_apps, package = "tsgc")
+  
+  sea <- 12
+  
+  est.start.m2 <- zoo::as.yearmon(2017.5)
+  est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
+  n.lag.m      <- zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)
+  
+  y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+  mod_500_lead <- tsgc::SSModelLeadingIndicator$new(
+    Y = y_m, sea.period = 12, n.lag = n.lag.m,
+    start.date = est.start.m2, end.date = est.end.m2
+  )
+  res <- mod_500_lead$estimate()
+  
+  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1))
+})
+
+test_that("LI with annual data has correct number of components", {
+  data(nintendo_sales, package = "tsgc")
+  est.start.y <- zoo::as.yearmon(2011)
+  est.end.y   <- zoo::as.yearmon(2018)
+  
+  yearly_nintendo      <- nintendo_sales[4 * (1:19), c("wii", "3ds")]
+  yearly_nintendo_xts  <- xts::xts(zoo::coredata(yearly_nintendo), 
+                                   order.by = zoo::yearmon(2005:2023))
+  
+  est.start.m2 <- zoo::as.yearmon(2017.5)
+  est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
+  n.lag.y <- zoo::as.yearmon(2011) - zoo::as.yearmon(2007)
+  
+  mod_lead_y <- tsgc::SSModelLeadingIndicator$new(
+    Y = yearly_nintendo_xts, sea.period = 0, n.lag = n.lag.y,
+    start.date = est.start.y, end.date = est.end.y, LeadIndCol = 1
+  )
+  res <- mod_lead_y$estimate()
+  
+  expect_equal(ncol(res$output$alphahat),3)
 })
