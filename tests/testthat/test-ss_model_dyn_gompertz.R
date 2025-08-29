@@ -1,4 +1,5 @@
 library(KFAS)
+library(xts)
 
 test_that("tsgc gives same output as KFAS", {
   data(england, package = 'tsgc')
