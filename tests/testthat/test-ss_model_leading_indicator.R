@@ -1,7 +1,10 @@
 library(KFAS)
 library(xts)
+library(stats)
+library(zoo)
 
 test_that("tsgc produces same LI output as KFAS", {
+  set.seed(123)
   data(ukitaly, package = 'tsgc')
   
   est.start <- as.Date("2020-02-25") 
@@ -14,11 +17,21 @@ test_that("tsgc produces same LI output as KFAS", {
                                       end.date = est.end, LeadIndCol = 1)
   tsgc_est <- tsgc_mod$estimate()
   
-  idx <- (zoo::index(ukitaly) >= est.start) & (zoo::index(ukitaly) <= est.end)
-  ukitaly_ldl <- df2ldl(ukitaly)[idx,]
-  ukitaly_ldl$Italy <- lag(as.vector(ukitaly_ldl$Italy), n.lag)
-  ukitaly_ldl <- na.omit(ukitaly_ldl)
-  kfas_mod <- SSModel(as.matrix(ukitaly_ldl) ~ SSMtrend(degree = 2, 
+  y<-add_daily_ldl(ukitaly, LeadIndCol=1)
+  
+  y$newCases = stats::lag(y$newCases,n.lag)
+  y$LDLcases = stats::lag(y$LDLcases,n.lag)
+  y$cCases = stats::lag(y$cCases,n.lag)
+  
+  y[is.infinite(y)] <- NA
+  
+  y <- get_timeframe(na.omit(y),est.start)
+  
+  data_ldl <- get_timeframe(y, est.start, est.end)[,c("LDLcases","LDLhosp")]
+  
+  data_mat <- as.matrix(data_ldl)
+  
+  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2, 
                                                         Q = matrix(c(0,0,0,NA),2,2),
                                                         type = 'common') +
                         SSMtrend(degree = 1, Q = matrix(NA),index=1),
@@ -27,8 +40,8 @@ test_that("tsgc produces same LI output as KFAS", {
   kfas_fit <- fitSSM(kfas_mod, rep(0,npar))
   kfas_est <- KFS(kfas_fit$model)
   
-  expect_equal(unname(as.matrix(tsgc_est$output$alphahat), 
-                      unname(as.matrix(kfas_est$alphahat))))
+  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)), 
+                      unname(as.matrix(kfas_est$alphahat)))
 })
 
 test_that("tsgc produces same LI output as KFAS with fixed q", {
@@ -70,11 +83,21 @@ test_that("tsgc produces same LI output as KFAS with fixed q", {
   }
   updateli = updatesn %>% purrr::partial(snr=0.005,order=2,index=2)
   
-  idx <- (zoo::index(ukitaly) >= est.start) & (zoo::index(ukitaly) <= est.end)
-  ukitaly_ldl <- df2ldl(ukitaly)[idx,]
-  ukitaly_ldl$Italy <- lag(as.vector(ukitaly_ldl$Italy), n.lag)
-  ukitaly_ldl <- na.omit(ukitaly_ldl)
-  kfas_mod <- SSModel(as.matrix(ukitaly_ldl) ~ SSMtrend(degree = 2, 
+  y<-add_daily_ldl(ukitaly, LeadIndCol=1)
+  
+  y$newCases = stats::lag(y$newCases,n.lag)
+  y$LDLcases = stats::lag(y$LDLcases,n.lag)
+  y$cCases = stats::lag(y$cCases,n.lag)
+  
+  y[is.infinite(y)] <- NA
+  
+  y <- get_timeframe(na.omit(y),est.start)
+  
+  data_ldl <- get_timeframe(y, est.start, est.end)[,c("LDLcases","LDLhosp")]
+  
+  data_mat <- as.matrix(data_ldl)
+  
+  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2, 
                                                         Q = matrix(c(0,0,0,NA),2,2),
                                                         type = 'common') +
                         SSMtrend(degree = 1, Q = matrix(NA),index=1),
