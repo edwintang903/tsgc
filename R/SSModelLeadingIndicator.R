@@ -122,9 +122,9 @@ SSModelLeadingIndicator <- setRefClass(
       # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
       
-      y$newCases = lag(y$newCases,n.lag)
-      y$LDLcases = lag(y$LDLcases,n.lag)
-      y$cCases = lag(y$cCases,n.lag)
+      y$newCases = stats::lag(y$newCases,n.lag)
+      y$LDLcases = stats::lag(y$LDLcases,n.lag)
+      y$cCases = stats::lag(y$cCases,n.lag)
       
       y[is.infinite(y)] <- NA
       
@@ -135,7 +135,7 @@ SSModelLeadingIndicator <- setRefClass(
       data_mat <- as.matrix(data_ldl)
       
       if (!is.null(xpred1)){
-        xpred1<<-get_timeframe(lag(xpred1,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
+        xpred1<<-get_timeframe(stats::lag(xpred1,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
       }
       if (!is.null(xpred2)){
         xpred2<<-get_timeframe(xpred2,index(data_ldl)[1],tail(index(data_ldl),1))
