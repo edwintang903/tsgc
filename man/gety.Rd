@@ -12,3 +12,16 @@ gety(object)
 \description{
 Accessor method to access time series y in \code{SSModel} object
 }
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+# Specify a model
+model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+# Estimate a specified model
+res <- estimate(model)
+
+#Return y
+gety(modelKFS(output(res)))
+
+}

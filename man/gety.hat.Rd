@@ -2,13 +2,26 @@
 % Please edit documentation in R/accessorFns.R
 \name{gety.hat}
 \alias{gety.hat}
-\title{Extract prediction y.hat in SSModel}
+\title{Extract prediction y.hat in predict.all output}
 \usage{
 gety.hat(object)
 }
 \arguments{
-\item{object}{An \code{SSModel} object}
+\item{object}{An object from the output of predict.all}
 }
 \description{
 Accessor method to access prediction y.hat in \code{SSModel} object
+}
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+# Specify a model
+model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+# Estimate a specified model
+res <- estimate(model)
+
+#Get prediction
+gety.hat(res$predict.all(n.ahead=7))
+
 }

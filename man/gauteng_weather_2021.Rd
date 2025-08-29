@@ -3,7 +3,7 @@
 \docType{data}
 \name{gauteng_weather_2021}
 \alias{gauteng_weather_2021}
-\title{Daily weather data of the South African province of Gauteng in 2021.}
+\title{Daily weather data of the South African province of Gauteng in 2021}
 \format{
 An object of class \code{"xts"};
 \describe{
@@ -17,7 +17,7 @@ An object of class \code{"xts"};
 data(gauteng_weather_2021)
 }
 \description{
-Daily weather data of the South African province of Gauteng in 2021.
+Daily weather data of the South African province of Gauteng in 2021
 }
 \examples{
 data(gauteng_weather_2021)

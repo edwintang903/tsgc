@@ -78,6 +78,17 @@ modelKFS<-function(object){
 #'
 #' @param object KFS object
 #'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Return number of seasonal components
+#' seasonalComp(output(res))
 #'
 #' @export
 seasonalComp<-function(object){
@@ -125,7 +136,7 @@ att<-function(object){
 #' # Estimate a specified model
 #' res <- estimate(model)
 #' 
-#' #Return filtered state estimates
+#' #Return covariance matrix
 #' Ptt(output(res))
 #'
 #' @export
@@ -166,17 +177,41 @@ matrixKFS<-function(object,matrix){
 #'
 #' @param object An `SSModel` object
 #'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Return y
+#' gety(modelKFS(output(res)))
+#'
 #' @export
 gety<-function(object){
   object$y
 }
 
-#' @title Extract prediction y.hat in SSModel
+#' @title Extract prediction y.hat in predict.all output
 #
 #' @description Accessor method to access prediction y.hat in `SSModel` object
 #'
-#' @param object An `SSModel` object
+#' @param object An object from the output of predict.all
 #'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Get prediction
+#' gety.hat(res$predict.all(n.ahead=7))
+#' 
 #' @export
 gety.hat<-function(object){
   object$y.hat
@@ -189,6 +224,18 @@ gety.hat<-function(object){
 #' from a fitted `SSModel` object which has had the Kalman filter applied to it
 #'
 #' @param object A `SSModel` object
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Return alphahat
+#' alphahat(modelKFS(output(res)))
 #'
 #' @export
 alphahat<-function(object){
@@ -200,6 +247,15 @@ alphahat<-function(object){
 #' @description Accessor method to obtain estimated model for `SSModelDynamicGompertz` class
 #'
 #' @param model A `SSModelDynamicGompertz` or `SSModelLeadingIndicator` object
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
 #' 
 #' @export
 estimate<-function(model){

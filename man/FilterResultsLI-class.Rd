@@ -4,11 +4,12 @@
 \name{FilterResultsLI-class}
 \alias{FilterResultsLI-class}
 \alias{FilterResultsLI}
-\title{Class for the estimated Leading Indicator Gompertz Curve model}
+\title{Class for the estimated Leading Indicator Model}
 \description{
-Class for estimated Leading Indicator Gompertz Curve model and
-contains methods to extract smoothed/filtered estimates of the states, the
-level of the incidence variable \eqn{y}, and forecasts of \eqn{y}.
+A class that holds the information of an estimated Leading Indicator model.
+Contains methods to extract smoothed/filtered estimates of the states, the
+level of the incidence variable \eqn{y}, and forecasts of \eqn{y}. The output from the estimate method
+of the SSModelLeadingIndicator class is of the class FilterResultsLI.
 }
 \section{Fields}{
 

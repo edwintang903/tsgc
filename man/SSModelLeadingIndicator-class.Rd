@@ -4,9 +4,9 @@
 \name{SSModelLeadingIndicator-class}
 \alias{SSModelLeadingIndicator-class}
 \alias{SSModelLeadingIndicator}
-\title{Class for leading indicator state space model object}
+\title{Class for designing a Leading Indicator Model}
 \description{
-Class for leading indicator state space model object. The model
+A class for specifying the parameters of a leading indicator model. The model
 settings are stored in the fields of this object, and the class contains
 methods to obtain FilterResultsLI object for further analysis and plotting
 the time series under investigation as an exploratory data analysis.

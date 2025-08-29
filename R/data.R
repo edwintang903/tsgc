@@ -86,7 +86,7 @@
 #' plot(diff(ukitaly))
 "ukitaly"
 
-#' Daily weather data of the South African province of Gauteng in 2021.
+#' Daily weather data of the South African province of Gauteng in 2021
 #'
 #' @docType data
 #'
