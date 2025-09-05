@@ -20,9 +20,9 @@ setOldClass("KFS")
 #' indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.
 #' @field xpred_logical Vector of length 2 with logical values, indicating whether
 #' there are exogenous predictors for leading series and target series. 
-#' @field xpred1.new An xts object containing the values of exogenous variables for 
+#' @field xpred_lead.new An xts object containing the values of exogenous variables for 
 #' the leading indicator over the prediction time frame.
-#' @field xpred2.new An xts object containing the values of exogenous variables for 
+#' @field xpred_targ.new An xts object containing the values of exogenous variables for 
 #' the target variable over the prediction time frame.
 #' @field resolution A character object showing the time resolution of the data 
 #' in \code{data_xts}. Options are "daily", "monthly, "quarterly" and "yearly".
@@ -102,8 +102,8 @@ FilterResultsLI <- setRefClass(
     n.lag="numeric",
     sea.period="numeric",
     LeadIndCol="numeric",
-    xpred1.new="ANY",
-    xpred2.new="ANY",
+    xpred_lead.new="ANY",
+    xpred_targ.new="ANY",
     xpred_logical="logical",
     resolution="character",
     start.date="ANY",
@@ -111,7 +111,7 @@ FilterResultsLI <- setRefClass(
   methods = list(
     initialize = function(data_xts, output,n.lag,sea.period,LeadIndCol,
                           xpred_logical, start.date, end.date, 
-                          xpred1.new=NULL, xpred2.new=NULL, resolution="daily")
+                          xpred_lead.new=NULL, xpred_targ.new=NULL, resolution="daily")
     {
       "Create an instance of the \\code{FilterResultsLI} class with fields defined
       earlier in the fields section."
@@ -122,8 +122,8 @@ FilterResultsLI <- setRefClass(
       LeadIndCol<<-LeadIndCol
       start.date<<-start.date
       end.date<<-end.date
-      xpred1.new<<-xpred1.new
-      xpred2.new<<-xpred2.new
+      xpred_lead.new<<-xpred_lead.new
+      xpred_targ.new<<-xpred_targ.new
       xpred_logical<<-xpred_logical
       resolution<<-get_time_resolution(index(data_xts))
     },
@@ -295,24 +295,24 @@ FilterResultsLI <- setRefClass(
         newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
-          if (is.xts(xpred1.new)){
+          if (is.xts(xpred_lead.new)){
             new_index<-which.max(index(data_xts)==end.date)
-            xpred1.new.subset<-lag(xpred1.new,n.lag)[(new_index+1):(new_index+n.ahead)]
-            d1<-dim(xpred1.new.subset)[2]
-            newZ[1,1:d1,]<-t(xpred1.new.subset)
+            xpred_lead.new.subset<-lag(xpred_lead.new,n.lag)[(new_index+1):(new_index+n.ahead)]
+            d1<-dim(xpred_lead.new.subset)[2]
+            newZ[1,1:d1,]<-t(xpred_lead.new.subset)
           } else {
-            stop("xpred1.new not provided.")
+            stop("xpred_lead.new not provided.")
           }
         }
         if (xpred_logical[2]){
-          if (is.xts(xpred2.new)){
+          if (is.xts(xpred_targ.new)){
             new_index<-which.max(index(data_xts)==end.date)
-            xpred2.new.subset<-xpred2.new[(new_index+1):(new_index+n.ahead)]
-            d2<-dim(xpred2.new.subset)[2]
+            xpred_targ.new.subset<-xpred_targ.new[(new_index+1):(new_index+n.ahead)]
+            d2<-dim(xpred_targ.new.subset)[2]
             if (!xpred_logical[1]){d1=0}
-            newZ[2,(d1+1):(d1+d2),]<-t(xpred2.new.subset)
+            newZ[2,(d1+1):(d1+d2),]<-t(xpred_targ.new.subset)
           } else {
-            stop("xpred2.new not provided.")
+            stop("xpred_targ.new not provided.")
           }
         }
         new.model$Z <- abind::abind(new.model$Z,newZ,along = 3)
@@ -322,37 +322,37 @@ FilterResultsLI <- setRefClass(
         newdata <- if (sea.period<2 && !xpred_logical[1] && xpred_logical[2]){
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                               SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                              SSMregression(~xpred2.new.subset, type="distinct", index=2),
+                              SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
                             H = Hf)
         } else if (sea.period<2 && xpred_logical[1] && !xpred_logical[2]){
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                    SSMregression(~xpred1.new.subset, type="distinct", index=1),
+                    SSMregression(~xpred_lead.new.subset, type="distinct", index=1),
                   H = Hf)
         } else if (sea.period<2 && xpred_logical[1] && xpred_logical[2]) {
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                    SSMregression(~xpred1.new.subset, type="distinct", index=1)+
-                    SSMregression(~xpred2.new.subset, type="distinct", index=2),
+                    SSMregression(~xpred_lead.new.subset, type="distinct", index=1)+
+                    SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
                   H = Hf)
         } else if (sea.period>=2 && !xpred_logical[1] && xpred_logical[2]) {
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMseasonal(sea.period, Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                    SSMregression(~xpred2.new.subset, type="distinct", index=2),
+                    SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
                   H = Hf)
         } else if (sea.period>=2 && xpred_logical[1] && !xpred_logical[2]) {
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                    SSMregression(~xpred1.new.subset, type="distinct", index=1),
+                    SSMregression(~xpred_lead.new.subset, type="distinct", index=1),
                   H = Hf)
         } else {
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                    SSMregression(~xpred1.new.subset, type="distinct", index=1)+
-                    SSMregression(~xpred2.new.subset, type="distinct", index=2),
+                    SSMregression(~xpred_lead.new.subset, type="distinct", index=1)+
+                    SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
                   H = Hf)
         }
         

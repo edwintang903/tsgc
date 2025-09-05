@@ -174,7 +174,7 @@ test_that("Leading indicator model + seasonal has correct number of elements", {
   expect_equal(ncol(res$output$alphahat), 3 + 2*(sea-1))
 })
 
-test_that("LI model + xpred1 + seasonal has correct number of elements", {
+test_that("LI model + xpred_lead + seasonal has correct number of elements", {
   eng <- tsgc::england[, 1:2]
   
   est.start.eng <- as.Date("2021-04-30")
@@ -185,12 +185,12 @@ test_that("LI model + xpred1 + seasonal has correct number of elements", {
   
   mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
                                      end.date = est.end.eng, sea.period = sea,
-                                     xpred1 = xp)
+                                     xpred_lead = xp)
   res <- mod$estimate()
   expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + ncol(xp))
 })
 
-test_that("LI model + xpred2 has correct number of elements", {
+test_that("LI model + xpred_targ has correct number of elements", {
   eng <- tsgc::england[, 1:2]
   
   est.start.eng <- as.Date("2021-04-30")
@@ -201,12 +201,12 @@ test_that("LI model + xpred2 has correct number of elements", {
   
   mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
                                      end.date = est.end.eng, sea.period = sea,
-                                     xpred2 = xp)
+                                     xpred_targ = xp)
   res <- mod$estimate()
   expect_equal(ncol(res$output$alphahat),3 + ncol(xp))
 })
 
-test_that("LI + xpred1 + xpred2 + seasonal has correct number of elements", {
+test_that("LI + xpred_lead + xpred_targ + seasonal has correct number of elements", {
   eng <- tsgc::england[, 1:2]
   
   est.start.eng <- as.Date("2021-04-30")
@@ -217,7 +217,7 @@ test_that("LI + xpred1 + xpred2 + seasonal has correct number of elements", {
   
   mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
                                      end.date = est.end.eng, sea.period = sea,
-                                     xpred1 = xp, xpred2 = xp)
+                                     xpred_lead = xp, xpred_targ = xp)
   res <- mod$estimate()
   expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + 2*ncol(xp))
 })
