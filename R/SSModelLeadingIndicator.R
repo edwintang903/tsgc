@@ -122,15 +122,15 @@ SSModelLeadingIndicator <- setRefClass(
       # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
       
-      y$newCases = stats::lag(y$newCases,n.lag)
-      y$LDLcases = stats::lag(y$LDLcases,n.lag)
-      y$cCases = stats::lag(y$cCases,n.lag)
+      y$newLead = stats::lag(y$newLead,n.lag)
+      y$LDLlead = stats::lag(y$LDLlead,n.lag)
+      y$cLead = stats::lag(y$cLead,n.lag)
       
       y[is.infinite(y)] <- NA
       
       y <- get_timeframe(na.omit(y),start.date)
       
-      data_ldl <- get_timeframe(y, start.date, end.date)[,c("LDLcases","LDLhosp")]
+      data_ldl <- get_timeframe(y, start.date, end.date)[,c("LDLlead","LDLtarg")]
 
       data_mat <- as.matrix(data_ldl)
       
@@ -172,7 +172,7 @@ SSModelLeadingIndicator <- setRefClass(
       }
       # Create the SSM model
       # This has a common trend and slope (common trend of degree 2),
-      # an extra trend [random walk] in LDLhosp only [degree = 1],
+      # an extra trend [random walk] in LDLtarg only [degree = 1],
       # and 7 day dummy variable seasonal.
       
       if (sea.period<2){
@@ -381,8 +381,8 @@ SSModelLeadingIndicator <- setRefClass(
       }
       
       data_plot<-base_plot+
-        geom_line(aes(y = newCases, color = series.name.lead), lwd = 0.85) +
-        geom_line(aes(y = newAdmit, color = series.name.target), lwd = 0.85) +
+        geom_line(aes(y = newLead, color = series.name.lead), lwd = 0.85) +
+        geom_line(aes(y = newTarg, color = series.name.target), lwd = 0.85) +
         scale_color_manual(values = c("red", "blue"))+
         theme(
           legend.title = element_text(size = 10),

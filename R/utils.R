@@ -96,20 +96,20 @@ add_daily_ldl <- function(data, LeadIndCol=1){
     stop("data is not an xts object.")
   }
   if (LeadIndCol==1){
-    names(data)<-c("cCases", "cAdmit")
+    names(data)<-c("cLead", "cTarg")
   } else if (LeadIndCol==2) {
-    names(data)<-c("cAdmit", "cCases")
+    names(data)<-c("cTarg", "cLead")
     data<-data[,c(2,1)]
   } else {
     stop("LeadIndCol must be an integer, either 1 or 2.")
   }
   ldl <- df2ldl(data)
   
-  data$newCases = diff(data$cCases)
-  data$newAdmit = diff(data$cAdmit)
+  data$newLead = diff(data$cLead)
+  data$newTarg = diff(data$cTarg)
 
-  data$LDLcases = ldl$cCases
-  data$LDLhosp = ldl$cAdmit
+  data$LDLlead = ldl$cLead
+  data$LDLtarg = ldl$cTarg
   return(data)
 }
 
