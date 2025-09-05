@@ -7,11 +7,11 @@
 alphahat(object)
 }
 \arguments{
-\item{object}{A \code{SSModel} object}
+\item{object}{A \code{KFS} object}
 }
 \description{
 Accessor method to access alphahat (smoothed state estimates)
-from a fitted \code{SSModel} object which has had the Kalman filter applied to it
+from a fitted \code{KFS} object which has had the Kalman filter applied to it
 }
 \examples{
 library(tsgc)

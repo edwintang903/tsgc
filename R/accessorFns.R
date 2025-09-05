@@ -261,12 +261,12 @@ gety.hat<-function(object){
 }
 
 
-#' @title Extract alphahat in SSModel
+#' @title Extract alphahat in KFS object
 #
 #' @description Accessor method to access alphahat (smoothed state estimates) 
-#' from a fitted `SSModel` object which has had the Kalman filter applied to it
+#' from a fitted `KFS` object which has had the Kalman filter applied to it
 #'
-#' @param object A `SSModel` object
+#' @param object A `KFS` object
 #' 
 #' @examples
 #' library(tsgc)

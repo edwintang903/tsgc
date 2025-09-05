@@ -244,7 +244,7 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
   ci_bounds <- as.vector(g.y.t.t) + ci
   gy.ci <- xts(cbind(fit = g.y.t.t, prediction = ci_bounds),
                order.by = index(filtered.level))
-  names(gy.ci)[2:3] <- list('lower', 'upper')
+  colnames(gy.ci)[2:3] <- c('lower', 'upper')
 
   write.csv(
     gy.ci,
