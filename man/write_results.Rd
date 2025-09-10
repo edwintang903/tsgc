@@ -42,7 +42,7 @@ res <- estimate(SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
 end.date=as.Date("2020-07-06")))
 
 tsgc::write_results(
-res=res, res.dir = res.dir, n.ahead = 14,
+res=res, res.dir = res.dir, prefix="dyn_gompertz",n.ahead = 14,
 confidence.level = 0.68)
 
 }

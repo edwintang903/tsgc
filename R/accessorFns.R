@@ -24,6 +24,7 @@
 #' @param idx Character string, either "lead" or "target", for which exogenous variables are supplied. 
 #' Only applicable for FilterResultsLI object. Defaults to NULL.
 #'
+#' @importFrom xts is.xts
 #' @examples
 #' library(tsgc)
 #' 

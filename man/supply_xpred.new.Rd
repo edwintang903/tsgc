@@ -31,12 +31,12 @@ model_weather <- SSModelDynamicGompertz$new(Y = gauteng, xpred=gauteng_weather,
                                             start.date=as.Date("2021-02-01"), 
                                            end.date=as.Date("2021-04-19"))
 res_weather <- estimate(model_weather)
-res_weather
+res_weather$xpred.new
 
 # Feed future weather data into the results object. Subsetting of gauteng_weather 
 #is done inside the function.
 supply_xpred.new(res_weather,gauteng_weather)
-res_weather
+res_weather$xpred.new
 
 #FilterResultsLI example
 xpred_lead<-xpred_targ<-england_weather_2021[,1:4]

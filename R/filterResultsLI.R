@@ -173,13 +173,6 @@ FilterResultsLI <- setRefClass(
       
       # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
       # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
-      #forecasts$Cases[1] = last_cases*exp(forcout$LDLcases[1,1])
-      #forecasts$Cases[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,1])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),1]))
-      #forecasts$Cases.lwr[1] = last_cases*exp(forcout$LDLcases[1,2])
-      #forecasts$Cases.lwr[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,2])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),2]))
-      #forecasts$Cases.upr[1] = last_cases*exp(forcout$LDLcases[1,3])
-      #forecasts$Cases.upr[2:n.ahead] = last_cases*exp(forcout$LDLcases[2:n.ahead,3])*cumprod(1+exp(forcout$LDLcases[1:(n.ahead-1),3]))
-      
       forecasts$Admissions[1] = last_admit*exp(forcout$LDLtarg[1,1])
       forecasts$Admissions[2:n.ahead] = last_admit*exp(forcout$LDLtarg[2:n.ahead,1])*cumprod(1+exp(forcout$LDLtarg[1:(n.ahead-1),1]))
       
@@ -195,9 +188,6 @@ FilterResultsLI <- setRefClass(
       # Put forecasts into a separate dataframe for admissions and cases
       admissions_forecasts = cbind(forecasts$Admissions,forecasts$Admissions.lwr,forecasts$Admissions.upr)
       colnames(admissions_forecasts) = c('forc','lwr','upr')
-      
-      #cases_forecasts = cbind(forecasts$Cases,forecasts$Cases.lwr,forecasts$Cases.upr)
-      #colnames(cases_forecasts) = c('forc','lwr','upr')
       
       #Save forecast dates
       startforc = if (resolution=="daily"||resolution=="yearly"){

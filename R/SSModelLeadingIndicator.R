@@ -46,8 +46,9 @@ setOldClass("KFS")
 #' @importFrom xts periodicity last lag.xts
 #' @importFrom methods new
 #' @importFrom magrittr %>%
-#' @importFrom KFAS SSMtrend SSMseasonal SSModel
+#' @importFrom KFAS SSMtrend SSMseasonal SSModel SSMregression
 #' @importFrom purrr partial
+#' @import ggplot2
 #'
 #' @examples
 #' library(tsgc)

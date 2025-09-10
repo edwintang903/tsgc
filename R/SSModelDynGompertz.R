@@ -88,13 +88,11 @@ setOldClass("KFS")
 #' @field end.date End date of the estimation period. 
 #' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
 #' 
-#' @importFrom xts periodicity last
+#' @importFrom xts periodicity last xts
 #' @importFrom methods new
-#' @importFrom xts xts
 #' @importFrom zoo index
-#' @importFrom KFAS SSModel fitSSM KFS
+#' @importFrom KFAS SSModel fitSSM KFS SSMtrend SSMseasonal SSMregression
 #' @importFrom magrittr %>%
-#' @importFrom KFAS SSMtrend SSMseasonal SSMregression
 #' @import ggplot2
 #'
 #' @examples

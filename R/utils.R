@@ -88,7 +88,6 @@ get_timeframe<-function(df, start.date, end.date=NULL){
 #' data(england,package="tsgc")
 #' add_daily_ldl(england[,c("cum_cases","cum_admissions")],LeadIndCol=1)
 #'
-#' @importFrom xts lag.xts
 #' @importFrom xts is.xts
 #'
 #' @export
@@ -194,7 +193,7 @@ argmax <- function(x, decreasing=TRUE) {
 #' end.date=as.Date("2020-07-06")))
 #'
 #' tsgc::write_results(
-#' res=res, res.dir = res.dir, n.ahead = 14,
+#' res=res, res.dir = res.dir, prefix="dyn_gompertz",n.ahead = 14,
 #' confidence.level = 0.68)
 #'
 #' @export
@@ -269,6 +268,7 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
 #' @returns Graph of estimated Rt and forecast intervals.
 #' 
 #' @importFrom timetk tk_tbl
+#' @import ggplot2
 #' 
 #' @references Harvey A, Kattuman P (2021). “A farewell to R: time-series models 
 #' for tracking and forecasting epidemics.” Journal of the Royal Society Interface, 18. URL http://doi.org/10.1098/rsif.2021.0179.
