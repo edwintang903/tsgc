@@ -19,10 +19,10 @@ possible in ggplot.
 }
 \examples{
 library(xts)
-my.date=yearqtr(2024.25)
+my.date<-zoo::yearqtr(2024.25)
 qtr2date(my.date)
 
-my.date2=yearmon(c(2024.5,2024.8))
+my.date2<-zoo::yearmon(c(2024.5,2024.8))
 qtr2date(my.date2)
 
 }

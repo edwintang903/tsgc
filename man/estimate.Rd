@@ -19,6 +19,6 @@ idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
 # Specify a model
 model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 # Estimate a specified model
-res <- estimate(model)
+estimate(model)
 
 }

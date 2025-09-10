@@ -20,6 +20,6 @@ dates, where all dates must come from the same class ("yearmon", "yearqtr",
 \examples{
 library(tsgc)
 data(gauteng,package="tsgc")
-get_time_resolution(index(gauteng))
+get_time_resolution(zoo::index(gauteng))
 
 }

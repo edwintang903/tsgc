@@ -21,35 +21,39 @@
 #'
 #' @param object FilterResults or FilterReusltsLI object
 #' @param new.xts An xts object containing new exogenous predictors
-#' @param idx The series number (must be integers 1 or 2) for which exogenous variables are supplied. 
+#' @param idx Character string, either "lead" or "target", for which exogenous variables are supplied. 
 #' Only applicable for FilterResultsLI object. Defaults to NULL.
 #'
 #' @examples
+#' library(tsgc)
+#' 
 #' #FilterResults example
 #' #Load Gauteng weather 
 #' data(gauteng_weather_2021, package = "tsgc")
 #' gauteng_weather<-gauteng_weather_2021[,c(1,3)]
 #' 
 #' # Set up model and estimate it
-#' model_weather <- SSModelDynamicGompertz$new(Y = cumulative_cases, xpred=gauteng_weather,
+#' model_weather <- SSModelDynamicGompertz$new(Y = gauteng, xpred=gauteng_weather,
 #'                                             start.date=as.Date("2021-02-01"), 
 #'                                            end.date=as.Date("2021-04-19"))
 #' res_weather <- estimate(model_weather)
-#' summary(res_weather)
+#' res_weather$xpred.new
 #' 
 #' # Feed future weather data into the results object. Subsetting of gauteng_weather 
 #' #is done inside the function.
 #' supply_xpred.new(res_weather,gauteng_weather)
+#' res_weather$xpred.new
 #' 
 #' #FilterResultsLI example
-#' xpred1<-xpred2<-england_weather_2021[,1:4]
-#' mod<-SSModelLeadingIndicator$new(eng, n.lag=4, xpred1=xpred1, xpred2=xpred2, 
+#' xpred_lead<-xpred_targ<-england_weather_2021[,1:4]
+#' mod<-SSModelLeadingIndicator$new(england[,1:2], n.lag=4, xpred_lead=xpred_lead, xpred_targ=xpred_targ, 
 #'                                 start.date = as.Date("2021-04-30"), 
 #'                                 end.date = as.Date("2021-07-24"))
 #' res_lead.x<-estimate(mod)
 #'
-#' supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=1)
-#' supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx=2)
+#' supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx='lead')
+#' supply_xpred.new(res_lead.x,england_weather_2021[,1:4],idx='targ')
+#' res_lead.x
 #' 
 #' @export
 supply_xpred.new<-function(object, new.xts, idx=NULL){
@@ -57,14 +61,14 @@ supply_xpred.new<-function(object, new.xts, idx=NULL){
     stop("new.xts is not an xts object.")
   }
   if (class(object)=="FilterResultsLI"){
-    if (idx==1){
-      object$xpred1.new<-new.xts
-      print("xpred1.new registered.")
-    } else if (idx==2){
-      object$xpred2.new<-new.xts
-      print("xpred2.new registered.")
+    if (idx=="lead"){
+      object$xpred_lead.new<-new.xts
+      print("xpred_lead.new registered.")
+    } else if (idx=="targ"){
+      object$xpred_targ.new<-new.xts
+      print("xpred_targ.new registered.")
     } else {
-      stop("Please specify idx, which is either 1 or 2.")
+      stop("Please specify idx, which is either 'lead' or 'targ'.")
     }
   } else if (class(object)=="FilterResults"){
     object$xpred.new<-new.xts
@@ -104,6 +108,17 @@ output<-function(object){
 #'
 #' @param object KFS object
 #'
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#'
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng, end.date=as.Date("2020-07-06"), q = 0.005)
+#' # Estimate a specified model
+#' res <- model$estimate()
+#' 
+#' # Extract Z matrix from output(res)
+#' modelKFS(output(res))
 #'
 #' @export
 modelKFS<-function(object){
@@ -297,7 +312,7 @@ alphahat<-function(object){
 #' # Specify a model
 #' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
 #' # Estimate a specified model
-#' res <- estimate(model)
+#' estimate(model)
 #' 
 #' @export
 estimate<-function(model){

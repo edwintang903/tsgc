@@ -12,3 +12,16 @@ modelKFS(object)
 \description{
 Accessor method to access the fitted SSModel
 }
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+
+# Specify a model
+model <- SSModelDynamicGompertz$new(Y = gauteng, end.date=as.Date("2020-07-06"), q = 0.005)
+# Estimate a specified model
+res <- model$estimate()
+
+# Extract Z matrix from output(res)
+modelKFS(output(res))
+
+}

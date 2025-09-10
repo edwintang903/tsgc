@@ -409,7 +409,7 @@ mapes<-function(res,n.ahead,Y){
 #' 
 #' #Output cross validation result
 #' cross_val(y=Y,est.start.date=estimation.date.start,
-#' est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3, 
+#' est.end.date=estimation.date.end,n.ahead=7,all_lags=1:4,totaldays=3, 
 #' vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
 #'
 #' @export
@@ -457,7 +457,9 @@ cross_val<-function(y,est.end.date,n.ahead,all_lags,est.start.date=index(y)[1],
 #' @examples
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
-#' get_time_resolution(index(gauteng))
+#' get_time_resolution(zoo::index(gauteng))
+#' 
+#' @importFrom timetk is_date_class
 #' 
 #' @returns A character string from "daily", "monthly, "quarterly" and "yearly".
 #'
@@ -504,10 +506,10 @@ get_time_resolution <- function(dates) {
 #' @importFrom zoo as.yearmon
 #' @examples
 #' library(xts)
-#' my.date=yearqtr(2024.25)
+#' my.date<-zoo::yearqtr(2024.25)
 #' qtr2date(my.date)
 #' 
-#' my.date2=yearmon(c(2024.5,2024.8))
+#' my.date2<-zoo::yearmon(c(2024.5,2024.8))
 #' qtr2date(my.date2)
 #'
 #' @export
@@ -530,6 +532,7 @@ qtr2date<-function(dates){
 #' \code{length.out} and \code{to}.
 #' 
 #' @importFrom zoo as.yearmon
+#' @importFrom zoo as.yearqtr
 #' 
 #' @returns A vector of dates.
 #' @examples
@@ -537,11 +540,11 @@ qtr2date<-function(dates){
 #' seq_dates(as.Date("2024-01-05"), "daily", length.out=14)
 #' 
 #' #Quarterly frequency
-#' seq_dates(yearqtr(2020), "quarterly", length.out=12)
-#' seq_dates(yearqtr(2020), "quarterly", to=yearqtr(2022))
+#' seq_dates(zoo::yearqtr(2020), "quarterly", length.out=12)
+#' seq_dates(zoo::yearqtr(2020), "quarterly", to=yearqtr(2022))
 #' 
 #' #Monthly frequency
-#' seq_dates(yearmon(2020), "monthly", length.out=12)
+#' seq_dates(zoo::yearmon(2020), "monthly", length.out=12)
 #'
 #' @export
 seq_dates<-function(from, resolution, to=NA, length.out=NA){

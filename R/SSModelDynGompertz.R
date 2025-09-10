@@ -94,7 +94,7 @@ setOldClass("KFS")
 #' @importFrom zoo index
 #' @importFrom KFAS SSModel fitSSM KFS
 #' @importFrom magrittr %>%
-#' @importFrom KFAS SSMtrend SSMseasonal
+#' @importFrom KFAS SSMtrend SSMseasonal SSMregression
 #' @import ggplot2
 #'
 #' @examples

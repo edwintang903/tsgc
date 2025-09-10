@@ -73,7 +73,7 @@ estimation.date.end = as.Date("2021-07-24")
 
 #Output cross validation result
 cross_val(y=Y,est.start.date=estimation.date.start,
-est.end.date=estimation.date.end,n.ahead=7,all_lags=1:9,totaldays=3, 
+est.end.date=estimation.date.end,n.ahead=7,all_lags=1:4,totaldays=3, 
 vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
 
 }

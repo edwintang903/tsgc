@@ -288,6 +288,7 @@ plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
 #' @importFrom ggplot2 element_blank element_text rel autoplot scale_x_date
 #' @importFrom ggplot2 geom_ribbon scale_size_manual
 #' @importFrom ggthemes theme_economist_white scale_fill_economist
+#' @importFrom dplyr bind_rows
 #'
 #' @returns A \code{ggplot2} plot.
 #'
