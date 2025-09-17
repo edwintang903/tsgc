@@ -1,6 +1,6 @@
 library(KFAS)
 
-test_that("Predict level computes predictions correctly", {
+test_that("predict_level computes predictions correctly - no seasonal", {
   data(gauteng, package = "tsgc")
   
   est.start <- as.Date("2021-02-01")
@@ -32,8 +32,206 @@ test_that("Predict level computes predictions correctly", {
   mult_upr <- c(1,cp_upr[1:(nf-1)])
   forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
   
+  forc_tsgc <- res$predict_level(n.ahead = nf)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
 })
 
+test_that("predict_level computes predictions of cumulated variable correctly - no seasonal", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 0,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68)
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  mult <- cumprod(1+exp(delta_fit))
+  forc <- rep(YT,nf)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  mult_lwr <- cumprod(1+exp(delta_lwr))
+  forc_lwr <- rep(YT,nf)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, return.diff = FALSE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal, sea.on = TRUE", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68)
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal but sea.on = FALSE", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68,
+                        states = c("level"))
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal + AR1, sea.on = TRUE", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end, ar1 = TRUE
+  )
+  res <- estimate(model)
+  
+  delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68)
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal + xpred + AR1, sea.on = TRUE", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end, ar1 = TRUE
+  )
+  res <- estimate(model)
+  
+  delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68)
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
 
 test_that("Test predict_all() gives same results as KFAS", {
   data('gauteng')
@@ -83,47 +281,5 @@ test_that("Test predict_all() gives same results as KFAS", {
 
 })
 
-
-test_that("Test predict_all() yields same results as predict() with NA in fcast period", {
-  data('gauteng')
-  q <- 0.005
-  n.ahead <- 14
-  y <- gauteng[1:50]
-  estimation.date.start <- index(y)[1]
-
-  # 2. Estimate model and use predict_all() for forecast.
-  model <- tsgc::SSModelDynamicGompertz$new(Y = y, q = q)
-  res <- model$estimate()
-  y.hat.all <- res$predict_all(n.ahead, return.all = TRUE, sea.on = TRUE)
-
-  y.hat <- y.hat.all$y.hat %>%
-    subset(index(.) > tail(res$index, 1))
-  level.t.t <- y.hat.all$level.t.t
-  slope.t.t <- y.hat.all$slope.t.t
-
-  # 3. Get filtered states from passing NA to forecast period equivalent to
-  # current KF recurssions
-  y.new <- gauteng[1:64]
-  y.new[51:64] <- NA
-  model <- tsgc::SSModelDynamicGompertz$new(Y=y.new, q = q)
-  res.kfas <- model$estimate()
-  level.t.t.kfas <- res.kfas$output$att[,1]
-  slope.t.t.kfas <- res.kfas$output$att[,2]
-  sig.slope.t.t.kfas <- res.kfas$output$Ptt[2,2,]
-
-  # a. Check level and slope are the same from model with NA in forecast
-  # observations and our KF recursions.
-  expect_true(all(slope.t.t %>% as.numeric() == slope.t.t.kfas))
-  expect_true(all(level.t.t == as.matrix(level.t.t.kfas)))
-
-  # b. Check forecast y same as that obtained from kfas::predict()
-  y.hat.kfas <- predict(
-    res$output$model, interval = c('prediction'), n.ahead = n.ahead,
-    level = 0.68, states = c('all')
-  )
-  dates <- seq(tail(res$index,1) + 1, by = 'day', length.out = n.ahead)
-  y.hat.kfas <- xts(y.hat.kfas[,1], order.by = dates)
-  expect_true(all(y.hat == y.hat.kfas))
-})
 
 

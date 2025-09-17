@@ -353,7 +353,8 @@ FilterResults <- setRefClass(
           } else {
             y.hat.kfas <- predict(
               output$model, interval = 'confidence',
-              newdata = newdata, level = 0.68, states = 'level')
+              newdata = newdata, level = 0.68, states = c("level","regression",
+                                                          "custom"))
           }
           
           y.t.t<-numeric(oldn)
