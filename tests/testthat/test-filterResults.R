@@ -194,7 +194,7 @@ test_that("predict_level computes predictions correctly - seasonal + AR1, sea.on
   expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
 })
 
-test_that("predict_level computes predictions correctly - seasonal + xpred + AR1, sea.on = TRUE", {
+test_that("predict_level computes predictions correctly - seasonal + AR1, sea.on = FALSE", {
   data(gauteng, package = "tsgc")
   
   est.start <- as.Date("2021-02-01")
@@ -208,6 +208,67 @@ test_that("predict_level computes predictions correctly - seasonal + xpred + AR1
   res <- estimate(model)
   
   delta_pred <- predict(res$output$model, n.ahead = nf, 
+                        interval = c("confidence"), level = 0.68,
+                        states = c("level", "custom"))
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal + xpred + *NO* AR1, sea.on = TRUE", {
+  data(gauteng, package = "tsgc")
+  data(gauteng_weather_2021, package = "tsgc")
+  gauteng_weather <- gauteng_weather_2021[, c(1, 3)]
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, xpred = gauteng_weather, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  supply_xpred.new(res, gauteng_weather)
+  
+  f.start <- est.end + 1
+  f.end <- est.end + nf
+  
+  new_weather <- get_timeframe(gauteng_weather, f.start, f.end)
+  
+  Qt.slope <- res$output$model$Q[2,2,1]
+  Qt.seas <- res$output$model$Q[3,3,1]
+  Ht <- res$output$model$H[1,1,1]
+  
+  new_model <- SSModel(formula = matrix(rep(NA,nf), ncol = 1) ~ 
+                         SSMtrend(degree = 2, Q = list(matrix(0), 
+                                                       matrix(Qt.slope))) 
+                       + SSMseasonal(period = 7, Q = Qt.seas,
+                                     sea.type = "trigonometric") 
+                       + SSMregression(~new_weather), 
+                       H = matrix(Ht))
+  
+  delta_pred <- predict(res$output$model, newdata = new_model, 
                         interval = c("confidence"), level = 0.68)
   
   delta_fit <- as.vector(delta_pred[,"fit"])
@@ -227,6 +288,67 @@ test_that("predict_level computes predictions correctly - seasonal + xpred + AR1
   forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
+  
+  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
+  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+})
+
+test_that("predict_level computes predictions correctly - seasonal + xpred + *NO* AR1, sea.on = FALSE", {
+  data(gauteng, package = "tsgc")
+  data(gauteng_weather_2021, package = "tsgc")
+  gauteng_weather <- gauteng_weather_2021[, c(1, 3)]
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, xpred = gauteng_weather, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  supply_xpred.new(res, gauteng_weather)
+  
+  f.start <- est.end + 1
+  f.end <- est.end + nf
+  
+  new_weather <- get_timeframe(gauteng_weather, f.start, f.end)
+  
+  Qt.slope <- res$output$model$Q[2,2,1]
+  Qt.seas <- res$output$model$Q[3,3,1]
+  Ht <- res$output$model$H[1,1,1]
+  
+  new_model <- SSModel(formula = matrix(rep(NA,nf), ncol = 1) ~ 
+                         SSMtrend(degree = 2, Q = list(matrix(0), 
+                                                       matrix(Qt.slope))) 
+                       + SSMseasonal(period = 7, Q = Qt.seas,
+                                     sea.type = "trigonometric") 
+                       + SSMregression(~new_weather), 
+                       H = matrix(Ht))
+  
+  delta_pred <- predict(res$output$model, newdata = new_model, 
+                        interval = c("confidence"), level = 0.68,
+                        states = c("level", "custom", "regression"))
+  
+  delta_fit <- as.vector(delta_pred[,"fit"])
+  YT <- tail(model$Y,1)
+  cp <- cumprod(1+exp(delta_fit))
+  mult <- c(1,cp[1:(nf-1)])
+  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  
+  delta_lwr <- as.vector(delta_pred[,"lwr"])
+  cp_lwr <- cumprod(1+exp(delta_lwr))
+  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
+  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  
+  delta_upr <- as.vector(delta_pred[,"upr"])
+  cp_upr <- cumprod(1+exp(delta_upr))
+  mult_upr <- c(1,cp_upr[1:(nf-1)])
+  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  
+  forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
   
   expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
   expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
