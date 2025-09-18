@@ -88,8 +88,8 @@ variable (\eqn{Y}). Computed as
 )}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}
 
-\item{\code{mapes(n.ahead, Y)}}{Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
-forecasts against a holdout sample. For more details, please refer to 
+\item{\code{mapes(n.ahead, Y)}}{Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
+  for forecasts against a holdout sample. For more details, please refer to 
 \link{mapes}.}
 
 \item{\code{plot_forecast(

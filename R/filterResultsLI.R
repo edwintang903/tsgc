@@ -905,29 +905,26 @@ FilterResultsLI <- setRefClass(
     return(p1)
   },
   mapes=function(n.ahead,Y){
-    "Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
-    forecasts against a holdout sample. For more details, please refer to 
+    "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
+    for forecasts against a holdout sample. For more details, please refer to 
     \\link{mapes}."
-    # fadmits<-.self$predict_level(n.ahead=n.ahead, sea.on=FALSE)
       sea<-.self$predict_level(n.ahead=n.ahead, sea.on=TRUE)
       
       idx.dates <- (index(Y) >=end.date)
       data_validation<-na.omit(add_daily_ldl(Y[idx.dates], LeadIndCol = LeadIndCol))[1:n.ahead]
       
       newTarg_validation<-data_validation[,c("newTarg")]
-      compare<-cbind(newTarg_validation, sea[,1]) #fadmits[,1]
+      compare<-cbind(newTarg_validation, sea[,1]) 
       names(compare)<-c("Actual", "Forecast")
       
-      # mape.trend <- 100*(abs(compare$Actual - compare$ForecastTrend)/
-      #                      compare$Actual) %>% mean
       mape.sea <- 100*(abs(compare$Actual - compare$Forecast)/compare$Actual) %>%
         mean
-      
+      smape<-mean(100*(abs(compare$Actual - compare$Forecast)/(compare$Actual+compare$Forecast)))
       mae<-abs(compare$Actual - compare$Forecast) %>% mean
       rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2))
       coverage<-100*sum(and(sea[,2]<=compare$Actual, sea[,3]>=compare$Actual))/n.ahead
       
-    return(list(mape=mape.sea, mae=mae, rmse=rmse, coverage=coverage))
+    return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
   }
 )
 )

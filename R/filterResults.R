@@ -266,8 +266,7 @@ FilterResults <- setRefClass(
         \\item{\\code{n.ahead} The number of forecasts you wish to create from
         the end of your sample period.}
         \\item{\\code{sea.on} Logical value indicating whether seasonal
-        components should be included in the
-        state-space model or not. Default is \\code{TRUE}.}
+        components should be included in the state-space model or not. Default is \\code{TRUE}.}
         \\item{\\code{return.all} Logical value indicating whether to return
         all filtered estimates and forecasts
         (\\code{TRUE}) or only the forecasts (\\code{FALSE}). Default is
@@ -345,7 +344,9 @@ FilterResults <- setRefClass(
                              ~SSMtrend(degree = 2,
                                        Q = list(matrix(0), matrix(new.Q[2,2,1])))
                              +SSMregression(~xpred.new))
-          }
+            }
+          
+            
           if (sea.on == TRUE) {
             y.hat.kfas <- predict(
               output$model, interval = 'confidence',
@@ -963,8 +964,6 @@ FilterResults <- setRefClass(
         as.Date(rownames(df_plot))
       }
       
-      # mape.trend <- 100*(abs(d.eval$Actual - d.eval$`ForecastTrend`)/
-      #                      d.eval$Actual) %>% mean %>% round(2)
       mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
         mean %>% round(2)
       
@@ -1006,8 +1005,8 @@ FilterResults <- setRefClass(
       return(p1)
     },
     mapes=function(n.ahead,Y){
-      "Compute Mean Absolute Percentage Error (MAPE) for trend and seasonal 
-    forecasts against a holdout sample. For more details, please refer to 
+      "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
+      for forecasts against a holdout sample. For more details, please refer to 
     \\link{mapes}."
       if (xpred_logical){
         if (is.null(xpred.new)){
@@ -1021,9 +1020,6 @@ FilterResults <- setRefClass(
         
         y.eval.diff <-diff(Y[seq_dates(estimation.date.end, resolution, length.out=n.ahead+1)]) %>% na.omit
         
-        # y.hat.diff.final.ci <- .self$predict_level(
-        #   n.ahead = n.ahead, confidence.level = 0.68
-        # )
         y.hat.diff.final <- .self$predict_level(
           n.ahead = n.ahead, confidence.level =0.68,
           sea.on = TRUE
@@ -1032,28 +1028,24 @@ FilterResults <- setRefClass(
         # Extract the relevant columns
         filtered_y_eval_diff <- y.eval.diff[index(y.eval.diff) > estimation.date.end]
         forecast_column <- y.hat.diff.final[, 1]
-        # forecast_trend_column <- y.hat.diff.final.ci[, 1]
         
         #Form dataframe
         df_plot <- data.frame(
           Actual = coredata(filtered_y_eval_diff),  # Extract data from zoo
           Forecast = forecast_column,
-          #ForecastTrend = forecast_trend_column,
           row.names = index(filtered_y_eval_diff)  # Use index as row names
         )
         
         d.eval <- na.omit(df_plot)
         colnames(d.eval)<-c('Actual', 'Forecast')
         
-        # mape.trend <- mean(100*(abs(d.eval$Actual - d.eval$ForecastTrend)/
-        #                      d.eval$Actual))
         mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
-        
+        smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast)))
         mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean
         rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2))
         coverage<-100*sum(and(y.hat.diff.final[,2]<=y.eval.diff, y.hat.diff.final[,3]>=y.eval.diff))/n.ahead
         
-        return(list(mape=mape.sea, mae=mae, rmse=rmse, coverage=coverage))
+        return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
       }
   )
 )
