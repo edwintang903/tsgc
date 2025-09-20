@@ -129,7 +129,7 @@ FilterResultsLI <- setRefClass(
     },
     predict_level = function(n.ahead=n.lag, 
                              confidence.level=0.68,
-                             sea.on = FALSE){
+                             sea.on = TRUE){
       "Forecast the cumulated variable or the incidence of it. This function returns
       the forecast of the cumulated variable \\eqn{Y}, or the forecast of the incidence of the cumulated variable, \\eqn{y}. For
       example, in the case of an epidemic, \\eqn{y} might be daily new cases of
@@ -138,7 +138,7 @@ FilterResultsLI <- setRefClass(
         \\item{\\code{n.ahead} The number of periods ahead you wish to forecast from
         the end of the estimation window. Default is \\code{n.lag}.}
         \\item{\\code{sea.on} Logical value indicating whether to return the prediction 
-        of just the trend or prediction incorporating seasonality.}
+        of just the trend or prediction incorporating seasonality. Deafults to \\code{TRUE}.}
         \\item{\\code{confidence.level} The confidence level for the log growth
          rate that should be used to compute the forecast intervals of \\eqn{y}.}
        }
@@ -239,17 +239,16 @@ FilterResultsLI <- setRefClass(
       
       return(out)
     },
-    predict_all = function(n.ahead, sea.on = FALSE, return.all = FALSE, 
+    predict_all = function(n.ahead, sea.on = TRUE, 
+                           return.all = FALSE, 
                            confidence.level=0.68) {
       "Returns forecasts of the incidence variable \\eqn{y}, the state variables
-       and the conditional covariance matrix
-      for the states.
+       and the conditional covariance matrix for the states.
        \\subsection{Parameters}{\\itemize{
         \\item{\\code{n.ahead} The number of forecasts you wish to create from
         the end of your sample period.}
-        \\item{\\code{sea.on} Logical value indicating whether seasonal
-        components should be included in the
-        state-space model or not. Default is \\code{FALSE}.}
+        \\item{\\code{sea.on} Logical value indicating whether to return the prediction 
+        of just the trend or prediction incorporating seasonality. Default is \\code{TRUE}.}
         \\item{\\code{return.all} Logical value indicating whether to return
         all filtered estimates and forecasts
         (\\code{TRUE}) or only the forecasts (\\code{FALSE}). Default is

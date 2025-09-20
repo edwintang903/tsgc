@@ -146,8 +146,7 @@ for the states.
   \item{\code{n.ahead} The number of forecasts you wish to create from
   the end of your sample period.}
   \item{\code{sea.on} Logical value indicating whether seasonal
-  components should be included in the
-  state-space model or not. Default is \code{TRUE}.}
+  components should be included in the state-space model or not. Default is \code{TRUE}.}
   \item{\code{return.all} Logical value indicating whether to return
   all filtered estimates and forecasts
   (\code{TRUE}) or only the forecasts (\code{FALSE}). Default is
@@ -163,7 +162,7 @@ states including seasonals where applicable (\code{P.t.t}).}}
 \item{\code{predict_level(
   n.ahead,
   confidence.level = 0.68,
-  sea.on = FALSE,
+  sea.on = TRUE,
   return.diff = TRUE
 )}}{Forecast the cumulated variable or the incidence of it. This function returns
 the forecast of the cumulated variable \eqn{Y}, or the forecast of the incidence of the cumulated variable, \eqn{y}. For
@@ -177,7 +176,7 @@ the disease and
    rate that should be used to compute
   the forecast intervals of \eqn{y}.}
   \item{\code{sea.on} Logical value indicating whether to return the prediction 
-  of just the trend or prediction incorporating seasonality.}
+  of just the trend or prediction incorporating seasonality. Deafults to \code{TRUE}.}
   \item{\code{return.diff} Logical value indicating whether to return the cumulated variable,
   \eqn{Y}, or the incidence of it,
   \eqn{y} (i.e., the first difference of the cumulated variable). Default is

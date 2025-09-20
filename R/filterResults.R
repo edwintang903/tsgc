@@ -128,7 +128,7 @@ FilterResults <- setRefClass(
     predict_level = function(
       n.ahead,
       confidence.level=0.68,
-      sea.on = FALSE, 
+      sea.on = TRUE, 
       return.diff=TRUE)
     {
       "Forecast the cumulated variable or the incidence of it. This function returns
@@ -143,7 +143,7 @@ FilterResults <- setRefClass(
          rate that should be used to compute
         the forecast intervals of \\eqn{y}.}
         \\item{\\code{sea.on} Logical value indicating whether to return the prediction 
-        of just the trend or prediction incorporating seasonality.}
+        of just the trend or prediction incorporating seasonality. Deafults to \\code{TRUE}.}
         \\item{\\code{return.diff} Logical value indicating whether to return the cumulated variable,
         \\eqn{Y}, or the incidence of it,
         \\eqn{y} (i.e., the first difference of the cumulated variable). Default is
@@ -364,7 +364,7 @@ FilterResults <- setRefClass(
             }
           }
         }
-        } else {
+      } else {
         model_output <- KFS(new.model)
         
         if (sea.on == TRUE) {
@@ -930,11 +930,6 @@ FilterResults <- setRefClass(
         n.ahead = n.ahead,  sea.on=TRUE,
         confidence.level = confidence.level
       )
-      # y.hat.diff.final <-.self$predict_level(
-      #   n.ahead = n.ahead, 
-      #   confidence.level = confidence.level,
-      #   sea.on = TRUE
-      # )
       
       if (resolution=='daily' || resolution=='yearly'){
         ids=(index(y.eval.diff)>estimation.date.end) & 
