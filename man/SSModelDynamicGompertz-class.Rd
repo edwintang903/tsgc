@@ -48,7 +48,7 @@ initial states appropriately. See the vignette for details.
 \section{Fields}{
 
 \describe{
-\item{\code{Y}}{The cumulated variable.}
+\item{\code{Y}}{The cumulated variable. Must be strictly increasing in time.}
 
 \item{\code{q}}{The signal-to-noise ratio (ratio of slope to irregular
 variance). Defaults to \code{'NULL'}, in which case no

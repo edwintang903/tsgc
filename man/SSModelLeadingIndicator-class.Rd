@@ -14,10 +14,10 @@ the time series under investigation as an exploratory data analysis.
 \section{Fields}{
 
 \describe{
-\item{\code{Y}}{The cumulated variable.}
+\item{\code{Y}}{The cumulated variable. Must be strictly increasing in time.}
 
-\item{\code{q}}{The signal-to-noise ratio (ratio of slope to irregular
-variance). Defaults to \code{'NULL'}, in which case no
+\item{\code{q}}{The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance).
+Defaults to \code{'NULL'}, in which case no
 signal-to-noise ratio will be imposed. Instead, it will be estimated.}
 
 \item{\code{sea.period}}{The period of seasonality. For a day-of-the-week

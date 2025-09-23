@@ -23,9 +23,9 @@ setOldClass("KFS")
 #' methods to obtain FilterResultsLI object for further analysis and plotting 
 #' the time series under investigation as an exploratory data analysis.
 #'
-#' @field Y The cumulated variable.
-#' @field q The signal-to-noise ratio (ratio of slope to irregular
-#'   variance). Defaults to \code{'NULL'}, in which case no
+#' @field Y The cumulated variable. Must be strictly increasing in time.
+#' @field q The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance). 
+#' Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
 #'@field sea.period The period of seasonality. For a day-of-the-week
 #'   effect with daily data, this would be 7. Not required if
