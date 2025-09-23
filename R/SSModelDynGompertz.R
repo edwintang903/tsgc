@@ -58,7 +58,7 @@ setOldClass("KFS")
 #' We reinitialise the model by specifying the prior distribution for the
 #' initial states appropriately. See the vignette for details.
 #' 
-#' @field Y The cumulated variable.
+#' @field Y The cumulated variable. Must be strictly increasing in time.
 #' @field q The signal-to-noise ratio (ratio of slope to irregular
 #'   variance). Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
@@ -141,6 +141,11 @@ SSModelDynamicGompertz <- setRefClass(
     are defined in `fields` section. 
       \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
       reinit.date = as.Date(\"2021-05-12\"))}}"
+    if (any(na.omit(diff(Y))<=0)){
+      stop("Y must be a dataset strictly increasing in time. If your data 
+           represents cumulative values but has plateaus, please add a small 
+           increasing trend to flat sections.")
+    }
     if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
       stop("sea.period must be a non-negative integer that is not 1.")
     } 

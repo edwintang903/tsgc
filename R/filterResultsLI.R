@@ -848,6 +848,10 @@ FilterResultsLI <- setRefClass(
     compare<-cbind(newTarg_validation, sea[,1])
     names(compare)<-c("Actual", "Forecast")
     
+    if (any(compare$Actual==0)){
+      warning("Validation data contains zeros. MAPE is not a reliable measure.")
+    }
+    
     # mape.trend <- 100*(abs(compare$Actual - compare$ForecastTrend)/
     #                      compare$Actual) %>% mean %>% round(4)
     mape.sea <- mean(100*(abs(compare$Actual - compare$Forecast)/compare$Actual)) %>% round(2)
@@ -917,6 +921,10 @@ FilterResultsLI <- setRefClass(
       newTarg_validation<-data_validation[,c("newTarg")]
       compare<-cbind(newTarg_validation, sea[,1]) 
       names(compare)<-c("Actual", "Forecast")
+      
+      if (any(compare$Actual==0)){
+        warning("Validation data contains zeros. MAPE is not a reliable measure.")
+      }
       
       mape.sea <- 100*(abs(compare$Actual - compare$Forecast)/compare$Actual) %>%
         mean

@@ -93,9 +93,22 @@ SSModelLeadingIndicator <- setRefClass(
     initialize = function(Y, n.lag, sea.period=7, q = NULL,
                           LeadIndCol=1, xpred_lead=NULL, xpred_targ=NULL,
                           start.date=index(Y)[1], end.date=tail(index(Y),1))
-    {
-      "Create an instance of the \\code{SSModelLeadingIndicator} class with the 
+    {"Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
+      
+      if (any(na.omit(diff(Y))<=0)){
+        stop("Y must be a dataset strictly increasing in time. If your data 
+           represents cumulative values but has plateaus, please add a small 
+           increasing trend to flat sections.")}
+      if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
+        stop("sea.period must be a non-negative integer that is not 1.")
+      } 
+      if (!is.null(xpred_lead) && !is.xts(xpred_lead)){
+        stop("xpred_lead must be NULL or an xts object.")
+      } 
+      if (!is.null(xpred_targ) && !is.xts(xpred_targ)){
+        stop("xpred_lead must be NULL or an xts object.")
+      } 
       resolu<-get_time_resolution(index(Y))
       Y <<- Y
       q <<- q

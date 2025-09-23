@@ -958,6 +958,10 @@ FilterResults <- setRefClass(
         as.Date(rownames(df_plot))
       }
       
+      if (any(d.eval$Actual==0)){
+        warning("Validation data contains zeros. MAPE is not a reliable measure.")
+      }
+      
       mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
         mean %>% round(2)
       smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast))) %>% round(2)
@@ -1035,6 +1039,10 @@ FilterResults <- setRefClass(
         
         d.eval <- na.omit(df_plot)
         colnames(d.eval)<-c('Actual', 'Forecast')
+        
+        if (any(d.eval$Actual==0)){
+          warning("Validation data contains zeros. MAPE is not a reliable measure.")
+        }
         
         mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
         smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast)))
