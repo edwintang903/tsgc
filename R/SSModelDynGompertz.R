@@ -169,7 +169,7 @@ SSModelDynamicGompertz <- setRefClass(
       model.}
       "
     if (any(na.omit(diff(Y))<=0)){
-      stop("Y must be a dataset strictly increasing in time. If the cumulative 
+      stop("Y must be a time series strictly increasing in time. If the cumulative 
            values exhibit plateaus it is necessary to add small increments to 
            eliminate flat segments and allow model estimation. This can be done 
            by ensuring the non-cumulated series is strictly positive.")
