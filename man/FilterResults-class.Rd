@@ -153,7 +153,7 @@ for the states.
   \item{\code{sea.on} Logical value indicating whether seasonal
   components should be included in the state-space model or not. Default is \code{TRUE}.}
   \item{\code{return.all} Logical value indicating whether to return
-  all filtered estimates and forecasts
+  all filtered estimates and forecasts.
   (\code{TRUE}) or only the forecasts (\code{FALSE}). Default is
   \code{FALSE}.}
   \item{\code{confidence.level} The confidence level for the log growth

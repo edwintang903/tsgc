@@ -23,7 +23,9 @@ setOldClass("KFS")
 #' methods to obtain FilterResultsLI object for further analysis and plotting 
 #' the time series under investigation as an exploratory data analysis.
 #'
-#' @field Y The cumulated variable. Must be strictly increasing in time.
+#' @field Y A cumulated time series with 2 columns: a leading indicator and a target variable. 
+#' Both the target variable and the lagged leading indicator must be strictly increasing in time 
+#' within the estimation window.
 #' @field q The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance). 
 #' Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
@@ -137,15 +139,17 @@ SSModelLeadingIndicator <- setRefClass(
       
       y[is.infinite(y)] <- NA
       
-      y <- get_timeframe(na.omit(y),start.date)
-      if (any(na.omit(diff(y))<=0)){
+      y.full <- get_timeframe(na.omit(y),start.date)
+      y.estimate<-get_timeframe(na.omit(y),start.date, end.date)
+      
+      if (any(y[,c("newLead","newTarg")])<=0){
         stop("Y must be a time series strictly increasing in time within the selected timeframe 
         after lagging the leading indicator. If the cumulative 
            values exhibit plateaus it is necessary to add small increments to 
            eliminate flat segments and allow model estimation. This can be done 
            by ensuring the non-cumulated series is strictly positive.")}
       
-      data_ldl <- get_timeframe(y, start.date, end.date)[,c("LDLlead","LDLtarg")]
+      data_ldl <- y.estimate[,c("LDLlead","LDLtarg")]
 
       data_mat <- as.matrix(data_ldl)
       
@@ -270,7 +274,7 @@ SSModelLeadingIndicator <- setRefClass(
       out = KFS(fit$model)
 
       results <- FilterResultsLI$new(
-        data_xts = y,
+        data_xts = y.full,
         output = out,
         n.lag=n.lag,
         sea.period=sea.period,

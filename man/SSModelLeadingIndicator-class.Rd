@@ -14,7 +14,9 @@ the time series under investigation as an exploratory data analysis.
 \section{Fields}{
 
 \describe{
-\item{\code{Y}}{The cumulated variable. Must be strictly increasing in time.}
+\item{\code{Y}}{A cumulated time series with 2 columns: a leading indicator and a target variable.
+Both the target variable and the lagged leading indicator must be strictly increasing in time
+within the estimation window.}
 
 \item{\code{q}}{The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance).
 Defaults to \code{'NULL'}, in which case no
