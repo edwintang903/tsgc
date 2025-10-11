@@ -414,7 +414,7 @@ mapes<-function(res,n.ahead,Y){
 #' est.end <- as.Date("2020-04-01")
 #' Yuk <- tsgc::ukitaly[, "UK"]
 #' 
-#' # Cross Validation 
+#' # Example 1: ukitaly dataset 
 #' # Create a list to store different models
 #' cv_models<-list()
 #' 
@@ -430,6 +430,32 @@ mapes<-function(res,n.ahead,Y){
 #' 
 #' # Display cross-validation analysis
 #' cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
+#'
+#' # Example 2: England hospitalizations (with xpred)
+#' eng <- tsgc::england[, 1:2]
+#' est.start.eng <- as.Date("2021-04-30")
+#' est.end.eng   <- as.Date("2021-07-24")
+#' 
+#' #Cross-validation example 
+#' cv_models=list()
+#' # Model 1: Vanilla Gompertz
+#' cv_models[["Vanilla_q"]]<-SSModelDynamicGompertz(Y=eng[,-1], q=0.005, start.date = est.start, end.date = est.end)
+#' 
+#' # Model 2: Vanilla Gompertz with xpred
+#' cv_models[["Vanilla_xpred"]]<-SSModelDynamicGompertz(Y=eng[,-1], start.date = est.start.eng, end.date = est.end.eng, xpred=england_weather_2021)
+#' 
+#' # Model 3-6: Leading Indicator with different lags or with xpred
+#' for (i in c(3,4)){
+#' cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=eng, 
+#' start.date = est.start.eng, end.date = est.end.eng, n.lag=i)
+#' 
+#' cv_models[[paste0("Lag", i,"_xpred")]]<-SSModelLeadingIndicator(Y=eng, 
+#' start.date = est.start.eng, end.date = est.end.eng, 
+#' n.lag=i, xpred_lead = england_weather_2021, xpred_targ=england_weather_2021)}
+#' 
+#' # Display cross-validation analysis
+#' cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, totaldays=5, 
+#' freq=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
 #'
 #' @export
 cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
@@ -459,28 +485,28 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
       model$end.date<-est.end.date+(k-1)*freq
       if (class(model)=="SSModelDynamicGompertz"){
         model$Y<-get_timeframe(Y1, model$start.date, model$end.date)
-        # if (!is.null(model$xpred)){
-        #   model$xpred<-get_timeframe(xpred_targ.full,model$start.date,model$end.date)
-        # }
+        if (!is.null(model$xpred)){
+          model$xpred<-get_timeframe(xpred_targ.full,model$start.date,model$end.date)
+        }
         res<-estimate(model)
-        # if (res$xpred_logical){
-        #   res$xpred.new<-xpred_targ.full
-        # }
+        if (res$xpred_logical){
+          res$xpred.new<-xpred_targ.full
+        }
         results[index_num, k+1]=round(mapes(res,n.ahead,Y1)[[criterion]],2)
       } else if (class(model)=="SSModelLeadingIndicator") {
-        # if (!is.null(model$xpred_lead)){
-        #   model$xpred_lead=xpred_lead.full
-        # }
-        # if (!is.null(model$xpred_targ)){
-        #   model$xpred_targ=xpred_targ.full
-        # }
+        if (!is.null(model$xpred_lead)){
+          model$xpred_lead=xpred_lead.full
+        }
+        if (!is.null(model$xpred_targ)){
+          model$xpred_targ=xpred_targ.full
+        }
         res<-estimate(model)
-        # if (res$xpred_logical[1]){
-        #   res$xpred_lead.new<-xpred_lead.full
-        # }
-        # if (res$xpred_logical[2]){
-        #   res$xpred_targ.new<-xpred_targ.full
-        # }
+        if (res$xpred_logical[1]){
+          res$xpred_lead.new<-xpred_lead.full
+        }
+        if (res$xpred_logical[2]){
+          res$xpred_targ.new<-xpred_targ.full
+        }
         results[index_num, k+1]=round(mapes(res,n.ahead,Y)[[criterion]],2)
       } else {
         stop(paste("Model",index_num,"in model_list is not a SSModelDynGompertz or SSModelLeadingIndicator object."))

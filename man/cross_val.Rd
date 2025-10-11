@@ -73,7 +73,7 @@ est.start <- as.Date("2020-02-25")
 est.end <- as.Date("2020-04-01")
 Yuk <- tsgc::ukitaly[, "UK"]
 
-# Cross Validation 
+# Example 1: ukitaly dataset 
 # Create a list to store different models
 cv_models<-list()
 
@@ -89,5 +89,31 @@ for (i in c(7,10,14,18)){
 
 # Display cross-validation analysis
 cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
+
+# Example 2: England hospitalizations (with xpred)
+eng <- tsgc::england[, 1:2]
+est.start.eng <- as.Date("2021-04-30")
+est.end.eng   <- as.Date("2021-07-24")
+
+#Cross-validation example 
+cv_models=list()
+# Model 1: Vanilla Gompertz
+cv_models[["Vanilla_q"]]<-SSModelDynamicGompertz(Y=eng[,-1], q=0.005, start.date = est.start, end.date = est.end)
+
+# Model 2: Vanilla Gompertz with xpred
+cv_models[["Vanilla_xpred"]]<-SSModelDynamicGompertz(Y=eng[,-1], start.date = est.start.eng, end.date = est.end.eng, xpred=england_weather_2021)
+
+# Model 3-6: Leading Indicator with different lags or with xpred
+for (i in c(3,4)){
+cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=eng, 
+start.date = est.start.eng, end.date = est.end.eng, n.lag=i)
+
+cv_models[[paste0("Lag", i,"_xpred")]]<-SSModelLeadingIndicator(Y=eng, 
+start.date = est.start.eng, end.date = est.end.eng, 
+n.lag=i, xpred_lead = england_weather_2021, xpred_targ=england_weather_2021)}
+
+# Display cross-validation analysis
+cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, totaldays=5, 
+freq=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
 
 }

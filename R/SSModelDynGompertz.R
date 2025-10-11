@@ -634,9 +634,9 @@ SSModelDynamicGompertz <- setRefClass(
     
     results <- FilterResults$new(
       data_xts = Y,
-      xpred_logical=!is.null(xpred),
+      xpred_logical = !is.null(xpred),
       index = date.index,
-      reinit.date=reinit.date,
+      reinit.date =reinit.date,
       ar1=ar1,
       sea.period=sea.period,
       output = model_output
