@@ -142,7 +142,7 @@ SSModelLeadingIndicator <- setRefClass(
       y.full <- get_timeframe(na.omit(y),start.date)
       y.estimate<-get_timeframe(na.omit(y),start.date, end.date)
       
-      if (any(y[,c("newLead","newTarg")])<=0){
+      if (any(y.full[,c("newLead","newTarg")]<=0)){
         stop("Y must be a time series strictly increasing in time within the selected timeframe 
         after lagging the leading indicator. If the cumulative 
            values exhibit plateaus it is necessary to add small increments to 

@@ -478,6 +478,19 @@ save_plot(p, "uk_cases_lead_case1_holdout.png")
 
 tsgc::plot_compare_forecast(list(res_uk_gomp1, res_uk_lead1), actual = tsgc::ukitaly[, "UK"])
 
+# Cross Validation 
+# You want to compare between different models
+cv_models<-list()
+# Model 1: Vanilla Gompertz
+cv_models[["Vanilla_q"]]<-SSModelDynamicGompertz(Y=Yuk, q=q.default, start.date = est.start, end.date = est.end)
+# Model 2: Vanilla Gompertz with AR1
+cv_models[["Vanilla_ar1"]]<-SSModelDynamicGompertz(Y=Yuk, start.date = est.start, end.date = est.end, ar1=TRUE)
+# Model 3-6: Leading Indicator with different lags from 7, 10, 14 or 18
+for (i in c(7,10,14,18)){
+  cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=ukitaly, start.date = est.start, end.date = est.end, n.lag=i)
+}
+cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
+
 # Case 2: Future peaks
 est.start <- as.Date("2020-02-25"); est.end <- as.Date("2020-04-15")
 res_uk_gomp2 <- tsgc::estimate(
@@ -519,6 +532,7 @@ p <- tsgc::plot_holdout(
 save_plot(p, "uk_cases_lead_case2_holdout.png")
 
 tsgc::plot_compare_forecast(list(res_uk_gomp2, res_uk_lead2), actual = tsgc::ukitaly[, "UK"])
+
 
 ## ==================================
 ## 5. Other Data Resolutions

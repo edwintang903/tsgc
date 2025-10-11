@@ -373,31 +373,32 @@ mapes<-function(res,n.ahead,Y){
 #' MAPE values for forecasts \code{n.ahead} days ahead, using models estimated
 #' with varying all_lags over a series of specified end dates.
 #'
-#' @param y An xts object representing the cumulative data series with a date
-#' index. The object should include columns for both the leading indicator and
+#' @param Y An xts object representing the cumulative data series with a date
+#' index. If a Leading Indicator model is compared, Y should include columns for both the leading indicator and
 #' the target variable. The specific column for the leading indicator can be
 #' designated using the \code{LeadIndCol} parameter.
+#' @param model_list A list containing SSModelDynGompertz or SSModelLeadingIndicator 
+#' objects, to be compared in a cross validation procedure.
 #' @param est.end.date The initial estimation end date for model fitting.
 #' Starting from this date, the function re-estimates the model and evaluates
 #' the performance for each lag in \code{all_lags} every \code{freq} days, over a
 #' period of \code{totaldays} days.
 #' @param n.ahead Integer specifying the number of days to forecast ahead for
 #' MAPE evaluation.
-#' @param all_lags Positive integer-valued array specifying which lags we are using
-#' in leading indicator models for comparison.
 #' @param totaldays Integer indicating the total number of days for which
 #' walk-forward validation results will be reported.
 #' @param freq Integer specifying the frequency, in days, at which the model
 #' is re-estimated and evaluated during the walk-forward validation.
-#' @param vanilla Logical. If \code{TRUE}, the function compares the vanilla
-#' growth curve model to the leading indicator models with different all_lags. The
-#' results for the vanilla model are presented in the row where Lag=0.
-#' Note: If using the vanilla model, the date format must be "%Y-%m-%d".
+#' @param xpred_lead.full (Only for required for leading indicator models) 
+#' An xts object containing the values of exogenous variables for 
+#' the leading indicator over the estimation and prediction time frame.
+#' @param xpred_targ.full An xts object containing the values of exogenous variables for 
+#' the target variable over the estimation and prediction time frame.
 #' @param LeadIndCol (Only required for leading indicator models) Integer
 #' representing the column number in \code{y} that contains the leading
 #' indicator.
 #' @param criterion A string object indicating how to compare between different 
-#' models. Available choices are "mape" (by default), "mae" and "rmse". 
+#' models. Available choices are "mape" (by default), "smape", "mae" and "rmse". 
 #' 
 #' @importFrom zoo index
 #' @importFrom magrittr and
@@ -409,46 +410,86 @@ mapes<-function(res,n.ahead,Y){
 #' library(tsgc)
 #' 
 #' #Lay out the estimation settings
-#' Y = england[,1:2] 
-#' estimation.date.start = as.Date("2021-04-30")
-#' estimation.date.end = as.Date("2021-07-24")
+#' est.start <- as.Date("2020-02-25")
+#' est.end <- as.Date("2020-04-01")
+#' Yuk <- tsgc::ukitaly[, "UK"]
 #' 
-#' #Output cross validation result
-#' cross_val(y=Y,est.start.date=estimation.date.start,
-#' est.end.date=estimation.date.end,n.ahead=7,all_lags=1:4,totaldays=3, 
-#' vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
+#' # Cross Validation 
+#' # Create a list to store different models
+#' cv_models<-list()
+#' 
+#' # Model 1: Vanilla Gompertz
+#' cv_models[["Vanilla_q"]]<-SSModelDynamicGompertz(Y=Yuk, q=0.005, start.date = est.start, end.date = est.end)
+#' 
+#' # Model 2: Vanilla Gompertz with AR1
+#' cv_models[["Vanilla_ar1"]]<-SSModelDynamicGompertz(Y=Yuk, start.date = est.start, end.date = est.end, ar1=TRUE)
+#' 
+#' # Model 3-6: Leading Indicator with different lags from 7, 10, 14 or 18
+#' for (i in c(7,10,14,18)){
+#'   cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=ukitaly, start.date = est.start, end.date = est.end, n.lag=i)}
+#' 
+#' # Display cross-validation analysis
+#' cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
 #'
 #' @export
-cross_val<-function(y,est.end.date,n.ahead,all_lags,est.start.date=index(y)[1],
-                    totaldays=1,freq=1, vanilla=TRUE,
-                    LeadIndCol=1, criterion="mape"){
-  if (vanilla){
-    allall_lags<-c(0,all_lags)
+cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
+                    xpred_targ.full=NULL, xpred_lead.full=NULL, LeadIndCol=1, criterion="mape"){
+  if (!is.xts(Y)){
+    stop("Y must be an xts object.")
   }
-  else{
-    allall_lags<-all_lags
+  if (dim(Y)[2]==1){
+    Y1<-Y
+  } else if (dim(Y)[2]==2){
+    Y1<-Y[,-LeadIndCol]
+  } else {
+    stop("Y should not have more than 2 columns.")
+  }
+  if (!is_date_class(est.end.date)){
+    stop("est.end.date must be a date class object.")
+  }
+  if (n.ahead<=0){
+    stop("n.ahead must be a positive integer.")
   }
   results <- data.frame(
-    Lag = c(allall_lags,"Min MAPE at")
+    Model = names(model_list)
   )
   for (k in 1:totaldays){
-    if (vanilla){
-      Z = y[,-LeadIndCol]
-      model_q <- SSModelDynamicGompertz$new(Y = Z, start.date=est.start.date,
-                                            end.date=est.end.date+(k-1)*freq)
-      res <- estimate(model_q)
-      results[1,k+1]=round(mapes(res,n.ahead,Z)[[criterion]],2)
+    index_num<-1
+    for (model in model_list){
+      model$end.date<-est.end.date+(k-1)*freq
+      if (class(model)=="SSModelDynamicGompertz"){
+        model$Y<-get_timeframe(Y1, model$start.date, model$end.date)
+        # if (!is.null(model$xpred)){
+        #   model$xpred<-get_timeframe(xpred_targ.full,model$start.date,model$end.date)
+        # }
+        res<-estimate(model)
+        # if (res$xpred_logical){
+        #   res$xpred.new<-xpred_targ.full
+        # }
+        results[index_num, k+1]=round(mapes(res,n.ahead,Y1)[[criterion]],2)
+      } else if (class(model)=="SSModelLeadingIndicator") {
+        # if (!is.null(model$xpred_lead)){
+        #   model$xpred_lead=xpred_lead.full
+        # }
+        # if (!is.null(model$xpred_targ)){
+        #   model$xpred_targ=xpred_targ.full
+        # }
+        res<-estimate(model)
+        # if (res$xpred_logical[1]){
+        #   res$xpred_lead.new<-xpred_lead.full
+        # }
+        # if (res$xpred_logical[2]){
+        #   res$xpred_targ.new<-xpred_targ.full
+        # }
+        results[index_num, k+1]=round(mapes(res,n.ahead,Y)[[criterion]],2)
+      } else {
+        stop(paste("Model",index_num,"in model_list is not a SSModelDynGompertz or SSModelLeadingIndicator object."))
+      }
+      index_num<-index_num+1
     }
-    for (i in all_lags){
-      out<-SSModelLeadingIndicator(Y=y,n.lag = i, start.date=est.start.date,
-                                   end.date=est.end.date+(k-1)*freq)
-      res<-estimate(out)
-      results[vanilla+i,k+1]<-round(mapes(res,n.ahead,y)[[criterion]],2)
-    }
-    results[length(all_lags)+vanilla+1,k+1]=allall_lags[which.min(results[,k+1])]
   }
   alldates<-as.character(est.end.date+c(0:(k-1))*freq)
-  colnames(results)<-c("Lag",alldates)
+  colnames(results)<-c("Model",alldates)
   return(results)
 }
 

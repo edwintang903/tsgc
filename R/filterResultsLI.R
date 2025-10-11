@@ -19,7 +19,7 @@ setOldClass("KFS")
 #' @field LeadIndCol The column in \code{data_xts} that contains the leading 
 #' indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.
 #' @field xpred_logical Vector of length 2 with logical values, indicating whether
-#' there are exogenous predictors for leading series and target series. 
+#' there are exogenous predictors for leading series and target series respectively. 
 #' @field xpred_lead.new An xts object containing the values of exogenous variables for 
 #' the leading indicator over the prediction time frame.
 #' @field xpred_targ.new An xts object containing the values of exogenous variables for 

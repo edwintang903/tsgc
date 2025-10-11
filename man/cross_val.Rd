@@ -6,23 +6,26 @@
 Percentage Error (MAPE)}
 \usage{
 cross_val(
-  y,
+  Y,
+  model_list,
   est.end.date,
-  n.ahead,
-  all_lags,
-  est.start.date = index(y)[1],
+  n.ahead = 7,
   totaldays = 1,
   freq = 1,
-  vanilla = TRUE,
+  xpred_targ.full = NULL,
+  xpred_lead.full = NULL,
   LeadIndCol = 1,
   criterion = "mape"
 )
 }
 \arguments{
-\item{y}{An xts object representing the cumulative data series with a date
-index. The object should include columns for both the leading indicator and
+\item{Y}{An xts object representing the cumulative data series with a date
+index. If a Leading Indicator model is compared, Y should include columns for both the leading indicator and
 the target variable. The specific column for the leading indicator can be
 designated using the \code{LeadIndCol} parameter.}
+
+\item{model_list}{A list containing SSModelDynGompertz or SSModelLeadingIndicator
+objects, to be compared in a cross validation procedure.}
 
 \item{est.end.date}{The initial estimation end date for model fitting.
 Starting from this date, the function re-estimates the model and evaluates
@@ -32,26 +35,25 @@ period of \code{totaldays} days.}
 \item{n.ahead}{Integer specifying the number of days to forecast ahead for
 MAPE evaluation.}
 
-\item{all_lags}{Positive integer-valued array specifying which lags we are using
-in leading indicator models for comparison.}
-
 \item{totaldays}{Integer indicating the total number of days for which
 walk-forward validation results will be reported.}
 
 \item{freq}{Integer specifying the frequency, in days, at which the model
 is re-estimated and evaluated during the walk-forward validation.}
 
-\item{vanilla}{Logical. If \code{TRUE}, the function compares the vanilla
-growth curve model to the leading indicator models with different all_lags. The
-results for the vanilla model are presented in the row where Lag=0.
-Note: If using the vanilla model, the date format must be "\%Y-\%m-\%d".}
+\item{xpred_targ.full}{An xts object containing the values of exogenous variables for
+the target variable over the estimation and prediction time frame.}
+
+\item{xpred_lead.full}{(Only for required for leading indicator models)
+An xts object containing the values of exogenous variables for
+the leading indicator over the estimation and prediction time frame.}
 
 \item{LeadIndCol}{(Only required for leading indicator models) Integer
 representing the column number in \code{y} that contains the leading
 indicator.}
 
 \item{criterion}{A string object indicating how to compare between different
-models. Available choices are "mape" (by default), "mae" and "rmse".}
+models. Available choices are "mape" (by default), "smape", "mae" and "rmse".}
 }
 \value{
 A table summarizing the MAPE scores for each lag across the
@@ -67,13 +69,25 @@ with varying all_lags over a series of specified end dates.
 library(tsgc)
 
 #Lay out the estimation settings
-Y = england[,1:2] 
-estimation.date.start = as.Date("2021-04-30")
-estimation.date.end = as.Date("2021-07-24")
+est.start <- as.Date("2020-02-25")
+est.end <- as.Date("2020-04-01")
+Yuk <- tsgc::ukitaly[, "UK"]
 
-#Output cross validation result
-cross_val(y=Y,est.start.date=estimation.date.start,
-est.end.date=estimation.date.end,n.ahead=7,all_lags=1:4,totaldays=3, 
-vanilla=TRUE,freq=2,LeadIndCol=1, criterion="mae")
+# Cross Validation 
+# Create a list to store different models
+cv_models<-list()
+
+# Model 1: Vanilla Gompertz
+cv_models[["Vanilla_q"]]<-SSModelDynamicGompertz(Y=Yuk, q=0.005, start.date = est.start, end.date = est.end)
+
+# Model 2: Vanilla Gompertz with AR1
+cv_models[["Vanilla_ar1"]]<-SSModelDynamicGompertz(Y=Yuk, start.date = est.start, end.date = est.end, ar1=TRUE)
+
+# Model 3-6: Leading Indicator with different lags from 7, 10, 14 or 18
+for (i in c(7,10,14,18)){
+  cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=ukitaly, start.date = est.start, end.date = est.end, n.lag=i)}
+
+# Display cross-validation analysis
+cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
 
 }

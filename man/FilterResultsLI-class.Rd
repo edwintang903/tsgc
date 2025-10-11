@@ -31,7 +31,7 @@ effect with daily data, this would be 7.}
 indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.}
 
 \item{\code{xpred_logical}}{Vector of length 2 with logical values, indicating whether
-there are exogenous predictors for leading series and target series.}
+there are exogenous predictors for leading series and target series respectively.}
 
 \item{\code{xpred_lead.new}}{An xts object containing the values of exogenous variables for
 the leading indicator over the prediction time frame.}
