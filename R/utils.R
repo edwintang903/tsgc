@@ -365,13 +365,14 @@ mapes<-function(res,n.ahead,Y){
 }
 
 
-#' @title Walk-Forward Validation for Lag Comparison Using Mean Absolute
+#' @title Walk-Forward Validation for Model Comparison Using Mean Absolute
 #' Percentage Error (MAPE)
 #'
 #' @description This function performs a walk-forward validation to compare
-#' forecasting performance across different lag values. It returns a table of
-#' MAPE values for forecasts \code{n.ahead} days ahead, using models estimated
-#' with varying all_lags over a series of specified end dates.
+#' forecasting performance across different models specified by the user. 
+#' It returns a data frame of a user-specified error metric (e.g. MAPE, MAE) 
+#' for forecasts \code{n.ahead} days ahead, using the given models with varying
+#' end dates.
 #'
 #' @param Y An xts object representing the cumulative data series with a date
 #' index. If a Leading Indicator model is compared, Y should include columns for both the leading indicator and
@@ -403,11 +404,12 @@ mapes<-function(res,n.ahead,Y){
 #' @importFrom zoo index
 #' @importFrom magrittr and
 #'
-#' @returns A table summarizing the MAPE scores for each lag across the
-#' specified dates.
+#' @returns A table summarizing the chosen error metric for each model in
+#' model_list across the specified dates.
 #'
 #' @examples
 #' library(tsgc)
+#' library(KFAS)
 #' 
 #' #Lay out the estimation settings
 #' est.start <- as.Date("2020-02-25")
