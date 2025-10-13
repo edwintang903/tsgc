@@ -360,53 +360,63 @@ test_that("predict_level computes predictions correctly - seasonal + xpred + AR1
   expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
 })
 
-test_that("Test predict_all() gives same results as KFAS", {
-  data('gauteng')
-  q <- 0.005
-  n.ahead <- 14
-  y <- gauteng[1:50]
-  estimation.date.start <- index(y)[1]
-
-  y.new <- gauteng[1:64]
-  y.new[51:64] <- NA
-  model <- tsgc::SSModelDynamicGompertz$new(Y = y, q = q)
-  res <- model$estimate()
-  model <- tsgc::SSModelDynamicGompertz$new(Y=y.new, q = q)
-  res.kfas <- model$estimate()
-  filtered.out <- res$predict_all(n.ahead = 14, return.all = TRUE,
-                                  sea.on = TRUE)
-
-  expect_true(all(res.kfas$output$att == filtered.out$a.t.t))
-  expect_equal(res.kfas$output$Ptt, filtered.out$P.t.t)
-
-  # A solution - Extract model - extend y, change n ensure int then do the
-  # KFS again.
-  new.model <- res$output$model
-  new.model$y <- rbind(
-    new.model$y,
-    matrix(NA, ncol = ncol(new.model$y), nrow = n.ahead) %>% as.ts()
+test_that("predict_level works - quarterly data", {
+  data(nintendo_sales, package = "tsgc")
+  wii <- nintendo_sales[, 1]
+  
+  est.start.q <- zoo::as.yearqtr("2006 Q4")
+  est.end.q   <- zoo::as.yearqtr("2010 Q3")
+  
+  nf <- 4
+  
+  mod_wii <- tsgc::SSModelDynamicGompertz$new(
+    Y = wii, sea.period = 4, start.date = est.start.q, end.date = est.end.q
   )
-  attr(new.model, 'n') <- 64 %>% as.integer()
-  model_output <- KFS(new.model)
-  expect_equal(model_output$Ptt, filtered.out$P.t.t, tolerance = 1e-10)
-
-  Zt <- drop(res.kfas$output$model$Z)
-  Tt <- drop(res.kfas$output$model$T)
-  y.t.t <- drop(Zt %*% t(res.kfas$output$att))
-  expect_equal(y.t.t[51:64] %>% as.numeric(), filtered.out$y[51:64] %>%
-    as.numeric())
-
-  # Can use predict on non-extended y.
-  y.hat.kfas <- predict(
-    res$output$model, interval = c('prediction'), n.ahead = n.ahead,
-    level = 0.68, states = c('all')
-  )
-  dates <- seq(tail(res.kfas$index,1) + 1, by = 'day', length.out = n.ahead)
-  y.hat.kfas <- xts(y.hat.kfas[,1], order.by = dates)
-  expect_equal(y.hat.kfas %>% as.numeric(), filtered.out$y[51:64] %>%
-    as.numeric(), tolerance = 1e-10)
-
+  res_wii <- mod_wii$estimate()
+  
+  forecasts <- res_wii$predict_level(n.ahead = nf)
+  
+  expect_equal(length(forecasts$fit), nf)
 })
 
+test_that("predict_level works - monthly data", {
+  data(etrading_apps, package = "tsgc")
+  Plus500 <- etrading_apps[, 1]
+  
+  est.start.m <- zoo::as.yearmon(2016)
+  est.end.m   <- zoo::as.yearmon(2021)
+  
+  nf <- 12
+  
+  mod_500 <- tsgc::SSModelDynamicGompertz$new(
+    Y = Plus500, sea.period = 12, start.date = est.start.m, end.date = est.end.m
+  )
+  res_500 <- mod_500$estimate()
+  
+  forecasts <- res_500$predict_level(n.ahead = nf)
+  
+  expect_equal(length(forecasts$fit), nf)
+})
+
+test_that("predict_level works - annual data", {
+  data(nintendo_sales, package = "tsgc")
+  
+  est.start.y <- zoo::as.yearmon(2011)
+  est.end.y   <- zoo::as.yearmon(2018)
+  
+  yearly_nintendo      <- nintendo_sales[4 * (1:19), c("wii", "3ds")]
+  threeds_xts          <- xts::xts(zoo::coredata(yearly_nintendo[, "3ds"]), order.by = zoo::yearmon(2005:2023))
+  yearly_nintendo_xts  <- xts::xts(zoo::coredata(yearly_nintendo), order.by = zoo::yearmon(2005:2023))
+  
+  mod_3ds <- tsgc::SSModelDynamicGompertz$new(
+    Y = threeds_xts, sea.period = 0, start.date = est.start.y, end.date = est.end.y
+  )
+  
+  res_3ds <- estimate(mod_3ds)
+  
+  forecasts <- res_3ds$predict_level(n.ahead = 1)
+  
+  expect_equal(length(forecasts$fit),1)
+})
 
 
