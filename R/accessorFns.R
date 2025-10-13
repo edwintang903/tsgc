@@ -174,10 +174,10 @@ att<-function(object){
   object$att
 }
 
-#' @title Extract error covariance matrix used in KFS
+#' @title Extract error covariance matrix of filtered states from KFS
 #
 #' @description Accessor method to access the non-diffuse part of the error 
-#' covariance matrix in KFS object
+#' covariance matrix of filtered states from KFS object
 #'
 #' @param object KFS object
 #' 
@@ -196,6 +196,30 @@ att<-function(object){
 #' @export
 Ptt<-function(object){
   object$Ptt
+}
+
+#' @title Extract error covariance matrix of smoothed states from KFS
+#
+#' @description Accessor method to access the non-diffuse part of the error 
+#' covariance matrix of smoothed states from KFS object
+#'
+#' @param object KFS object
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' #Return covariance matrix
+#' get_V(output(res))
+#'
+#' @export
+get_V<-function(object){
+  object$V
 }
 
 #' @title Extract matrices used in observation, state and disturbance equation 

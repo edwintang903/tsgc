@@ -481,10 +481,10 @@ FilterResults <- setRefClass(
 
       if (smoothed) {
         att <- alphahat(kfs_out)
-        var <- kfs_out$V
+        var <- get_V(kfs_out)
       } else {
         att <- att(kfs_out)
-        var <- kfs_out$Ptt
+        var <- Ptt(kfs_out)
       }
 
       filtered_slope <- xts(att[, "slope"], order.by = idx)

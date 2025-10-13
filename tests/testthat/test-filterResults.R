@@ -419,4 +419,50 @@ test_that("predict_level works - annual data", {
   expect_equal(length(forecasts$fit),1)
 })
 
+test_that("get_growth_y works and toggles smoothed = TRUE, FALSE correctly", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  smooth <- res$get_growth_y(smoothed = TRUE, return.components = TRUE)
+  filt <- res$get_growth_y(smoothed = FALSE, return.components = FALSE)
+  filt_all <- res$get_growth_y(smoothed = FALSE, return.components = TRUE)
+  
+  expect_equal(length(smooth),3)
+  expect_false(is.list(filt))
+  expect_equal(names(smooth[[1]]), "smoothed gy.t")
+  expect_equal(names(smooth[[2]]), "smoothed g.t")
+  expect_equal(names(smooth[[3]]), "smoothed gamma.t")
+  expect_equal(names(filt_all[[1]]), "filtered gy.t")
+  expect_equal(names(filt_all[[2]]), "filtered g.t")
+  expect_equal(names(filt_all[[3]]), "filtered gamma.t")
+  expect_false(isTRUE(all.equal(smooth[[1]],filt)))
+})
 
+test_that("get_gy_ci", {
+  data(gauteng, package = "tsgc")
+  
+  est.start <- as.Date("2021-02-01")
+  est.end  <- as.Date("2021-04-19")
+  nf <- 7
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
+    start.date = est.start, end.date = est.end
+  )
+  res <- estimate(model)
+  
+  smooth <- res$get_gy_ci(smoothed = TRUE)
+  filt <- res$get_gy_ci(smoothed = FALSE)
+
+  expect_equal(names(smooth),c("fit","lower","upper"))
+  expect_false(isTRUE(all.equal(smooth,filt)))
+})
