@@ -382,13 +382,13 @@ mapes<-function(res,n.ahead,Y){
 #' objects, to be compared in a cross validation procedure.
 #' @param est.end.date The initial estimation end date for model fitting.
 #' Starting from this date, the function re-estimates the model and evaluates
-#' the performance for each lag in \code{all_lags} every \code{freq} days, over a
-#' period of \code{totaldays} days.
+#' the performance for each lag in \code{all_lags} every \code{gap} days, over a
+#' period of \code{n.estimate} days.
 #' @param n.ahead Integer specifying the number of days to forecast ahead for
 #' MAPE evaluation.
-#' @param totaldays Integer indicating the total number of days for which
+#' @param n.estimate Integer indicating the total number of days for which
 #' walk-forward validation results will be reported.
-#' @param freq Integer specifying the frequency, in days, at which the model
+#' @param gap Integer specifying the time gap between two successive validations, where the model
 #' is re-estimated and evaluated during the walk-forward validation.
 #' @param xpred_lead.full (Only for required for leading indicator models) 
 #' An xts object containing the values of exogenous variables for 
@@ -431,7 +431,7 @@ mapes<-function(res,n.ahead,Y){
 #'   cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=ukitaly, start.date = est.start, end.date = est.end, n.lag=i)}
 #' 
 #' # Display cross-validation analysis
-#' cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
+#' cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, n.estimate=5, gap=2)
 #'
 #' # Example 2: England hospitalizations (with xpred)
 #' eng <- tsgc::england[, 1:2]
@@ -456,11 +456,11 @@ mapes<-function(res,n.ahead,Y){
 #' n.lag=i, xpred_lead = england_weather_2021, xpred_targ=england_weather_2021)}
 #' 
 #' # Display cross-validation analysis
-#' cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, totaldays=5, 
-#' freq=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
+#' cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, n.estimate=5, 
+#' gap=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
 #'
 #' @export
-cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
+cross_val<-function(Y, model_list, est.end.date, n.ahead=7, n.estimate=1, gap=1,
                     xpred_targ.full=NULL, xpred_lead.full=NULL, LeadIndCol=1, criterion="mape"){
   if (!is.xts(Y)){
     stop("Y must be an xts object.")
@@ -481,10 +481,10 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
   results <- data.frame(
     Model = names(model_list)
   )
-  for (k in 1:totaldays){
+  for (k in 1:n.estimate){
     index_num<-1
     for (model in model_list){
-      model$end.date<-est.end.date+(k-1)*freq
+      model$end.date<-est.end.date+(k-1)*gap
       if (class(model)=="SSModelDynamicGompertz"){
         model$Y<-get_timeframe(Y1, model$start.date, model$end.date)
         if (!is.null(model$xpred)){
@@ -516,7 +516,7 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, totaldays=1, freq=1,
       index_num<-index_num+1
     }
   }
-  alldates<-as.character(est.end.date+c(0:(k-1))*freq)
+  alldates<-as.character(est.end.date+c(0:(k-1))*gap)
   colnames(results)<-c("Model",alldates)
   return(results)
 }
@@ -611,14 +611,14 @@ qtr2date<-function(dates){
 #' 
 #' @returns A vector of dates.
 #' @examples
-#' #Daily frequency
+#' #Daily gapuency
 #' seq_dates(as.Date("2024-01-05"), "daily", length.out=14)
 #' 
-#' #Quarterly frequency
+#' #Quarterly gapuency
 #' seq_dates(zoo::yearqtr(2020), "quarterly", length.out=12)
 #' seq_dates(zoo::yearqtr(2020), "quarterly", to=yearqtr(2022))
 #' 
-#' #Monthly frequency
+#' #Monthly gapuency
 #' seq_dates(zoo::yearmon(2020), "monthly", length.out=12)
 #'
 #' @export

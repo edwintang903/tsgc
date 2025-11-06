@@ -10,8 +10,8 @@ cross_val(
   model_list,
   est.end.date,
   n.ahead = 7,
-  totaldays = 1,
-  freq = 1,
+  n.estimate = 1,
+  gap = 1,
   xpred_targ.full = NULL,
   xpred_lead.full = NULL,
   LeadIndCol = 1,
@@ -24,21 +24,21 @@ index. If a Leading Indicator model is compared, Y should include columns for bo
 the target variable. The specific column for the leading indicator can be
 designated using the \code{LeadIndCol} parameter.}
 
-\item{model_list}{A list containing SSModelDynGompertz or SSModelLeadingIndicator
+\item{model_list}{A list containing \code{SSModelDynGompertz} or \code{SSModelLeadingIndicator}
 objects, to be compared in a cross validation procedure.}
 
 \item{est.end.date}{The initial estimation end date for model fitting.
 Starting from this date, the function re-estimates the model and evaluates
-the performance for each lag in \code{all_lags} every \code{freq} days, over a
-period of \code{totaldays} days.}
+the performance for each lag in \code{all_lags} every \code{gap} days, over a
+period of \code{n.estimate} days.}
 
 \item{n.ahead}{Integer specifying the number of days to forecast ahead for
 MAPE evaluation.}
 
-\item{totaldays}{Integer indicating the total number of days for which
+\item{n.estimate}{Integer indicating the total number of days for which
 walk-forward validation results will be reported.}
 
-\item{freq}{Integer specifying the frequency, in days, at which the model
+\item{gap}{Integer specifying the time gap between two successive validations, where the model
 is re-estimated and evaluated during the walk-forward validation.}
 
 \item{xpred_targ.full}{An xts object containing the values of exogenous variables for
@@ -57,7 +57,7 @@ models. Available choices are "mape" (by default), "smape", "mae" and "rmse".}
 }
 \value{
 A table summarizing the chosen error metric for each model in
-model_list across the specified dates.
+\code{model_list} across the specified dates.
 }
 \description{
 This function performs a walk-forward validation to compare
@@ -90,7 +90,7 @@ for (i in c(7,10,14,18)){
   cv_models[[paste0("Lag", i)]]<-SSModelLeadingIndicator(Y=ukitaly, start.date = est.start, end.date = est.end, n.lag=i)}
 
 # Display cross-validation analysis
-cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, totaldays=5, freq=2)
+cross_val(Y=ukitaly, model_list=cv_models, est.end.date = est.end, n.estimate=5, gap=2)
 
 # Example 2: England hospitalizations (with xpred)
 eng <- tsgc::england[, 1:2]
@@ -115,7 +115,7 @@ start.date = est.start.eng, end.date = est.end.eng,
 n.lag=i, xpred_lead = england_weather_2021, xpred_targ=england_weather_2021)}
 
 # Display cross-validation analysis
-cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, totaldays=5, 
-freq=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
+cross_val(Y=eng, model_list=cv_models, est.end.date = est.end.eng, n.estimate=5, 
+gap=2, xpred_targ.full = england_weather_2021, xpred_lead.full = england_weather_2021)
 
 }

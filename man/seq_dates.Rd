@@ -27,14 +27,14 @@ Creates a sequence of equally spaced dates that is of the class
 "yearqtr", "date" or "yearmon".
 }
 \examples{
-#Daily frequency
+#Daily gapuency
 seq_dates(as.Date("2024-01-05"), "daily", length.out=14)
 
-#Quarterly frequency
+#Quarterly gapuency
 seq_dates(zoo::yearqtr(2020), "quarterly", length.out=12)
 seq_dates(zoo::yearqtr(2020), "quarterly", to=yearqtr(2022))
 
-#Monthly frequency
+#Monthly gapuency
 seq_dates(zoo::yearmon(2020), "monthly", length.out=12)
 
 }
