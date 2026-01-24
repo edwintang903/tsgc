@@ -13,3 +13,15 @@
 Accessor method to print a short description for the objects of
 \code{FilterResults} class
 }
+\examples{
+library(tsgc)
+data(gauteng,package="tsgc")
+# Specify a model
+model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+# Estimate a specified model
+res <- estimate(model)
+
+# Return short description of fitted model
+print(res)
+
+}

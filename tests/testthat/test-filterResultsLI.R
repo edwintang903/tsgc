@@ -1,4 +1,3 @@
-library(testthat)
 library(tsgc)
 library(KFAS)
 library(xts)

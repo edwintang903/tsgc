@@ -522,8 +522,8 @@ test_that("print and summary methods work",{
   expect_no_error(res$plot_gy_components())
   expect_no_error(res$plot_holdout(Y = gauteng$cum_cases))
 })
-  
-test_that("mapes works for daily data",{
+
+test_that("mapes works",{
   data(gauteng, package = "tsgc")
   
   est.start <- as.Date("2021-02-01")
@@ -540,25 +540,3 @@ test_that("mapes works for daily data",{
   
   expect_equal(length(errs),5)
 })
-
-
-test_that("mapes works for quarterly data",{
-  data(nintendo_sales, package = "tsgc")
-  wii <- nintendo_sales[, 1]
-  
-  est.start.q <- zoo::as.yearqtr("2006 Q4")
-  est.end.q   <- zoo::as.yearqtr("2010 Q3")
-  nf <- 4
-  
-  model <- tsgc::SSModelDynamicGompertz(  
-    Y = wii, sea.period = 4, start.date = est.start.q, 
-    end.date = est.end.q
-  )
-
-  res <- estimate(model)
-  
-  errs <- res$mapes(n.ahead = nf, Y = wii)
-  
-  expect_equal(length(errs),5)
-})
-

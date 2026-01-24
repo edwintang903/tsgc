@@ -8,7 +8,8 @@ all columns}
 reinitialise_dataframe(dt, reinit.date)
 }
 \arguments{
-\item{dt}{Cumulated data series, belonging to the xts class.}
+\item{dt}{Cumulated data series, belonging to the xts class. Must only contain
+1 data column in addition to a date index.}
 
 \item{reinit.date}{Reinitialisation date, belonging to Date, yearmon or yearqtr classes. E.g. \samp{as.Date('2021-05-12')}.}
 }

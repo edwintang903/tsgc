@@ -352,6 +352,19 @@ estimate<-function(model){
 #' @param model A `SSModelLeadingIndicator` object
 #' 
 #' @method print SSModelLeadingIndicator
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' # Specify a model
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' # Print a short description of the model object
+#' print(out_eng)
+#' 
+#' 
 #' @export
 print.SSModelLeadingIndicator <- function(model) {
   # Call the object's print() method if it exists
@@ -369,6 +382,16 @@ print.SSModelLeadingIndicator <- function(model) {
 #'
 #' @param model A `SSModelLeadingIndicator` object
 #' @method plot SSModelLeadingIndicator
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' # Specify a model
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' plot(out_eng)
 #' 
 #' @export
 plot.SSModelLeadingIndicator <- function(model,title=NULL, series.name.lead="Leading Indicator", 
@@ -391,6 +414,16 @@ plot.SSModelLeadingIndicator <- function(model,title=NULL, series.name.lead="Lea
 #'
 #' @param model A `SSModelLeadingIndicator` object
 #' @method summary SSModelLeadingIndicator
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' # Specify a model
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' summary(out_eng)
 #' 
 #' @export
 summary.SSModelLeadingIndicator <- function(model) {
@@ -469,6 +502,17 @@ summary.SSModelDynamicGompertz <- function(model) {
 #' @param model A `SSModelDynamicGompertz` object
 #' @method plot SSModelDynamicGompertz
 #' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#'
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' 
+#' # Show summary of the model object
+#' plot(model)
+#' 
 #' @export
 plot.SSModelDynamicGompertz <- function(model,title=NULL, 
                                         series.name="target variable", 
@@ -489,6 +533,17 @@ plot.SSModelDynamicGompertz <- function(model,title=NULL,
 #' @param model A `FilterResults` object
 #' @method summary FilterResults
 #' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' # Return KFS object in output of res
+#' summary(res)
+#' 
 #' @export
 summary.FilterResults <- function(model) {
   # Call the object's summary() method if it exists
@@ -506,6 +561,17 @@ summary.FilterResults <- function(model) {
 #'
 #' @param model A `FilterResults` object
 #' @method print FilterResults
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' # Return short description of fitted model
+#' print(res)
 #' 
 #' @export
 print.FilterResults <- function(model) {
@@ -525,6 +591,16 @@ print.FilterResults <- function(model) {
 #' @param model A `FilterResultsLI` object
 #' @method summary FilterResultsLI
 #' 
+#' @examples
+#' library(tsgc)
+#' 
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' res_eng<-estimate(out_eng)
+#' summary(res_eng)
+#' 
 #' @export
 summary.FilterResultsLI <- function(model) {
   # Call the object's summary() method if it exists
@@ -542,6 +618,16 @@ summary.FilterResultsLI <- function(model) {
 #'
 #' @param model A `FilterResultsLI` object
 #' @method print FilterResultsLI
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' res_eng<-estimate(out_eng)
+#' print(res_eng) 
 #' 
 #' @export
 print.FilterResultsLI <- function(model) {

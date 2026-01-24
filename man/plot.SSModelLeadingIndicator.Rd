@@ -20,3 +20,14 @@
 Accessor method to call the plot method of an object of
 \code{SSModelLeadingIndicator} class
 }
+\examples{
+library(tsgc)
+
+# Specify a model
+out_eng <- tsgc::SSModelLeadingIndicator(
+Y = england[, 1:2], n.lag = 4, sea.period = 7,
+start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+
+plot(out_eng)
+
+}

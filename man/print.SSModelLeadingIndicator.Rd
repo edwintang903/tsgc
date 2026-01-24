@@ -13,3 +13,16 @@
 Accessor method to print a short description for the objects of
 \code{SSModelLeadingIndicator} class
 }
+\examples{
+library(tsgc)
+
+# Specify a model
+out_eng <- tsgc::SSModelLeadingIndicator(
+Y = england[, 1:2], n.lag = 4, sea.period = 7,
+start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+
+# Print a short description of the model object
+print(out_eng)
+
+
+}
