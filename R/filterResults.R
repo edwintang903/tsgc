@@ -34,7 +34,7 @@ setOldClass("KFS")
 #' @importFrom magrittr %>%
 #' @importFrom methods new
 #' @importFrom abind abind
-#' @importFrom zoo as.yearqtr as.yearmon
+#' @importFrom zoo as.yearqtr as.yearmon as.Date.yearmon as.Date.yearqtr
 #' 
 #' @examples
 #' library(tsgc)
@@ -676,8 +676,6 @@ FilterResults <- setRefClass(
       filtered.level <- y.hat.all$level
       
       if (p == 1) {
-        EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
-        
         if (xpred_logical){
           d <- cbind(y, y.pred, get_timeframe(y.eval, firstpred))
           if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
@@ -794,7 +792,7 @@ FilterResults <- setRefClass(
       For more details, please see \\link{plot_gy_components}."
       Value <- Variable <- NULL
       # Determine plot start date
-      if(is.null(plt.start.date)) plt.start.date <-.self$index[1]
+      if(is.null(plt.start.date)) {plt.start.date <-.self$index[1]}
       
       # Get gy.t, g.t and gamma
       gy.components <-.self$get_growth_y(return.components = TRUE, smoothed =
@@ -816,7 +814,7 @@ FilterResults <- setRefClass(
       } 
       
       df_long <- df_plot %>%
-        dplyr::filter(Date >= plt.start.date) %>%
+        dplyr::filter(Date >= zoo::as.Date(plt.start.date)) %>%
         pivot_longer(cols = c(gy.t, g.t, gamma.t), names_to = "Variable",
                      values_to = "Value")
       
@@ -843,7 +841,7 @@ FilterResults <- setRefClass(
       Date <- fit <- upper <- lower <- NULL
       
       # Determine plot start date
-      if(is.null(plt.start.date)) plt.start.date <-.self$index[1]
+      if(is.null(plt.start.date)) {plt.start.date <-.self$index[1]}
       
       # Get confidence intervals to plot
       gy.ci<-.self$get_gy_ci(smoothed = smoothed)
@@ -861,7 +859,8 @@ FilterResults <- setRefClass(
         as.Date(rownames(df_plot))
       } 
       
-      p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=plt.start.date,], aes(x=Date)) +
+      p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=zoo::as.Date(plt.start.date),], 
+                            aes(x=Date)) +
         ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
         ggplot2::geom_hline(yintercept=0, linetype="solid",
                             color = "green", linewidth=1)+
