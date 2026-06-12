@@ -14,7 +14,7 @@ plot_gy_ci(
 )
 }
 \arguments{
-\item{res}{A \code{filterResults} or \code{filterResultsLI} object, obtained from
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
 \code{estimate()} method.}
 
 \item{plt.start.date}{Plot start date. Default is \code{NULL} which is the

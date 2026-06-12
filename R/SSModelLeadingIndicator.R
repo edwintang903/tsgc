@@ -29,7 +29,7 @@ setOldClass("KFS")
 #' @field q The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance). 
 #' Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
-#'@field sea.period A positive integer specifying the period of seasonality used in the
+#' @field sea.period A positive integer specifying the period of seasonality used in the
 #'   trigonometric seasonal component of the model. For example, use \code{7} for daily 
 #'   data to model day-of-the-week effects. A value of \code{0} disables the seasonal 
 #'   component entirely. The default is \code{7}, which is suitable for capturing 
@@ -51,7 +51,7 @@ setOldClass("KFS")
 #' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
 #'
 #' @importFrom xts periodicity last lag.xts
-#' @importFrom methods new
+#' @importFrom methods new setRefClass setOldClass
 #' @importFrom magrittr %>%
 #' @importFrom KFAS SSMtrend SSMseasonal SSModel SSMregression
 #' @importFrom purrr partial

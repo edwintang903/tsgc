@@ -46,7 +46,7 @@ Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon
 Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
 
 \item{\code{resolution}}{A character object showing the time resolution of the data
-in \code{data_xts}. Options are "daily", "monthly, "quarterly" and "yearly".
+in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
 Automatically estimated when \code{data_xts} is provided.}
 }}
 
@@ -196,12 +196,13 @@ for trend and forecast with seasonal component.}}
 \item{\code{print_estimation_results()}}{Prints a table of estimated parameters in a format ready to paste into
 LaTeX.}
 
-\item{\code{summary()}}{Supplies details of the filterResults object, such as estimated 
+\item{\code{summary()}}{Supplies details of the FilterResultsLI object, such as estimated
 parameter values, start and end dates of estimation.}
 }}
 
 \examples{
 library(tsgc)
+data(england, package="tsgc")
 
 #Define estimation environment
 Y = england[,1:2] #select only cumulative cases and cumulative hospitalizations

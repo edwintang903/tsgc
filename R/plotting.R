@@ -24,7 +24,7 @@
 #' around the forecasts. The forecast intervals are based on the prediction
 #' intervals for \eqn{\ln(g_t)}.
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param n.ahead Number of forecasts (i.e. number of periods ahead to forecast
 #' from end of estimation window). Default is 14.
@@ -77,7 +77,7 @@ plot_forecast <- function(res,n.ahead=7, confidence.level = 0.68,
 #' rate (\eqn{\ln(g_t)}) in the estimation sample and the forecast and realised
 #' log cumulative growth rate out of the estimation sample.
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param Y Cumulated dataset containing future values.
 #' @param n.ahead The number of time periods ahead from the end of the sample
@@ -124,7 +124,7 @@ plot_log_forecast <- function(res,Y, n.ahead = 14,
 #' Following Harvey and Kattuman (2021), we compute \eqn{g_{y,t}} as
 #' \deqn{g_{y,t} = \exp(\delta_t) + \gamma_t.}
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param plt.start.date Plot start date. Default is \code{NULL} which is the
 #' start of the estimation sample.
@@ -148,13 +148,13 @@ plot_log_forecast <- function(res,Y, n.ahead = 14,
 #' # Plot filtered gy, g and gamma
 #' plot_gy_components(res, plt.start.date = as.Date("2020-07-06"))
 #'
-#'@importFrom ggplot2 ggplot geom_line labs scale_x_date scale_y_continuous
-#'@importFrom ggplot2 waiver
-#'@importFrom ggplot2 theme margin scale_color_manual
-#'@importFrom dplyr filter
-#'@importFrom tidyr pivot_longer
-#'@importFrom ggthemes theme_economist_white
-#'@importFrom magrittr %>%
+#' @importFrom ggplot2 ggplot geom_line labs scale_x_date scale_y_continuous
+#' @importFrom ggplot2 waiver
+#' @importFrom ggplot2 theme margin scale_color_manual
+#' @importFrom dplyr filter
+#' @importFrom tidyr pivot_longer
+#' @importFrom ggthemes theme_economist_white
+#' @importFrom magrittr %>%
 #'
 #' @export
 plot_gy_components <- function(res,plt.start.date = NULL,
@@ -167,7 +167,7 @@ plot_gy_components <- function(res,plt.start.date = NULL,
 #' @description Plots the smoothed/filtered growth rate of the difference in the
 #' cumulated variable (\eqn{g_y}) and the associated confidence intervals.
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param plt.start.date Plot start date. Default is \code{NULL} which is the
 #' start of the estimation sample.
@@ -219,7 +219,7 @@ plot_gy_ci <- function(res,plt.start.date = NULL, smoothed = FALSE,
 #' Also reports the mean absolute percentage prediction error over the holdout
 #' sample.
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method. 
 #' @param Y Values of the cumulated variable, including the holdout sample.
 #' sample (i.e. to which the forecasts should be compared to).
@@ -274,7 +274,7 @@ plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
 #' and optionally the actual outcomes from the holdout sample. The
 #' forecast intervals are based on the prediction intervals for \eqn{\ln(g_t)}.
 #'
-#' @param results A list of `filterResults` or `filterResultsLI` object, obtained from
+#' @param results A list of `FilterResults` or `FilterResultsLI` objects, obtained from
 #' \code{estimate()} method. 
 #' @param actual Actual values of the cumulated variable, can be the raw dataset. 
 #' Subsetting is done within the code.

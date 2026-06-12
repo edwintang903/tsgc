@@ -41,7 +41,7 @@ setOldClass("KFS")
 #'
 #' The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.period>1}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
 #'
-#' See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{Q}, \eqn{H = \sigma^2_{\varepsilon}}.
+#' See the vignette for details on the state disturbance variance matrix \eqn{Q} and the observation noise variance \eqn{H = \sigma^2_{\varepsilon}}.
 #' 
 #' This class also supports the implementation of the reinitialisation
 #' procedure, described in the vignette and also summarised below.
@@ -62,12 +62,12 @@ setOldClass("KFS")
 #' @field q The signal-to-noise ratio (ratio of slope to irregular
 #'   variance). Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
-#'@field sea.period A positive integer specifying the period of seasonality used in the
+#' @field sea.period A positive integer specifying the period of seasonality used in the
 #'   trigonometric seasonal component of the model. For example, use \code{7} for daily 
 #'   data to model day-of-the-week effects. A value of \code{0} disables the seasonal 
 #'   component entirely. The default is \code{7}, which is suitable for capturing 
 #'   weekly seasonality in daily time series.
-#'@field reinit.date (Only needed for reinitialization.) The reinitialisation date \eqn{r}. Should be
+#' @field reinit.date (Only needed for reinitialization.) The reinitialisation date \eqn{r}. Should be
 #' specified as an object of class \code{"Date"}. Defaults to NA, which 
 #' represents the non-reinitialized version.
 #' @field original.results (Only needed for reinitialization.) Rather than re-estimating the model up
@@ -89,7 +89,7 @@ setOldClass("KFS")
 #' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
 #' 
 #' @importFrom xts periodicity last xts
-#' @importFrom methods new
+#' @importFrom methods new setRefClass setOldClass
 #' @importFrom zoo index
 #' @importFrom KFAS SSModel fitSSM KFS SSMtrend SSMseasonal SSMregression SSMcustom
 #' @importFrom magrittr %>%
@@ -139,7 +139,7 @@ SSModelDynamicGompertz <- setRefClass(
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
-      \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
+      \\subsection{Usage}{\\code{SSModelDynamicGompertz$new(y, q = 0.005,
       reinit.date = as.Date(\"2021-05-12\"))}}"
     if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
       stop("sea.period must be a non-negative integer that is not 1.")

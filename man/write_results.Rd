@@ -2,7 +2,7 @@
 % Please edit documentation in R/utils.R
 \name{write_results}
 \alias{write_results}
-\title{Write a selection of relevant results to disc}
+\title{Write a selection of relevant results to disk}
 \usage{
 write_results(res, res.dir, n.ahead, prefix = "", confidence.level = 0.68)
 }
@@ -31,7 +31,7 @@ incidence variable, \eqn{y}; the filtered level and slope of \eqn{\ln g},
 confidence intervals for these estimates.
 }
 \examples{
-# Not run as do not wish to save to local disc when compiling documentation.
+# Not run as do not wish to save to local disk when compiling documentation.
 # Below will run if copied and pasted into console.
 library(tsgc)
 library(here)

@@ -8,7 +8,7 @@ a Holdout Sample}
 mapes(res, n.ahead, Y)
 }
 \arguments{
-\item{res}{A \code{filterResults} or \code{filterResultsLI} object, obtained from
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
 \code{estimate()} method.}
 
 \item{n.ahead}{Integer specifying the number of days to forecast ahead.}

@@ -10,7 +10,7 @@ seq_dates(from, resolution, to = NA, length.out = NA)
 \item{from}{The first date in the sequence.}
 
 \item{resolution}{The time resolution of the date sequence. Options are
-"daily", "monthly, "quarterly" and "yearly".}
+"daily", "monthly", "quarterly" and "yearly".}
 
 \item{to}{The end date in the sequence, optional. If supplied, \code{to} must be after
 (later than) \code{from}. Must be supplied when \code{length.out} is not provided.}

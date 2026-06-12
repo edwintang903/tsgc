@@ -5,9 +5,9 @@ setOldClass("KFS")
 #' @description Class for estimated Dynamic Gompertz Curve model and contains
 #' methods to extract smoothed/filtered estimates of the states, the level of
 #' the incidence variable \eqn{y}, and forecasts of \eqn{y}. The output from the estimate method
-#' of the SSModelDynGompertz class is of the class FilterResults.
+#' of the SSModelDynamicGompertz class is of the class FilterResults.
 #' 
-#' @field data_xts An xts object containing the non-reinitialized cummulated 
+#' @field data_xts An xts object containing the non-reinitialized cumulated
 #' variable.
 #' @field xpred_logical Logical value indicating whether exogenous predictors were 
 #' used to estimate the FilterResults object. 
@@ -22,10 +22,10 @@ setOldClass("KFS")
 #' prediction. Defaults to \code{NULL}, and should be provided if xpred is 
 #' used for model estimation.
 #' @field sea.period The period of seasonality, inherited from the estimated 
-#' \code{SSModelDynGompertz} model. For a day-of-the-week
+#' \code{SSModelDynamicGompertz} model. For a day-of-the-week
 #'   effect with daily data, this would be 7. 
 #' @field resolution A character object showing the time resolution of the data 
-#' in \code{data_xts}. Options are "daily", "monthly, "quarterly" and "yearly".
+#' in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
 #' Automatically estimated when \code{data_xts} is provided.
 #' 
 #' @references Harvey, A. C. and Kattuman, P. (2021). A Farewell to R:
@@ -34,8 +34,9 @@ setOldClass("KFS")
 #' 20210179
 #'
 #' @importFrom xts periodicity last
+#' @importFrom stats end predict
 #' @importFrom magrittr %>%
-#' @importFrom methods new
+#' @importFrom methods new setRefClass setOldClass
 #' @importFrom abind abind
 #' @importFrom zoo as.yearqtr as.yearmon as.Date.yearmon as.Date.yearqtr
 #' 
@@ -512,7 +513,7 @@ FilterResults <- setRefClass(
       base::print(output)
     },
     summary=function(){
-      "Supplies details of the filterResults object, such as estimated 
+      "Supplies details of the FilterResults object, such as estimated
       parameter values, start and end dates of estimation."
       H <- matrixKFS(output, "H")[, , 1]
       Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]

@@ -87,7 +87,7 @@ supply_xpred.new<-function(object, new.xts, idx=NULL){
 #' 
 #' @returns The fitted KFS model
 #' 
-#'@examples
+#' @examples
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
 #' # Specify a model

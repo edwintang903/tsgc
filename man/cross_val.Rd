@@ -24,7 +24,7 @@ index. If a Leading Indicator model is compared, Y should include columns for bo
 the target variable. The specific column for the leading indicator can be
 designated using the \code{LeadIndCol} parameter.}
 
-\item{model_list}{A list containing \code{SSModelDynGompertz} or \code{SSModelLeadingIndicator}
+\item{model_list}{A list containing \code{SSModelDynamicGompertz} or \code{SSModelLeadingIndicator}
 objects, to be compared in a cross validation procedure.}
 
 \item{est.end.date}{The initial estimation end date for model fitting.

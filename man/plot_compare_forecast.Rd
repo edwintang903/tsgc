@@ -13,7 +13,7 @@ plot_compare_forecast(
 )
 }
 \arguments{
-\item{results}{A list of \code{filterResults} or \code{filterResultsLI} object, obtained from
+\item{results}{A list of \code{FilterResults} or \code{FilterResultsLI} object, obtained from
 \code{estimate()} method.}
 
 \item{n.ahead}{The duration of the holdout sample. Default is 14.}

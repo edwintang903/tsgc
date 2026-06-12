@@ -10,7 +10,7 @@ get_time_resolution(dates)
 \item{dates}{A vector of dates, length at least 2}
 }
 \value{
-A character string from "daily", "monthly, "quarterly" and "yearly".
+A character string from "daily", "monthly", "quarterly" and "yearly".
 }
 \description{
 This function identifies the time resolution of a vector of

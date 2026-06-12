@@ -139,7 +139,7 @@ reinitialise_dataframe <- function(dt, reinit.date) {
   first_ind<-which.max(index(dt) == reinit.date)
   dt <- dt[(first_ind-1):length(dt),]
 
-  # 2. Substract away the t-1 date data
+  # 2. Subtract away the t-1 date data
   dt <- sweep(dt, 2, dt[1,])
 
   # 3. Keep only data from t onwards.
@@ -165,7 +165,7 @@ argmax <- function(x, decreasing=TRUE) {
 }
 
 
-#' @title Write a selection of relevant results to disc
+#' @title Write a selection of relevant results to disk
 #'
 #' @description Function writes the following results to csv files which get
 #' saved in the location specified in \code{res.dir}: forecast new cases or
@@ -187,7 +187,7 @@ argmax <- function(x, decreasing=TRUE) {
 #' @returns A number of csv files saved in the directory specified in
 #' \code{res.dir}.
 #' @examples
-#' # Not run as do not wish to save to local disc when compiling documentation.
+#' # Not run as do not wish to save to local disk when compiling documentation.
 #' # Below will run if copied and pasted into console.
 #' library(tsgc)
 #' library(here)
@@ -264,10 +264,10 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
 #'
 #' @description Reproduction number is estimated based on the method described in Harvey and Kattuman (2021).
 #'
-#' @param res A `filterResults` object, obtained from \code{estimate()} method.
+#' @param res A `FilterResults` object, obtained from \code{estimate()} method.
 #' @param gen_int Generation interval in days
 #' @param ndays Number of days to plot, counting from the end of estimation timeframe.
-#' @param show_plot A logical value indicating whether ti show the plot of R0
+#' @param show_plot A logical value indicating whether to show the plot of R0
 #' @param title Title for the reproduction number plot. 
 #'
 #' @returns Graph of estimated Rt and forecast intervals.
@@ -339,7 +339,7 @@ estimate_r0<-function(res, gen_int, ndays=7, show_plot=FALSE,
 #' (tsgc) models. It compares the forecasted values to a holdout sample,
 #' providing a measure of forecast accuracy. 
 #'
-#' @param res A `filterResults` or `filterResultsLI` object, obtained from
+#' @param res A `FilterResults` or `FilterResultsLI` object, obtained from
 #' \code{estimate()} method.
 #' @param n.ahead Integer specifying the number of days to forecast ahead.
 #' @param Y An xts object containing the original cumulative dataset.
@@ -383,7 +383,7 @@ mapes<-function(res,n.ahead,Y){
 #' index. If a Leading Indicator model is compared, Y should include columns for both the leading indicator and
 #' the target variable. The specific column for the leading indicator can be
 #' designated using the \code{LeadIndCol} parameter.
-#' @param model_list A list containing \code{SSModelDynGompertz} or \code{SSModelLeadingIndicator} 
+#' @param model_list A list containing \code{SSModelDynamicGompertz} or \code{SSModelLeadingIndicator}
 #' objects, to be compared in a cross validation procedure.
 #' @param est.end.date The initial estimation end date for model fitting.
 #' Starting from this date, the function re-estimates the model and evaluates
@@ -516,7 +516,7 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, n.estimate=1, gap=1,
         }
         results[index_num, k+1]=round(mapes(res,n.ahead,Y)[[criterion]],2)
       } else {
-        stop(paste("Model",index_num,"in model_list is not a SSModelDynGompertz or SSModelLeadingIndicator object."))
+        stop(paste("Model",index_num,"in model_list is not a SSModelDynamicGompertz or SSModelLeadingIndicator object."))
       }
       index_num<-index_num+1
     }
@@ -541,7 +541,7 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, n.estimate=1, gap=1,
 #' 
 #' @importFrom timetk is_date_class
 #' 
-#' @returns A character string from "daily", "monthly, "quarterly" and "yearly".
+#' @returns A character string from "daily", "monthly", "quarterly" and "yearly".
 #'
 #' @export
 get_time_resolution <- function(dates) {
@@ -604,7 +604,7 @@ qtr2date<-function(dates){
 #'
 #' @param from The first date in the sequence.
 #' @param resolution The time resolution of the date sequence. Options are
-#' "daily", "monthly, "quarterly" and "yearly".
+#' "daily", "monthly", "quarterly" and "yearly".
 #' @param to The end date in the sequence, optional. If supplied, \code{to} must be after 
 #' (later than) \code{from}. Must be supplied when \code{length.out} is not provided.
 #' @param length.out An integer for the length of the sequence, optional. 
