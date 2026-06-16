@@ -75,4 +75,3 @@ Ashby, M., Harvey, A., Kattuman, P., & Thamotheram, C. (2021). Forecasting epide
 ## Acknowledgments
 
 Our gratitude goes to the Cambridge Centre for Health Leadership & Enterprise, University of Cambridge Judge Business School, and Public Health England/UK Health Security Agency for their support. Special thanks to Thilo Klein and Stefan Scholtes for their constructive comments, and to all contributors to the development and documentation of the `tsgc` package.
-```
