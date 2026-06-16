@@ -369,7 +369,7 @@ Note that, on the date of the re-initialization, $g_{y,t} = g_t$, since
 $\gamma_t=0$, and both $g_{y,t}$ and $g_t$ will be high because a new
 wave is taking off.
 
-## Reinitalizing the data series
+## Reinitializing the data series
 
 Let $t=r$ denote the re-initialization date and let $r_0$ denote the
 date at which the cumulative series is set to 0. Then:
@@ -400,7 +400,7 @@ decrease from the reinitialization date. The reinitialization enforces
 the canonical Gompertz curve with the log of growth rate of cumulative
 cases sloping down.
 
-## Reinitalizing the model
+## Reinitializing the model
 
 We reinitialize the model by specifying the appropriate prior
 distribution for the initial states: $\alpha^r_1 \sim N(a^r_1,P^r_1)$
@@ -454,16 +454,12 @@ seasonal term, as described in the Appendix.
 
 # Functionality of `tsgc`
 
-The two main classes in `tsgc` are `SSModelDynamicGompertz` and
-`SSModelDynGompertzReinit`. These implement the models described in
-(2)-(4), with and without reinitialization, respectively. They both
-inherit from a common base class `SSModelBase`, which acts as a wrapper
-around `KFAS` to set up the state space model and define consistent
-update and estimation methods for it. The unknown parameters are
-estimated with the `\$estimate` method in both classes. This estimation
-returns an object of the `FilterResults` class, which is a wrapper
-around the `KFAS` `KFS` class with a date index and additional methods
-for prediction attached.
+The main Gompertz class in `tsgc` is `SSModelDynamicGompertz`, which
+implements the models described in (2)-(4), with or without
+reinitialization. The unknown parameters are estimated with the
+`estimate()` method. This estimation returns an object of the
+`FilterResults` class, which is a wrapper around the `KFAS` `KFS` class
+with a date index and additional methods for prediction attached.
 
 The `SSModelDynamicGompertz` needs only a cumulative series $Y$ as an
 input. In our application, this is the cumulative number of new
@@ -473,13 +469,13 @@ model to have a seasonal component, using the `sea.type` option. The
 period of a seasonal component is specified through the `sea.period`
 option.
 
-The `SSModelDynGompertzReinit` class allows the model to be estimated
+The `SSModelDynamicGompertz` class allows the model to be estimated
 for a new wave without losing information from prior waves. It will
-accept the reintialization date specified by `reinit.date` or a
+accept the reinitialization date specified by `reinit.date` or a
 `FilterResults` object from which it can extract the initial values. If
 the user wishes to reinitialize the model without using prior
 information (i.e. treat the new wave as an entirely separate epidemic),
-a reinitialization date can be specified through the `renit.date` option
+a reinitialization date can be specified through the `reinit.date` option
 and `use.presample.info` can be set to `FALSE`.
 
 The `FilterResults` class contains prediction methods which can be
@@ -960,8 +956,8 @@ reinit.dates = "2021-04-21"
 
 ### Estimating the reinitialized model
 
-`SSModelDynGompertzReinit` takes the same arguments as
-`SSModelDynGompertz`, with the addition of the `reinit.dates` argument.
+A reinitialized `SSModelDynamicGompertz` uses the same arguments as the
+non-reinitialized model, with the addition of the `reinit.date` argument.
 
 ```{r reinit_estim, eval=F}
 model <- SSModelDynamicGompertz$new(
@@ -1024,7 +1020,7 @@ tsgc::plot_log_forecast(
 The plot of the forecasts of new cases, and that of these forecasts
 against the actual number of new cases can be produced as before. See
 Figures 8 and 9. The trend has begun to turn down in model forecasts
-with with the reinitialized series.
+with the reinitialized series.
 
 ```{r fig-8, fig.cap="Figure 8: Forecast of new cases after reinitialization."}
 tsgc::plot_new_cases(

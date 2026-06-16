@@ -120,7 +120,7 @@
 #'   \item{max_temp_C}{Daily maximum temperature in degree Celsius (C) at 2 metres}
 #'   \item{relhum_percnt}{Relative humidity at 2 metres (%)}
 #'   \item{windspd_mtrs_p_sec}{Wind speed in metres per second (m/s) at 10 metres}
-#'   \item{precip_mtrs}{Preciptation (millimetres per day; mm/day)}
+#'   \item{precip_mtrs}{Precipitation (millimetres per day; mm/day)}
 #' }
 #'
 #' @keywords datasets

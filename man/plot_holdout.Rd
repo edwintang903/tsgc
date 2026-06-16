@@ -16,7 +16,7 @@ plot_holdout(
 )
 }
 \arguments{
-\item{res}{A \code{filterResults} or \code{filterResultsLI} object, obtained from
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
 \code{estimate()} method.}
 
 \item{Y}{Values of the cumulated variable, including the holdout sample.

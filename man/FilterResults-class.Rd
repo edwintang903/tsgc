@@ -9,12 +9,12 @@
 Class for estimated Dynamic Gompertz Curve model and contains
 methods to extract smoothed/filtered estimates of the states, the level of
 the incidence variable \eqn{y}, and forecasts of \eqn{y}. The output from the estimate method
-of the SSModelDynGompertz class is of the class FilterResults.
+of the SSModelDynamicGompertz class is of the class FilterResults.
 }
 \section{Fields}{
 
 \describe{
-\item{\code{data_xts}}{An xts object containing the non-reinitialized cummulated
+\item{\code{data_xts}}{An xts object containing the non-reinitialized cumulated
 variable.}
 
 \item{\code{xpred_logical}}{Logical value indicating whether exogenous predictors were
@@ -36,11 +36,11 @@ prediction. Defaults to \code{NULL}, and should be provided if xpred is
 used for model estimation.}
 
 \item{\code{sea.period}}{The period of seasonality, inherited from the estimated
-\code{SSModelDynGompertz} model. For a day-of-the-week
+\code{SSModelDynamicGompertz} model. For a day-of-the-week
 effect with daily data, this would be 7.}
 
 \item{\code{resolution}}{A character object showing the time resolution of the data
-in \code{data_xts}. Options are "daily", "monthly, "quarterly" and "yearly".
+in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
 Automatically estimated when \code{data_xts} is provided.}
 }}
 
@@ -203,7 +203,7 @@ the forecast interval.}}
 \item{\code{print_estimation_results()}}{Prints a table of estimated parameters in a format ready to paste into
 LaTeX.}
 
-\item{\code{summary()}}{Supplies details of the filterResults object, such as estimated 
+\item{\code{summary()}}{Supplies details of the FilterResults object, such as estimated
 parameter values, start and end dates of estimation.}
 }}
 

@@ -13,13 +13,13 @@ estimate_r0(
 )
 }
 \arguments{
-\item{res}{A \code{filterResults} object, obtained from \code{estimate()} method.}
+\item{res}{A \code{FilterResults} object, obtained from \code{estimate()} method.}
 
 \item{gen_int}{Generation interval in days}
 
 \item{ndays}{Number of days to plot, counting from the end of estimation timeframe.}
 
-\item{show_plot}{A logical value indicating whether ti show the plot of R0}
+\item{show_plot}{A logical value indicating whether to show the plot of R0}
 
 \item{title}{Title for the reproduction number plot.}
 }

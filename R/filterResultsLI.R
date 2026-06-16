@@ -29,21 +29,23 @@ setOldClass("KFS")
 #' @field end.date End date of the estimation period for estimating the target variable. 
 #' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
 #' @field resolution A character object showing the time resolution of the data 
-#' in \code{data_xts}. Options are "daily", "monthly, "quarterly" and "yearly".
+#' in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
 #' Automatically estimated when \code{data_xts} is provided.
 #'
-#'@references Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS: 
-#'LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT. 
-#'National Institute Economic Review, 257, 83–100. 
-#'doi:10.1017/nie.2021.21
+#' @references Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS:
+#' LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT.
+#' National Institute Economic Review, 257, 83–100.
+#' doi:10.1017/nie.2021.21
 #'
 #' @importFrom xts periodicity last lag.xts
 #' @importFrom magrittr %>%
-#' @importFrom methods new
+#' @importFrom methods new setRefClass setOldClass
 #' @importFrom zoo as.Date.yearmon as.Date.yearqtr
+#' @importFrom stats lag predict
 #' 
 #' @examples
 #' library(tsgc)
+#' data(england, package="tsgc")
 #' 
 #' #Define estimation environment
 #' Y = england[,1:2] #select only cumulative cases and cumulative hospitalizations
@@ -519,7 +521,7 @@ FilterResultsLI <- setRefClass(
       base::print(output)
     },
     summary=function(){
-      "Supplies details of the filterResults object, such as estimated 
+      "Supplies details of the FilterResultsLI object, such as estimated
       parameter values, start and end dates of estimation."
       H <- matrixKFS(output, "H")[, , 1]
       Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]

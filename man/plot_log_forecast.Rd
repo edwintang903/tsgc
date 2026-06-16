@@ -14,7 +14,7 @@ plot_log_forecast(
 )
 }
 \arguments{
-\item{res}{A \code{filterResults} or \code{filterResultsLI} object, obtained from
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
 \code{estimate()} method.}
 
 \item{Y}{Cumulated dataset containing future values.}
