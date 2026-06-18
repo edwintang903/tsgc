@@ -19,7 +19,7 @@
 #' @description Accessor method to provide new exogenous predictors for the 
 #' prediction period.
 #'
-#' @param object FilterResults or FilterReusltsLI object
+#' @param object FilterResults or FilterResultsLI object
 #' @param new.xts An xts object containing new exogenous predictors
 #' @param idx Character string, either "lead" or "target", for which exogenous variables are supplied. 
 #' Only applicable for FilterResultsLI object. Defaults to NULL.
@@ -64,16 +64,16 @@ supply_xpred.new<-function(object, new.xts, idx=NULL){
   if (class(object)=="FilterResultsLI"){
     if (idx=="lead"){
       object$xpred_lead.new<-new.xts
-      print("xpred_lead.new registered.")
+      message("xpred_lead.new registered.")
     } else if (idx=="targ"){
       object$xpred_targ.new<-new.xts
-      print("xpred_targ.new registered.")
+      message("xpred_targ.new registered.")
     } else {
       stop("Please specify idx, which is either 'lead' or 'targ'.")
     }
   } else if (class(object)=="FilterResults"){
     object$xpred.new<-new.xts
-    print("xpred.new registered.")
+    message("xpred.new registered.")
   } else {
     stop("Object is not of class 'FilterResultsLI' or 'FilterResults'.")
   }
@@ -331,6 +331,9 @@ alphahat<-function(object){
 #' 
 #' @export
 estimate<-function(model){
+  if (class(model)!="SSModelDynamicGompertz" && class(model)!="SSModelLeadingIndicator"){
+    stop("model must be a SSModelDynamicGompertz or SSModelLeadingIndicator object.")
+  }
    model$estimate()
 }
 
@@ -359,7 +362,7 @@ estimate<-function(model){
 print.SSModelLeadingIndicator <- function(model) {
   # Call the object's print() method if it exists
   if (!is.null(model$print) && is.function(model$print)) {
-    model$print()
+    return(model$print())
   } else {
     stop("The object does not have a valid 'print' method.")
   }
@@ -389,8 +392,8 @@ plot.SSModelLeadingIndicator <- function(model,title=NULL, series.name.lead="Lea
                                          date_break=NULL, take.log=TRUE) {
   # Call the object's plot() method if it exists
   if (!is.null(model$plot) && is.function(model$plot)) {
-    model$plot(title, series.name.lead, 
-               series.name.target,date_break,take.log)
+    return(model$plot(title, series.name.lead, 
+               series.name.target,date_break,take.log))
   } else {
     stop("The object does not have a valid 'plot' method.")
   }
@@ -419,7 +422,7 @@ plot.SSModelLeadingIndicator <- function(model,title=NULL, series.name.lead="Lea
 summary.SSModelLeadingIndicator <- function(model) {
   # Call the object's summary() method if it exists
   if (!is.null(model$summary) && is.function(model$summary)) {
-    model$summary()
+    return(model$summary())
   } else {
     stop("The object does not have a valid 'summary' method.")
   }
@@ -448,7 +451,7 @@ summary.SSModelLeadingIndicator <- function(model) {
 print.SSModelDynamicGompertz <- function(model) {
   # Call the object's print() method if it exists
   if (!is.null(model$print) && is.function(model$print)) {
-    model$print()
+    return(model$print())
   } else {
     stop("The object does not have a valid 'print' method.")
   }
@@ -476,7 +479,7 @@ print.SSModelDynamicGompertz <- function(model) {
 summary.SSModelDynamicGompertz <- function(model) {
   # Call the object's summary() method if it exists
   if (!is.null(model$summary) && is.function(model$summary)) {
-    model$summary()
+    return(model$summary())
   } else {
     stop("The object does not have a valid 'summary' method.")
   }
@@ -509,7 +512,7 @@ plot.SSModelDynamicGompertz <- function(model,title=NULL,
                                         date_break=NULL, MA_period=7) {
   # Call the object's plot() method if it exists
   if (!is.null(model$plot) && is.function(model$plot)) {
-    model$plot(title, series.name, date_break, MA_period)
+    return(model$plot(title, series.name, date_break, MA_period))
   } else {
     stop("The object does not have a valid 'plot' method.")
   }
@@ -538,7 +541,7 @@ plot.SSModelDynamicGompertz <- function(model,title=NULL,
 summary.FilterResults <- function(model) {
   # Call the object's summary() method if it exists
   if (!is.null(model$summary) && is.function(model$summary)) {
-    model$summary()
+    return(model$summary())
   } else {
     stop("The object does not have a valid 'summary' method.")
   }
@@ -567,7 +570,7 @@ summary.FilterResults <- function(model) {
 print.FilterResults <- function(model) {
   # Call the object's print() method if it exists
   if (!is.null(model$print) && is.function(model$print)) {
-    model$print()
+    return(model$print())
   } else {
     stop("The object does not have a valid 'print' method.")
   }
@@ -595,7 +598,7 @@ print.FilterResults <- function(model) {
 summary.FilterResultsLI <- function(model) {
   # Call the object's summary() method if it exists
   if (!is.null(model$summary) && is.function(model$summary)) {
-    model$summary()
+    return(model$summary())
   } else {
     stop("The object does not have a valid 'summary' method.")
   }
@@ -623,7 +626,7 @@ summary.FilterResultsLI <- function(model) {
 print.FilterResultsLI <- function(model) {
   # Call the object's print() method if it exists
   if (!is.null(model$print) && is.function(model$print)) {
-    model$print()
+    return(model$print())
   } else {
     stop("The object does not have a valid 'print' method.")
   }

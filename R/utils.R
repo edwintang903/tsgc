@@ -20,7 +20,7 @@
 #' variables. It will compute the log cumulative growth rate for each column in
 #' the data frame.
 #'
-#' @param dt Cumulated data series.
+#' @param dt Cumulated data series from the \code{xts} class. 
 #' @returns A data frame of log growth rates of the cumulated variable which has
 #' been inputted via the parameter \code{dt}.
 #'
@@ -29,9 +29,22 @@
 #' data(gauteng,package="tsgc")
 #' df2ldl(gauteng)
 #'
+#' @importFrom xts is.xts
 #'
 #' @export
 df2ldl <- function(dt) {
+  # if (!is.xts(dt)){
+  #   stop("Dataset dt is not from the xts class.")
+  # }
+  # if (NCOL(dt) != 1){
+  #   stop("dt must only contain 1 data column in addition to a date column.")
+  # }
+  if (any(stats::lag(dt) <= 0, na.rm = TRUE)){
+    stop("Dataset dt contains 0 or negative values.")
+  } 
+  else if (any(diff(dt)<=0, na.rm = TRUE)){
+    stop("Dataset dt has nonpositive increments.")
+  }
   dt.ldl <- log(diff(dt) / stats::lag(dt))
   return(dt.ldl)
 }
@@ -45,6 +58,7 @@ df2ldl <- function(dt) {
 #' @param end.date End date of time frame, Date object.
 #' @returns A subsetted data frame
 #'
+#' @importFrom xts is.xts
 #' @examples
 #' library(tsgc)
 #' data(gauteng,package="tsgc")
@@ -57,8 +71,16 @@ df2ldl <- function(dt) {
 #' 
 #' @export
 get_timeframe<-function(df, start.date, end.date=NULL){
+  # if (!is.xts(df)){
+  #   stop("df is not an xts object.")
+  # }
+  if (!inherits(start.date, c("Date", "yearqtr", "yearmon"))){
+    stop("start.date must be a Date, yearqtr, or yearmon object.")
+  }
   if (is.null(end.date)){
     idx.est1 <- (zoo::index(df) >= start.date)
+  } else if (!inherits(end.date, c("Date", "yearqtr", "yearmon"))) {
+    stop("end.date must be a Date, yearqtr, or yearmon object.")
   } else {
     idx.est1 <- (zoo::index(df) >= start.date) & (zoo::index(df) <= end.date)
   }
@@ -92,8 +114,11 @@ get_timeframe<-function(df, start.date, end.date=NULL){
 #'
 #' @export
 add_daily_ldl <- function(data, LeadIndCol=1){
-  if (!is.xts(data)){
-    stop("data is not an xts object.")
+  # if (!is.xts(data)){
+  #   stop("data is not an xts object.")
+  # }
+  if (NCOL(data) != 2){
+    stop("Dataset dt must contain exactly two series.")
   }
   if (LeadIndCol==1){
     names(data)<-c("cLead", "cTarg")
@@ -131,12 +156,19 @@ add_daily_ldl <- function(data, LeadIndCol=1){
 #'
 #' @export
 reinitialise_dataframe <- function(dt, reinit.date) {
-  if (dim(dt)[2]!=1){
+  if (!is.xts(dt)){
+    stop("Dataset dt is not from the xts class.")
+  }
+  if (NCOL(dt)!=1){
     stop("dt must only contain 1 data column in addition to a date column.")
   }
   # Take cumulative dataframe and reinit from reinit.date as first date of data
   # 1. Get data frame including date before reinit.date
-  first_ind<-which.max(index(dt) == reinit.date)
+  first_ind<-match(reinit.date, zoo::index(dt))
+  if (is.na(first_ind)) {
+    stop("reinit.date is not present in dt.")
+  }
+  
   dt <- dt[(first_ind-1):length(dt),]
 
   # 2. Substract away the t-1 date data
@@ -489,6 +521,7 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, n.estimate=1, gap=1,
   for (k in 1:n.estimate){
     index_num<-1
     for (model in model_list){
+#      model <- model_orig$copy()
       model$end.date<-est.end.date+(k-1)*gap
       if (class(model)=="SSModelDynamicGompertz"){
         model$Y<-get_timeframe(Y1, model$start.date, model$end.date)
@@ -548,30 +581,38 @@ get_time_resolution <- function(dates) {
   if (!is_date_class(dates) || length(dates)<=1){
     stop("Input is not a vector of dates.")
   }
-  # Ensure dates are sorted
   dates <- sort(unique(dates))
-  date_diff<-diff(dates)  
-  if (!isTRUE(all.equal(min(date_diff),max(date_diff)))){
-    stop("The dates are not separated by the same time resolution.")
-  } else if (class(dates)=="yearqtr"){
-    if (min(diff(dates))==1){
-      return('yearly')
-    } else {
-      return('quarterly')
-    }
-  } else if (class(dates)=="yearmon"){
-    if (min(diff(dates))==1){
-      return('yearly')
-    } else {
-      return('monthly')
-    }
-  } else if (class(dates)=="Date"){
-    if (min(diff(dates))==1){
-      return('daily')
-    }
-  } else {
-    stop("Input 'dates' must be from classes 'Date', 'yearmon' or 'yearqtr'.")
+  
+  if (length(dates) <= 1L) {
+    stop("Input must contain at least two distinct dates.")
   }
+  
+  date_diff <- diff(dates)
+  
+  if (!isTRUE(all.equal(min(date_diff), max(date_diff)))) {
+    stop("The dates are not separated by the same time resolution.")
+  }
+  
+  step <- as.numeric(min(date_diff))
+  
+  if (inherits(dates, "yearqtr")) {
+    if (step == 1) return("yearly")
+    if (step == 0.25) return("quarterly")
+    stop("Unsupported yearqtr resolution.")
+  }
+  
+  if (inherits(dates, "yearmon")) {
+    if (step == 1) return("yearly")
+    if (isTRUE(all.equal(step, 1/12))) return("monthly")
+    stop("Unsupported yearmon resolution.")
+  }
+  
+  if (inherits(dates, "Date")) {
+    if (step == 1) return("daily")
+    stop("Unsupported Date resolution.")
+  }
+  
+  stop("Input 'dates' must be from classes 'Date', 'yearmon' or 'yearqtr'.")
 }
 
 #' @title Change yearqtr object into date object 
@@ -628,6 +669,12 @@ qtr2date<-function(dates){
 #'
 #' @export
 seq_dates<-function(from, resolution, to=NA, length.out=NA){
+  valid_res <- c("daily", "monthly", "quarterly", "yearly")
+  
+  if (!(resolution %in% valid_res)) {
+    stop("resolution must be one of 'daily', 'monthly', 'quarterly', or 'yearly'.")
+  }
+  
   if (is.na(length.out) && is.na(to)){
     stop("Both length.out and to inputs cannot be empty.")
   } else if (!is.na(length.out) && !is.na(to)){

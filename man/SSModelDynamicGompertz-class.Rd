@@ -28,7 +28,7 @@ For models without seasonal terms (\code{sea.period = 0}), the priors are given 
 
 The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.period>1}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
 
-See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{Q}, \eqn{H = \sigma^2_{\varepsilon}}.
+See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{H = \sigma^2_{\varepsilon}}.
 
 This class also supports the implementation of the reinitialisation
 procedure, described in the vignette and also summarised below.
@@ -138,7 +138,7 @@ daily cases.
 \subsection{Return Value}{A plot of the lagged differences of the 
 cumulated dataset \code{Y} against time.}}
 
-\item{\code{print()}}{Provides a quick description of SSModelDynamicGompertz object, providing 
+\item{\code{print()}}{Provides a quick description of the SSModelDynamicGompertz object, providing 
 model states and standard errors.}
 
 \item{\code{summary()}}{Supplies details of the SSModelDynamicGompertz object, such as estimated 

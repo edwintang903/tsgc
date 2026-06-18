@@ -7,7 +7,7 @@
 supply_xpred.new(object, new.xts, idx = NULL)
 }
 \arguments{
-\item{object}{FilterResults or FilterReusltsLI object}
+\item{object}{FilterResults or FilterResultsLI object}
 
 \item{new.xts}{An xts object containing new exogenous predictors}
 

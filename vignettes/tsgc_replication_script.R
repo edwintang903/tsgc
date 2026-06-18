@@ -1038,7 +1038,7 @@ print(p_holdout)
 n.forecasts   <- 8
 est.start.q2  <- zoo::as.yearqtr("2017 Q1")
 est.end.q2    <- zoo::as.yearqtr("2019 Q4")
-n.lag.q       <- zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")
+n.lag.q       <- (zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4"))*4
 
 # Column 1 (Wii) is treated as the lead; column 2 (Switch) as the target.
 y_q <- nintendo_sales[, c("wii", "switch_all")]
@@ -1136,7 +1136,7 @@ print(p)
 n.forecasts  <- 4
 est.start.m2 <- zoo::as.yearmon(2017.5)
 est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
-n.lag.m      <- zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)
+n.lag.m      <- (zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017))*12
 
 y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
 mod_500_lead <- tsgc::SSModelLeadingIndicator(

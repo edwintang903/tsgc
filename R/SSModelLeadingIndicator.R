@@ -102,25 +102,25 @@ SSModelLeadingIndicator <- setRefClass(
                           start.date=index(Y)[1], end.date=tail(index(Y),1))
     {"Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
-      if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
+      if (length(sea.period) != 1 || 
+          !isTRUE(all.equal(sea.period, as.integer(sea.period)))||
+          sea.period==1 || sea.period<0){
         stop("sea.period must be a non-negative integer that is not 1.")
       } 
       if (!is.null(xpred_lead) && !is.xts(xpred_lead)){
         stop("xpred_lead must be NULL or an xts object.")
       } 
       if (!is.null(xpred_targ) && !is.xts(xpred_targ)){
-        stop("xpred_lead must be NULL or an xts object.")
+        stop("xpred_targ must be NULL or an xts object.")
       } 
+      if (length(LeadIndCol) != 1 || !(LeadIndCol %in% c(1, 2))){
+        stop("LeadIndCol must take values 1 or 2.")
+      }
       resolu<-get_time_resolution(index(Y))
       Y <<- Y
       q <<- q
       sea.period<<-sea.period
-      n.lag <<- if (resolu=="daily" || resolu=="yearly"){
-        n.lag
-      } else if (resolu=="quarterly"){
-        n.lag*4
-      } else if (resolu=="monthly"){
-        n.lag*12}
+      n.lag <<- n.lag
       LeadIndCol <<- LeadIndCol
       xpred_lead<<-xpred_lead
       xpred_targ<<-xpred_targ
@@ -177,7 +177,7 @@ SSModelLeadingIndicator <- setRefClass(
           Q[naQd,naQd][lower.tri(Q[naQd,naQd])] <- 0
           
           diag(Q)[naQd] <- exp(0.5 * pars[1:length(naQd)])
-          Q[naQd,naQd][naQnd] <- pars[length(naQd)+1:length(naQnd)]
+          Q[naQd,naQd][naQnd] <- pars[(length(naQd)+1):(length(naQd)+length(naQnd))]
           model$Q[naQd,naQd,1] <- crossprod(Q[naQd,naQd])
         }
         if(!identical(model$H,'Omitted') && any(is.na(model$H))){
@@ -186,9 +186,9 @@ SSModelLeadingIndicator <- setRefClass(
           naHnd <- which(upper.tri(H[naHd,naHd]) & is.na(H[naHd,naHd]))
           H[naHd,naHd][lower.tri(H[naHd,naHd])] <- 0
           diag(H)[naHd] <-
-            exp(0.5 * pars[length(naQd)+length(naQnd)+1:length(naHd)])
+            exp(0.5 * pars[length(naQd)+length(naQnd)+seq_len(length(naHd))])
           H[naHd,naHd][naHnd] <-
-            pars[length(naQd)+length(naQnd)+length(naHd)+1:length(naHnd)]
+            pars[length(naQd)+length(naQnd)+length(naHd)+seq_len(length(naHnd))]
           model$H[naHd,naHd,1] <- crossprod(H[naHd,naHd])
           model$Q[order,order,1] <- snr*crossprod(H[index,index])
         }
@@ -332,7 +332,7 @@ SSModelLeadingIndicator <- setRefClass(
       base::print(out)
     },
     print = function() {
-      "Provides a quick description of SSModelDynamicGompertz object, providing 
+      "Provides a quick description of the SSModelLeadingIndicator object, providing 
       model states and standard errors."
       
       out <- output(.self$estimate()) #KFS object

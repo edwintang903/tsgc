@@ -41,7 +41,7 @@ setOldClass("KFS")
 #'
 #' The diffuse prior is defined as \eqn{P_1 = \kappa I_{2\times 2}} with \eqn{\kappa \to \infty}, implemented via the \code{KFAS} package (Helske, 2017). For models with a seasonal component (\code{sea.period>1}), the prior mean vector \eqn{a_1} and prior covariance matrix \eqn{P_1} are extended accordingly.
 #'
-#' See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{Q}, \eqn{H = \sigma^2_{\varepsilon}}.
+#' See the vignette for details on the variance matrix \eqn{Q} and the observation noise variance \eqn{H = \sigma^2_{\varepsilon}}.
 #' 
 #' This class also supports the implementation of the reinitialisation
 #' procedure, described in the vignette and also summarised below.
@@ -141,7 +141,9 @@ SSModelDynamicGompertz <- setRefClass(
     are defined in `fields` section. 
       \\subsection{Usage}{\\code{SSModelDynGompertzReinit$new(y, q = 0.005,
       reinit.date = as.Date(\"2021-05-12\"))}}"
-    if (!is.numeric(sea.period) || sea.period==1 || sea.period<0){
+    if (length(sea.period) != 1 || 
+        !isTRUE(all.equal(sea.period, as.integer(sea.period)))||
+        sea.period==1 || sea.period<0){
       stop("sea.period must be a non-negative integer that is not 1.")
     } 
     if (!is.null(original.results) && class(original.results)!="FilterResults"){
@@ -546,9 +548,14 @@ SSModelDynamicGompertz <- setRefClass(
         )
         return(model)
       } else{
-        #Select relevant xpred
-        xpred1<-xpred[zoo::index(xpred) <= reinit.date]
-        xpred2<-xpred[zoo::index(xpred) > reinit.date]
+        if (is.null(xpred)) {
+          xpred1 <- NULL
+          xpred2 <- NULL
+        } else {
+          #Select relevant xpred
+          xpred1 <- xpred[zoo::index(xpred) <= reinit.date]
+          xpred2 <- xpred[zoo::index(xpred) > reinit.date]
+        }
         
         # 4.1. Index for reinitialisation, t_0
         stopifnot(length(Y[reinit.date]) == 1)
@@ -711,7 +718,7 @@ SSModelDynamicGompertz <- setRefClass(
     base::print(out)
   },
   print = function() {
-    "Provides a quick description of SSModelDynamicGompertz object, providing 
+    "Provides a quick description of the SSModelDynamicGompertz object, providing 
       model states and standard errors."
     reinit<-!is.null(reinit.date)
     out <- output(.self$estimate()) #KFS object

@@ -99,7 +99,7 @@ daily cases.
 \subsection{Return Value}{A plot of the lagged differences of the 
 cumulated dataset \code{Y} against time.}}
 
-\item{\code{print()}}{Provides a quick description of SSModelDynamicGompertz object, providing 
+\item{\code{print()}}{Provides a quick description of the SSModelLeadingIndicator object, providing 
 model states and standard errors.}
 
 \item{\code{summary()}}{Supplies details of the SSModelLeadingIndicator object, such as estimated 

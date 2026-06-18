@@ -38,6 +38,7 @@ setOldClass("KFS")
 #' @importFrom methods new
 #' @importFrom abind abind
 #' @importFrom zoo as.yearqtr as.yearmon as.Date.yearmon as.Date.yearqtr
+#' @importFrom scales date_format
 #' 
 #' @examples
 #' library(tsgc)
@@ -295,7 +296,15 @@ FilterResults <- setRefClass(
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } else {
-          xpred.new<<-get_timeframe(xpred.new,tail(index,1)+1,tail(index,1)+n.ahead)
+          firstpred<-if (resolution=='quarterly'){
+            tail(index,1)+0.25
+          } else if (resolution=='monthly'){
+            tail(index,1)+1/12
+          } else {
+            tail(index,1)+1
+          }
+          
+          xpred.new<<-get_timeframe(xpred.new, firstpred)[1:n.ahead,]
           
           newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                       dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
@@ -976,10 +985,10 @@ FilterResults <- setRefClass(
       }
       
       mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
-        mean %>% round(2)
+        mean %>% signif(digits=4)
       smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast))) %>% round(2)
-      mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean %>% signif(digits=3)
-      rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2)) %>% signif(digits=3)
+      mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean %>% signif(digits=4)
+      rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2)) %>% signif(digits=4)
       
       date_col<-if(resolution=='daily'){
         as.Date(index(y.hat.diff.final.ci))} 

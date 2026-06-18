@@ -7,7 +7,7 @@
 df2ldl(dt)
 }
 \arguments{
-\item{dt}{Cumulated data series.}
+\item{dt}{Cumulated data series from the \code{xts} class.}
 }
 \value{
 A data frame of log growth rates of the cumulated variable which has
@@ -22,6 +22,5 @@ the data frame.
 library(tsgc)
 data(gauteng,package="tsgc")
 df2ldl(gauteng)
-
 
 }

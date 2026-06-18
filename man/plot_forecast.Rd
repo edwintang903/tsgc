@@ -7,7 +7,7 @@ variable)}
 \usage{
 plot_forecast(
   res,
-  n.ahead = 7,
+  n.ahead = 14,
   confidence.level = 0.68,
   title = NULL,
   plt.start.date = NULL,

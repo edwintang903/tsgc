@@ -21,20 +21,17 @@ plot_compare_forecast(
 \item{sea.on}{Logical value indicating whether to plot the seasonality-adjusted
 forecasts. Defaults to \code{TRUE}.}
 
-\item{actual}{Actual values of the cumulated variable, can be the raw dataset.
-Subsetting is done within the code.}
+\item{actual}{Time series of actual cumulative values. The function
+automatically extracts the observations corresponding to the prediction
+period, so the complete series may be provided.}
 
-\item{title}{Title for forecast plot. Enter as text string. \code{NULL}
-(i.e. no title) by default.}
+\item{title}{Title for forecast plot. Enter as text string. Defaults as "Comparison of forecasts".}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots the forecasts of the cumulated variable (both including and excluding the
-seasonal component, where a seasonal is specified) for selected models
-and optionally the actual outcomes from the holdout sample. The
-forecast intervals are based on the prediction intervals for \eqn{\ln(g_t)}.
+Plots forecasts from a list of fitted models on the same axes for visual comparison.
 }
 \examples{
 library(tsgc)

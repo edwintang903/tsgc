@@ -63,7 +63,7 @@
 #' series.name="cases")
 #'
 #' @export
-plot_forecast <- function(res,n.ahead=7, confidence.level = 0.68, 
+plot_forecast <- function(res,n.ahead=14, confidence.level = 0.68, 
                            title=NULL, plt.start.date=NULL, 
                            series.name="target variable") {
   res$plot_forecast(n.ahead, confidence.level,
@@ -269,20 +269,17 @@ plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
 
 #' @title Forecast comparison plot
 #'
-#' @description Plots the forecasts of the cumulated variable (both including and excluding the
-#' seasonal component, where a seasonal is specified) for selected models 
-#' and optionally the actual outcomes from the holdout sample. The
-#' forecast intervals are based on the prediction intervals for \eqn{\ln(g_t)}.
+#' @description Plots forecasts from a list of fitted models on the same axes for visual comparison.
 #'
 #' @param results A list of `filterResults` or `filterResultsLI` object, obtained from
 #' \code{estimate()} method. 
-#' @param actual Actual values of the cumulated variable, can be the raw dataset. 
-#' Subsetting is done within the code.
 #' @param sea.on Logical value indicating whether to plot the seasonality-adjusted
 #' forecasts. Defaults to \code{TRUE}.
 #' @param n.ahead The duration of the holdout sample. Default is 14.
-#' @param title Title for forecast plot. Enter as text string. \code{NULL}
-#' (i.e. no title) by default.
+#' @param actual Time series of actual cumulative values. The function
+#' automatically extracts the observations corresponding to the prediction
+#' period, so the complete series may be provided.
+#' @param title Title for forecast plot. Enter as text string. Defaults as "Comparison of forecasts".
 #'
 #' @importFrom ggplot2 scale_color_manual scale_linetype_manual aes labs theme
 #' @importFrom ggplot2 element_blank element_text rel autoplot scale_x_date
@@ -312,7 +309,7 @@ plot_holdout <- function(res,Y, n.ahead=14,confidence.level = 0.68,
 plot_compare_forecast <- function(results,  n.ahead = 14, sea.on = TRUE, actual = NULL,
                                   title = "Comparison of forecasts") {
   for (i in results){
-   if (class(i)!="FilterResults" && class(i)!="FilterResultsLI"){
+   if (inherits(i, "FilterResults") && inherits(i, "FilterResultsLI")){
      stop("All elements in results list must be of the class FilterResults or FilterResultsLI.")
    }
   }
@@ -337,11 +334,14 @@ plot_compare_forecast <- function(results,  n.ahead = 14, sea.on = TRUE, actual 
   # Process actual values if provided
   if (!is.null(actual)) {
     actual<-na.omit(diff(actual))
-    start.date<-tail(results[[1]]$index,1)+1
-    end.date<-tail(results[[1]]$index,1)+n.ahead
-    idx.est <- (zoo::index(actual) >= start.date) &
-      (zoo::index(actual) <= end.date)
-    actual<-actual[idx.est]
+    firstpred<-if (results[[1]]$resolution=='quarterly'){
+      tail(results[[1]]$index,1)+0.25
+    } else if (results[[1]]$resolution=='monthly'){
+      tail(results[[1]]$index,1)+1/12
+    } else {
+      tail(results[[1]]$index,1)+1
+    }
+    actual<-get_timeframe(actual, firstpred)[1:n.ahead,]
     
     if (inherits(actual, "xts")) {
       actual_df <- data.frame(
