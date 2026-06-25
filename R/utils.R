@@ -53,10 +53,11 @@ df2ldl <- function(dt) {
 #
 #' @description Helper method to subset a data frame for a specified time frame
 #'
-#' @param df xts object
+#' @param df An xts object, or NULL if no data are supplied.
 #' @param start.date Start date of time frame, Date object.
 #' @param end.date End date of time frame, Date object.
-#' @returns A subsetted data frame
+#' @returns An xts object containing the selected observations, or
+#'   `NULL` if `df` is `NULL`.
 #'
 #' @importFrom xts is.xts
 #' @examples
@@ -71,9 +72,11 @@ df2ldl <- function(dt) {
 #' 
 #' @export
 get_timeframe<-function(df, start.date, end.date=NULL){
-  # if (!is.xts(df)){
-  #   stop("df is not an xts object.")
-  # }
+  if (is.null(df)) {
+    return(NULL)
+  } else if (!is.xts(df)){
+    stop("df is not an xts object.")
+  }
   if (!inherits(start.date, c("Date", "yearqtr", "yearmon"))){
     stop("start.date must be a Date, yearqtr, or yearmon object.")
   }

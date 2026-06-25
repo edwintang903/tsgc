@@ -7,14 +7,15 @@
 get_timeframe(df, start.date, end.date = NULL)
 }
 \arguments{
-\item{df}{xts object}
+\item{df}{An xts object, or NULL if no data are supplied.}
 
 \item{start.date}{Start date of time frame, Date object.}
 
 \item{end.date}{End date of time frame, Date object.}
 }
 \value{
-A subsetted data frame
+An xts object containing the selected observations, or
+\code{NULL} if \code{df} is \code{NULL}.
 }
 \description{
 Helper method to subset a data frame for a specified time frame
