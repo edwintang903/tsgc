@@ -7,8 +7,8 @@
 \format{
 An object of class \code{"xts"} with columns:
 \describe{
-\item{UK}{Cumulative cases of Covid-19 in the UK}
 \item{Italy}{Cumulative cases of Covid-19 in Italy}
+\item{UK}{Cumulative cases of Covid-19 in the UK}
 }
 }
 \usage{

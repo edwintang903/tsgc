@@ -375,20 +375,20 @@ tsgc::supply_xpred.new(res_weather, gauteng_weather_future)
 
 txt <- "
 Date,windspd_mtrs_p_sec,temperature_C
-2021-04-20,3.39,16.90
-2021-04-21,1.64,16.42
-2021-04-22,1.76,17.18
-2021-04-23,2.46,16.52
-2021-04-24,3.56,16.67
-2021-04-25,1.96,16.63
-2021-04-26,2.08,17.12
-2021-04-27,2.51,18.39
-2021-04-28,1.99,19.07
-2021-04-29,2.80,19.07
-2021-04-30,2.29,14.09
-2021-05-01,3.16,13.18
-2021-05-02,2.73,13.13
-2021-05-03,1.50,14.15
+2021-05-04,2.03,14.61
+2021-05-05,1.54,15.51
+2021-05-06,1.94,16.42
+2021-05-07,2.38,15.54
+2021-05-08,2.57,14.18
+2021-05-09,2.65,13.55
+2021-05-10,2.19,14.84
+2021-05-11,2.08,15.55
+2021-05-12,2.07,15.97
+2021-05-13,1.92,15.86
+2021-05-14,1.85,15.79
+2021-05-15,2.86,15.57
+2021-05-16,3.46,16.42
+2021-05-17,2.39,13.53
 "
 
 gauteng_weather_future_csv <- read.csv(text = txt, 
@@ -431,8 +431,30 @@ p <- tsgc::plot_forecast(
 )
 print(p)
 
+# Holdout accuracy: two weeks prior to end of sample
+# Define a holdout estimation end 14 days before est.end.1
+est.end.holdout <- est.end.1 - n.forecasts
+
+# Refit ONLY for holdout evaluation on the truncated window
+model_q_xpred_holdout <- tsgc::SSModelDynamicGompertz(
+  Y = cumulative_cases,  
+  xpred = gauteng_weather_est,
+  q = q.default, 
+  start.date = est.start.1,
+  end.date   = est.end.holdout
+)
+res_qxpred_holdout <- tsgc::estimate(model_q_xpred_holdout)
+
+gauteng_weather_holdout <- get_timeframe(
+  gauteng_weather_2021[, c(1, 3)],
+  est.end.holdout + 1,
+  est.end.holdout + n.forecasts
+)
+
+tsgc::supply_xpred.new(res_qxpred_holdout, gauteng_weather_holdout)
+
 p <- tsgc::plot_holdout(
-  res_weather,
+  res_qxpred_holdout,
   Y                = cumulative_cases,
   n.ahead          = n.forecasts,
   confidence.level = CONF_LEVEL,
@@ -441,8 +463,9 @@ p <- tsgc::plot_holdout(
 )
 print(p)
 
+# We can also compare different estimates with the actual trajectory
 p <- tsgc::plot_compare_forecast(
-  list(res_free, res_q, res_ar1, res_weather),
+  list(res_q, res_ar1, res_weather),
   actual = cumulative_cases
 )
 print(p)
@@ -866,7 +889,7 @@ cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz(
   end.date = est.end, ar1 = TRUE
 )
 
-# Model 3–6: Leading Indicator with different lags: 7, 10, 14, 18
+# Model 3–6: Leading Indicator with different n.lags, from 1-21
 for (i in 1:21) {
   cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator(
     Y = tsgc::ukitaly, start.date = est.start, 
@@ -1005,28 +1028,18 @@ print(p)
 # save_plot(p, "wii_sales_gomp_loggr_fcst.png")
 
 p <- tsgc::plot_forecast(
-  res_wii, n.ahead = n.forecasts, title = "Wii sales"
+  res_wii, n.ahead = n.forecasts, title = "Wii sales", series.name = "Sales"
 )
 print(p)
 # save_plot(p, "wii_sales_gomp_fcst.png")
 
 p <- tsgc::plot_holdout(
-  res_wii, Y = wii, n.ahead = n.forecasts, title = "Wii sales"
+  res_wii, Y = wii, n.ahead = n.forecasts, 
+  title = "Accuracy: Forecast of new Wii sales", series.name = "Sales"
 )
 print(p)
 # save_plot(p, "wii_sales_gomp_holdout.png")
 
-# Explicit console+save example (reuse from Section 2 for consistency check)
-p_holdout <- tsgc::plot_holdout(
-  res_q, Y = cumulative_cases, n.ahead = n.forecasts, 
-  confidence.level = CONF_LEVEL,
-  title = "Accuracy: Forecast of new cases,\n14-days (Gauteng)", 
-  series.name = "Cases"
-)
-print(p_holdout)
-# save_plot(p_holdout, "gauteng_cases_gomp_q005_holdout.png")
-
-#' 
 #' ## 8.2 Leading Indicator Model with Quarterly Data: Wii to Switch
 #' 
 #'  Nintendo Wii was launched in 2006, and the Nintendo Switch in 2017.
@@ -1038,7 +1051,7 @@ print(p_holdout)
 n.forecasts   <- 8
 est.start.q2  <- zoo::as.yearqtr("2017 Q1")
 est.end.q2    <- zoo::as.yearqtr("2019 Q4")
-n.lag.q       <- (zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4"))*4
+n.lag.q       <- round((zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4"))*4)
 
 # Column 1 (Wii) is treated as the lead; column 2 (Switch) as the target.
 y_q <- nintendo_sales[, c("wii", "switch_all")]
@@ -1136,7 +1149,7 @@ print(p)
 n.forecasts  <- 4
 est.start.m2 <- zoo::as.yearmon(2017.5)
 est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
-n.lag.m      <- (zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017))*12
+n.lag.m      <- round((zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017))*12)
 
 y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
 mod_500_lead <- tsgc::SSModelLeadingIndicator(
