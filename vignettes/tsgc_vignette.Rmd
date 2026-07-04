@@ -18,20 +18,27 @@ editor_options:
 knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 7,
                       fig.height = 7)
 
-library(tsgc)
-library(dplyr)
-library(ggplot2)
-library(ggthemes)
-library(ggfortify)
-library(ggforce)
-library(magrittr)
-library(zoo)
-library(ggfortify)
-library(latex2exp)
-library(xts)
-library(gridExtra)
-library(here)
-library(timetk)
+if (requireNamespace("pkgload", quietly = TRUE)) {
+  pkgload::load_all(".", quiet = TRUE)
+} else {
+  library(tsgc)
+}
+
+suppressPackageStartupMessages({
+  library(dplyr)
+  library(ggplot2)
+  library(ggthemes)
+  library(ggfortify)
+  library(ggforce)
+  library(magrittr)
+  library(zoo)
+  library(latex2exp)
+  library(xts)
+  library(gridExtra)
+  library(here)
+  library(timetk)
+})
+
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
 ```
 
@@ -457,15 +464,16 @@ seasonal term, as described in the Appendix.
 The main Gompertz class in `tsgc` is `SSModelDynamicGompertz`, which
 implements the models described in (2)-(4), with or without
 reinitialization. The unknown parameters are estimated with the
-`estimate()` method. This estimation returns an object of the
-`FilterResults` class, which is a wrapper around the `KFAS` `KFS` class
-with a date index and additional methods for prediction attached.
+`estimate()` method on the model object. In the current package API this is
+usually invoked as `model$estimate()`, which returns an object of the
+`FilterResults` class. This class wraps the underlying `KFAS` `KFS`
+object with a date index and additional methods for prediction attached.
 
 The `SSModelDynamicGompertz` needs only a cumulative series $Y$ as an
 input. In our application, this is the cumulative number of new
 coronavirus cases. There is an option to specify the signal-to-noise
 ratio $q_{\zeta}$, rather than estimate it, and an option to specify the
-model to have a seasonal component, using the `sea.type` option. The
+model to have a seasonal component through the `sea.period` argument. The
 period of a seasonal component is specified through the `sea.period`
 option.
 
@@ -480,23 +488,23 @@ and `use.presample.info` can be set to `FALSE`.
 
 The `FilterResults` class contains prediction methods which can be
 applied to estimated dynamic Gompertz curve models (both reinitialized
-and non-reinitialized). `get_growth_y` will return filtered or smoothed
-estimates of the growth rate of new cases ($g_t$), while `get_gy_ci`
-will return the same with confidence intervals. Forecasts of the
+and non-reinitialized). `get_growth_y()` returns filtered or smoothed
+estimates of the growth rate of new cases ($g_t$), while `get_gy_ci()`
+returns the same with confidence intervals. Forecasts of the
 incidence variable (new cases, $y_t$) can be obtained with the
-`predict_level` call, and forecasts of all the states can be obtained
-with the `predict_all` call.
+`predict_level()` call, and forecasts of all the states can be obtained
+with the `predict_all()` call.
 
 Several functions are available to generate plots of smoothed and
-filtered estimates and forecasts. `plot_forecast` will plot actual and
-realised values of $\ln(g_t)$. `plot_gy` and `plot_gy_ci` can be used to
-plot the smoothed or filtered growth rate, its components, and
-confidence intervals, respectively. Forecasts of the incidence variable
-($y_t$) and forecast intervals can be plotted using `plot_new_cases`,
-while `plot_holdout` adds plots of prediction intervals and of realized
-outcomes over a holdout period to help evaluate forecast accuracy.
-Finally, the `reinitialise_dataframe` function can be used to
-reinitialise a dataframe at a given `reinit.date`.
+filtered estimates and forecasts. `plot_log_forecast()` plots the
+forecast and realised values of $\ln(g_t)$. `plot_gy_components()` and
+`plot_gy_ci()` can be used to plot the smoothed or filtered growth rate,
+its components, and confidence intervals, respectively. Forecasts of the
+incidence variable ($y_t$) and forecast intervals can be plotted using
+`plot_forecast()`, while `plot_holdout()` adds plots of prediction
+intervals and of realized outcomes over a holdout period to help evaluate
+forecast accuracy. Finally, the `reinitialise_dataframe()` function can be
+used to reinitialise a data frame at a given `reinit.date`.
 
 More details on how to use the methods and functions described are
 presented in the following section.
@@ -655,7 +663,7 @@ parameter to be estimated, as in the code below.
 
 ```{r model_est_free_q, eval = F}
 model_q <- SSModelDynamicGompertz$new(Y = y)
-res_q <- estimate(model_q)
+res_q <- model_q$estimate()
 ```
 
 In the rest of this example we estimate the model setting the
@@ -666,7 +674,7 @@ observations.
 
 ```{r model_est_fix_q, eval = F}
 model = SSModelDynamicGompertz$new(Y = y, q = q)
-res = estimate(model)
+res = model$estimate()
 ```
 
 ## Results
@@ -681,13 +689,14 @@ cases series to the log of the growth rate of the cumulative cases.
 
 First, we create the evaluation sample.
 
-`tsgc::plot_forecast` then creates and plots forecasts of $\ln(g_t)$.
+`tsgc::plot_log_forecast` then creates and plots forecasts of $\ln(g_t)$.
 
 ```{r plot_forecast1, eval=F}
 tsgc::plot_log_forecast(
- object=res,
- Y = Y, n.ahead = n.forecasts,
- plt.start.date =  tail(res$index, 1) - plt.length
+  res = res,
+  Y = Y,
+  n.ahead = n.forecasts,
+  plt.start.date = tail(res$index, 1) - plt.length
 )
 ```
 
@@ -722,9 +731,10 @@ y.eval <- Y %>%
 
 # Plot filtered, forecast and realised log growth rate
 p1 <- tsgc::plot_log_forecast(
-  object=res,
-  Y=Y, n.ahead = n.forecasts,
-  plt.start.date =  tail(res$index, 1) - plt.length
+  res = res,
+  Y = Y,
+  n.ahead = n.forecasts,
+  plt.start.date = tail(res$index, 1) - plt.length
 )
 p1
 ```
@@ -733,11 +743,12 @@ From these results we can recover the forecasts of new cases from 20
 April 2021, with their prediction intervals.
 
 ```{r fig-3, fig.cap = "Figure 3: Fourteen-day forecast of new cases from 20 April 2021 for Gauteng province in South Africa"}
-tsgc::plot_new_cases(
-  object=res,n.ahead=n.forecasts,
-  confidence.level=confidence.level,
-  date_format="%Y-%m-%d",
-  plt.start.date = tail(res$index, 1) - plt.length
+tsgc::plot_forecast(
+  res = res,
+  n.ahead = n.forecasts,
+  confidence.level = confidence.level,
+  plt.start.date = tail(res$index, 1) - plt.length,
+  series.name = "cases"
 )
 ```
 
@@ -748,9 +759,13 @@ first differences of `Y.eval`, the cumulative series for the forecast
 window.
 
 ```{r fig-4, fig.cap = "Figure 4: Accuracy of the fourteen-day forecast of new cases from 20 April 2021 for Gauteng province in South Africa."}
-tsgc::plot_holdout(object=res, Y = Y, n.ahead=14,
-                   confidence.level = 0.68,
-                   date_format = "%Y-%m-%d")
+tsgc::plot_holdout(
+  res = res,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
 ```
 
 Figure 4 shows that the forecasts were accurate over the first seven
@@ -965,7 +980,7 @@ model <- SSModelDynamicGompertz$new(
   reinit.date = as.Date(reinit.dates,
   format = date.format)
 )
-res.reinit <- estimate(model)
+res.reinit <- model$estimate()
 ```
 
 We generate the reinitialized data frame by setting cumulative cases to
@@ -979,8 +994,8 @@ Figure 2 for the non-reinitialized series.
 
 ```{r plot_forecast2, eval=F}
 tsgc::plot_log_forecast(
-    object=res.reinit,
-    Y=Y,
+    res = res.reinit,
+    Y = Y,
     n.ahead = n.forecasts,
     plt.start.date =  tail(res.reinit$index, 1) - plt.length,
     title='Forecast of $\\ln(g_t)$  after reinitialization.'
@@ -1010,7 +1025,8 @@ y.eval.reinit <- Y %>%
 
 # Create plot
 tsgc::plot_log_forecast(
-    res.reinit,Y,
+    res = res.reinit,
+    Y = Y,
     n.ahead = n.forecasts,
     plt.start.date =  tail(res.reinit$index, 1) - plt.length,
     title='Forecast of $\\ln(g_t)$  after reinitialization.'
@@ -1023,19 +1039,23 @@ Figures 8 and 9. The trend has begun to turn down in model forecasts
 with the reinitialized series.
 
 ```{r fig-8, fig.cap="Figure 8: Forecast of new cases after reinitialization."}
-tsgc::plot_new_cases(
-  object=res.reinit, 
-  n.ahead=n.forecasts,
-  confidence.level=confidence.level,
-  date_format="%Y-%m-%d",
-  plt.start.date = tail(res.reinit$index, 1) - plt.length
+tsgc::plot_forecast(
+  res = res.reinit,
+  n.ahead = n.forecasts,
+  confidence.level = confidence.level,
+  plt.start.date = tail(res.reinit$index, 1) - plt.length,
+  series.name = "cases"
 )
 ```
 
 ```{r fig-9, fig.cap="Figure 9: Forecast accuracy of the reinitialized model over the hold-out sample period: 14 days past 25 June 2021."}
-tsgc::plot_holdout(res.reinit, Y=Y, n.ahead=14,
-                   confidence.level = 0.68,
-                   date_format = "%Y-%m-%d")
+tsgc::plot_holdout(
+  res = res.reinit,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
 ```
 
 Comparing forecasts, without reinitialization the 14-day forecast MAPE
@@ -1044,9 +1064,13 @@ corresponding MAPE figures for 7-day forecasts is 15.2% without
 reinitialization and 9.5% with reinitialization.
 
 ```{r fig-10, echo=FALSE, fig.cap = "Figure 10: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
-tsgc::plot_holdout(res, Y=Y, n.ahead=14,
-                   confidence.level = 0.68,
-                   date_format = "%Y-%m-%d")
+tsgc::plot_holdout(
+  res = res,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
 ```
 
 Just as for the standard (non-reinitialized) model, the returned

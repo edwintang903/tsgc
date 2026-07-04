@@ -182,7 +182,7 @@ cumulative_cases <- gauteng[, 1]
 #' 
 
 ## ---- 2.2 Data Inspection ------------------------------------------
-mod1 <- tsgc::SSModelDynamicGompertz(Y = cumulative_cases)
+mod1 <- tsgc::SSModelDynamicGompertz$new(Y = cumulative_cases)
 p <- plot(mod1, title = "Gauteng daily cases", series.name = "Cases")
 print(p)
 # save_plot(p, "gauteng_cases_MA.png")
@@ -199,25 +199,25 @@ print(p)
 
 ## ---- 2.3 Estimation ---------------------------
 # 2.3a Diffuse prior (free q)
-model_free <- tsgc::SSModelDynamicGompertz(
+model_free <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases, start.date = est.start.1, 
   end.date = est.end.1
 )
-res_free <- tsgc::estimate(model_free); summary(res_free)
+res_free <- model_free$estimate(); summary(res_free)
 
 # 2.3b Diffuse prior with AR(1)
-model_ar1 <- tsgc::SSModelDynamicGompertz(
+model_ar1 <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases, ar1 = TRUE, start.date = est.start.1, 
   end.date = est.end.1
 )
-res_ar1 <- tsgc::estimate(model_ar1); summary(res_ar1)
+res_ar1 <- model_ar1$estimate(); summary(res_ar1)
 
 # 2.3c Fixed q
-model_q <- tsgc::SSModelDynamicGompertz(
+model_q <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases, q = q.default, start.date = est.start.1, 
   end.date = est.end.1
 )
-res_q <- tsgc::estimate(model_q); summary(res_q)
+res_q <- model_q$estimate(); summary(res_q)
 
 #' 
 #' ## 2.4 Forecasts & Accuracy
@@ -250,13 +250,13 @@ p <- tsgc::plot_forecast(
 est.end.holdout <- est.end.1 - n.forecasts
 
 # Refit ONLY for holdout evaluation on the truncated window
-model_q_holdout <- tsgc::SSModelDynamicGompertz(
+model_q_holdout <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases,  
   q = q.default, 
   start.date = est.start.1,
   end.date   = est.end.holdout
 )
-res_q_holdout <- tsgc::estimate(model_q_holdout); 
+res_q_holdout <- model_q_holdout$estimate(); 
 summary(res_q_holdout)
 
 # 2.4c Holdout accuracy plot
@@ -327,14 +327,14 @@ gauteng_weather_est <- get_timeframe(
 head(gauteng_weather_est)
 
 # Fit a Dynamic Gompertz model with weather regressors
-model_weather <- tsgc::SSModelDynamicGompertz(
+model_weather <- tsgc::SSModelDynamicGompertz$new(
   Y          = cumulative_cases,
   xpred      = gauteng_weather_est,
   start.date = est.start.1,
   end.date   = est.end.1
 )
 
-res_weather <- tsgc::estimate(model_weather)
+res_weather <- model_weather$estimate()
 summary(res_weather)
 
 # ---------------------------------------------------
@@ -436,14 +436,14 @@ print(p)
 est.end.holdout <- est.end.1 - n.forecasts
 
 # Refit ONLY for holdout evaluation on the truncated window
-model_q_xpred_holdout <- tsgc::SSModelDynamicGompertz(
+model_q_xpred_holdout <- tsgc::SSModelDynamicGompertz$new(
   Y = cumulative_cases,  
   xpred = gauteng_weather_est,
   q = q.default, 
   start.date = est.start.1,
   end.date   = est.end.holdout
 )
-res_qxpred_holdout <- tsgc::estimate(model_q_xpred_holdout)
+res_qxpred_holdout <- model_q_xpred_holdout$estimate()
 
 gauteng_weather_holdout <- get_timeframe(
   gauteng_weather_2021[, c(1, 3)],
@@ -523,11 +523,11 @@ print(p)
 ## ---- 5.1 Reinitialisation Trigger Setup ----
 est.end.2 <- as.Date("2021-06-25")
 
-model_rei_base <- tsgc::SSModelDynamicGompertz(  
+model_rei_base <- tsgc::SSModelDynamicGompertz$new(  
   Y = cumulative_cases, q = q.default,
   start.date = est.start.1, end.date = est.end.2
 )
-res_rei_base <- tsgc::estimate(model_rei_base)
+res_rei_base <- model_rei_base$estimate()
 summary(res_rei_base)
 
 # KFS pieces via package accessors
@@ -622,12 +622,12 @@ print(p_trigger)
 # Set reinit date (could also take from trigger.df/reinit_zero.df)
 reinit.date <- as.Date("2021-04-21")
 
-model_reinit <- tsgc::SSModelDynamicGompertz(  
+model_reinit <- tsgc::SSModelDynamicGompertz$new(  
   Y = cumulative_cases, q = q.default,
   start.date = est.start.1, end.date = est.end.2,
   reinit.date = reinit.date
 )
-res_reinit <- tsgc::estimate(model_reinit)
+res_reinit <- model_reinit$estimate()
 summary(res_reinit)
 
 # Forecasts after reinitialisation
@@ -682,7 +682,7 @@ tsgc::plot_compare_forecast(
 eng <- tsgc::england[, 1:2]
 
 # Quick plot
-mod2 <- tsgc::SSModelLeadingIndicator(eng, n.lag = 4)
+mod2 <- tsgc::SSModelLeadingIndicator$new(eng, n.lag = 4)
 p <- plot(
   mod2, title = "Daily COVID cases and Hospitalisations\n(England)",
   series.name.lead = "Cases", series.name.target = "Hospitalisations", 
@@ -699,11 +699,11 @@ n.lag         <- 4
 n.forecasts   <- 7
 
 # Define and estimate
-out_eng <- tsgc::SSModelLeadingIndicator(
+out_eng <- tsgc::SSModelLeadingIndicator$new(
   Y = eng, n.lag = n.lag, q = NULL, LeadIndCol = 1, sea.period = 7,
   start.date = est.start.eng, end.date = est.end.eng
 )
-res_eng <- tsgc::estimate(out_eng)
+res_eng <- out_eng$estimate()
 summary(res_eng)
 
 # Forecasts
@@ -743,11 +743,11 @@ if (SAVE_TABLES) {
 
 ## ---- 6.2 England With Regressors - xpred, eval=TRUE ----
 xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
-mod_eng_x <- tsgc::SSModelLeadingIndicator(
+mod_eng_x <- tsgc::SSModelLeadingIndicator$new(
   eng, n.lag = 4, xpred_lead = xpred_lead, xpred_targ = xpred_targ,
   start.date = est.start.eng, end.date = est.end.eng
 )
-res_eng_x <- tsgc::estimate(mod_eng_x)
+res_eng_x <- mod_eng_x$estimate()
 summary(res_eng_x)
 
 tsgc::supply_xpred.new(res_eng_x, 
@@ -794,7 +794,7 @@ p <- tsgc::plot_holdout(
 # By default, column 1 is treated as the leading indicator and 
 # column 2 as the target.
 
-ukit <- tsgc::SSModelLeadingIndicator(tsgc::ukitaly, n.lag = 4)
+ukit <- tsgc::SSModelLeadingIndicator$new(tsgc::ukitaly, n.lag = 4)
 p <- plot(
   ukit, title = "Daily COVID cases in UK and Italy",
   series.name.lead   = "Italy",
@@ -813,13 +813,11 @@ est.start <- as.Date("2020-02-25")
 est.end   <- as.Date("2020-04-01")
 Yuk       <- tsgc::ukitaly[, "UK"]
 
-res_uk_gomp1 <- tsgc::estimate(
-  tsgc::SSModelDynamicGompertz(
-    Y = Yuk, q = q.default,
-    start.date = est.start, 
-    end.date   = est.end
-  )
-)
+res_uk_gomp1 <- tsgc::SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.default,
+  start.date = est.start, 
+  end.date   = est.end
+)$estimate()
 
 p <- tsgc::plot_forecast(
   res_uk_gomp1, n.ahead = n.forecasts, confidence.level = CONF,
@@ -837,14 +835,12 @@ p <- tsgc::plot_holdout(
 
 # Leading indicator model, Case 1
 n.lag <- 14
-res_uk_lead1 <- tsgc::estimate(
-  tsgc::SSModelLeadingIndicator(
-    Y = tsgc::ukitaly, 
-    n.lag = n.lag, sea.period = 7,
-    start.date = est.start, 
-    end.date   = est.end
-  )
-)
+res_uk_lead1 <- tsgc::SSModelLeadingIndicator$new(
+  Y = tsgc::ukitaly, 
+  n.lag = n.lag, sea.period = 7,
+  start.date = est.start, 
+  end.date   = est.end
+)$estimate()
 
 p <- tsgc::plot_forecast(
   res_uk_lead1, n.ahead = n.forecasts,
@@ -878,20 +874,20 @@ tsgc::plot_compare_forecast(
 cv_models <- list()
 
 # Model 1: Vanilla Gompertz
-cv_models[["Vanilla_q"]] <- tsgc::SSModelDynamicGompertz(
+cv_models[["Vanilla_q"]] <- tsgc::SSModelDynamicGompertz$new(
   Y = Yuk, q = q.default, start.date = est.start, 
   end.date = est.end
 )
 
 # Model 2: Vanilla Gompertz with AR(1)
-cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz(
+cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz$new(
   Y = Yuk, start.date = est.start, 
   end.date = est.end, ar1 = TRUE
 )
 
 # Model 3–6: Leading Indicator with different n.lags, from 1-21
 for (i in 1:21) {
-  cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator(
+  cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator$new(
     Y = tsgc::ukitaly, start.date = est.start, 
     end.date = est.end, n.lag = i
   )
@@ -923,12 +919,10 @@ tsgc::cross_val(
 est.start <- as.Date("2020-02-25")
 est.end   <- as.Date("2020-04-15")
 
-res_uk_gomp2 <- tsgc::estimate(
-  tsgc::SSModelDynamicGompertz(
-    Y = Yuk, q = q.default,
-    start.date = est.start, end.date = est.end
-  )
-)
+res_uk_gomp2 <- tsgc::SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.default,
+  start.date = est.start, end.date = est.end
+)$estimate()
 
 p <- tsgc::plot_forecast(
   res_uk_gomp2, n.ahead = n.forecasts, confidence.level = CONF,
@@ -944,12 +938,10 @@ p <- tsgc::plot_holdout(
   series.name = "UK cases"
 ); print(p)
 
-res_uk_lead2 <- tsgc::estimate(
-  tsgc::SSModelLeadingIndicator(
-    Y = tsgc::ukitaly, n.lag = 14,
-    start.date = est.start, end.date = est.end
-  )
-)
+res_uk_lead2 <- tsgc::SSModelLeadingIndicator$new(
+  Y = tsgc::ukitaly, n.lag = 14,
+  start.date = est.start, end.date = est.end
+)$estimate()
 
 p <- tsgc::plot_forecast(
   res_uk_lead2, n.ahead = n.forecasts,
@@ -1005,11 +997,11 @@ n.forecasts <- 4
 est.start.q <- zoo::as.yearqtr("2006 Q4")
 est.end.q   <- zoo::as.yearqtr("2010 Q3")
 
-mod_wii <- tsgc::SSModelDynamicGompertz(  
+mod_wii <- tsgc::SSModelDynamicGompertz$new(  
   Y = wii, sea.period = 4, start.date = est.start.q, 
   end.date = est.end.q
 )
-res_wii <- tsgc::estimate(mod_wii)
+res_wii <- mod_wii$estimate()
 summary(res_wii)
 
 # Cases with MA overlay
@@ -1055,11 +1047,11 @@ n.lag.q       <- round((zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4"))
 
 # Column 1 (Wii) is treated as the lead; column 2 (Switch) as the target.
 y_q <- nintendo_sales[, c("wii", "switch_all")]
-mod_switch <- tsgc::SSModelLeadingIndicator(
+mod_switch <- tsgc::SSModelLeadingIndicator$new(
   Y = y_q, sea.period = 4, n.lag = n.lag.q, 
   start.date = est.start.q2, end.date = est.end.q2
 )
-res_switch <- tsgc::estimate(mod_switch)
+res_switch <- mod_switch$estimate()
 summary(res_switch)
 
 p <- tsgc::plot_log_forecast(
@@ -1099,11 +1091,11 @@ n.forecasts <- 4
 est.start.m <- zoo::as.yearmon(2016)
 est.end.m   <- zoo::as.yearmon(2021)
 
-mod_500 <- tsgc::SSModelDynamicGompertz(
+mod_500 <- tsgc::SSModelDynamicGompertz$new(
   Y = Plus500, sea.period = 12, start.date = est.start.m, 
   end.date = est.end.m
 )
-res_500 <- tsgc::estimate(mod_500)
+res_500 <- mod_500$estimate()
 summary(res_500)
 
 p <- plot(
@@ -1152,11 +1144,11 @@ est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
 n.lag.m      <- round((zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017))*12)
 
 y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
-mod_500_lead <- tsgc::SSModelLeadingIndicator(
+mod_500_lead <- tsgc::SSModelLeadingIndicator$new(
   Y = y_m, sea.period = 12, n.lag = n.lag.m, 
   start.date = est.start.m2, end.date = est.end.m2
 )
-res_500_lead <- tsgc::estimate(mod_500_lead)
+res_500_lead <- mod_500_lead$estimate()
 summary(res_500_lead)
 
 p <- tsgc::plot_log_forecast(
@@ -1210,11 +1202,11 @@ yearly_nintendo_xts  <- xts::xts(
   order.by = zoo::yearmon(2005:2023)
 )
 
-mod_3ds <- tsgc::SSModelDynamicGompertz(  
+mod_3ds <- tsgc::SSModelDynamicGompertz$new(  
   Y = threeds_xts, sea.period = 0, 
   start.date = est.start.y, end.date = est.end.y
 )
-res_3ds <- tsgc::estimate(mod_3ds)
+res_3ds <- mod_3ds$estimate()
 summary(res_3ds)
 
 p <- tsgc::plot_log_forecast(
@@ -1250,12 +1242,12 @@ print(p)
 
 ## ---- 8.6 Annual-leading: Wii to 3DS (Lead) ----
 n.lag.y <- zoo::as.yearmon(2011) - zoo::as.yearmon(2007)
-mod_lead_y <- tsgc::SSModelLeadingIndicator(
+mod_lead_y <- tsgc::SSModelLeadingIndicator$new(
   Y = yearly_nintendo_xts, sea.period = 0, n.lag = n.lag.y,
   start.date = est.start.y, end.date = est.end.y, 
   LeadIndCol = 1
 )
-res_lead_y <- tsgc::estimate(mod_lead_y)
+res_lead_y <- mod_lead_y$estimate()
 summary(res_lead_y)
 
 p <- tsgc::plot_log_forecast(
