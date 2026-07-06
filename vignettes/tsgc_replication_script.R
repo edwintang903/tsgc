@@ -509,7 +509,6 @@ if (SAVE_TABLES) {
 #' 
 
 ## ---- 3.1 Estimation with Regressors: xpred ----
-# Add weather regressors to the Gauteng Gompertz model and show how future regressor paths are supplied for forecasting.
 
 # In this section we show how to use exogenous variables (xpred),
 # such as future weather values, as regressors in the tsgc model.
@@ -694,7 +693,7 @@ print(p)
 # We can also compare different estimates with the actual trajectory
 # Compare forecasts from the baseline fixed-q model and the weather-augmented model.
 p <- tsgc::plot_compare_forecast(
-  list(res_q, res_ar1, res_weather),
+  list(res_free, res_q, res_ar1, res_weather),
   actual = cumulative_cases
 )
 print(p)
