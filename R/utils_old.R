@@ -342,6 +342,7 @@ estimate_r0<-function(res, gen_int, ndays=7, show_plot=FALSE,
   
   if (show_plot){
     res.rt <- ggplot(r.t, aes(x = Date)) +
+      ylim(0, 1.4) +
       geom_line(aes(y = Rt, color = "Rt")) +
       geom_point(aes(y = Rt), color = "red", size = 3) +
       geom_segment(aes(xend = Date, yend = lower, y = Rt), color = "blue") +
@@ -350,7 +351,6 @@ estimate_r0<-function(res, gen_int, ndays=7, show_plot=FALSE,
       geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
       scale_x_date(date_breaks = "1 day") +
       labs(title = title)+
-      scale_y_continuous(limits = c(0, NA))+
       theme_light(base_size = 12) +
       theme(
         legend.position = "inside",

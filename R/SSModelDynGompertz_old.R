@@ -623,14 +623,15 @@ SSModelDynamicGompertz <- setRefClass(
     model <- get_model(y, xpred=xpred)
     
     # 3. Add update methods to enforce signal-to-noise ratio
-    updatefn <- purrr::partial(update, ... =, q = q)
-    
-    model_fit <- fitSSM(
-      model$model,
-      inits = model$inits,
-      updatefn = updatefn,
-      method = "BFGS"
-    )
+    if (!is.null(q) || ar1){
+      updatefn <- purrr::partial(update, ... =, q = q)
+      
+      # Estimate via MLE unknown params
+      model_fit <- fitSSM(model$model, inits = model$inits, updatefn = updatefn,
+                          method = 'BFGS')
+    } else {
+      model_fit <- fitSSM(model$model, inits = model$inits, method = 'BFGS')
+    }
     
     # 4. Run smoother/filter
     model_output <- KFS(model_fit$model)
