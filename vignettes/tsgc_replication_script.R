@@ -443,15 +443,10 @@ if (SAVE_TABLES) {
 # ====================================================
 # 3. Gauteng: Gompertz Model with Exogenous Regressors
 # ====================================================
-
-#' 
-#' # 3. Gauteng: Gompertz Model with Exogenous Regressors
-#' 
-#' Augment the Gompertz model with weather regressors; re-estimate and compare
-#' forecasts and accuracy.
-#' 
-#' ## 3.1 Estimation with Regressors: `xpred`
-#' 
+# 
+# Augment the Gompertz model with weather regressors; re-estimate and compare
+# forecasts and accuracy.
+#
 
 ## ---- 3.1 Estimation with Regressors: xpred ----
 

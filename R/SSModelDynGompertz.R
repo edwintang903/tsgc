@@ -237,10 +237,10 @@ SSModelDynamicGompertz <- setRefClass(
         if (is.null(q)) {
           nparQ<-nparQ+1
           Q.slope <- exp(0.5 * pars[nparQ])
+          model$Q[i.slope, i.slope, 1] <- crossprod(Q.slope)
         } else {
-          Q.slope <- crossprod(H[naHd, naHd]) * q
+          model$Q[i.slope, i.slope, 1] <- crossprod(H[naHd, naHd]) * q
         }
-        model$Q[i.slope, i.slope, 1] <- Q.slope
         
         # 4. Set AR1 noise
         if (ar1){
@@ -625,12 +625,9 @@ SSModelDynamicGompertz <- setRefClass(
     # 3. Add update methods to enforce signal-to-noise ratio
     updatefn <- purrr::partial(update, ... =, q = q)
     
-    model_fit <- fitSSM(
-      model$model,
-      inits = model$inits,
-      updatefn = updatefn,
-      method = "BFGS"
-    )
+    # Estimate via MLE unknown params
+    model_fit <- fitSSM(model$model, inits = model$inits, updatefn = updatefn,
+                        method = 'BFGS')
     
     # 4. Run smoother/filter
     model_output <- KFS(model_fit$model)
