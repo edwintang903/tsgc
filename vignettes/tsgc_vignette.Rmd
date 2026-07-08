@@ -94,12 +94,13 @@ explains how multiple waves can be accommodated by reinitializing the
 series at the start of new waves. The start of a new wave is not obvious
 in real time but a rule for triggering reinitialization that works well
 in practice is presented. Section 4 describes the functionality of
-`tsgc`, including the leading-indicator extension, model comparison and
-lag selection by rolling cross-validation, the forecast accuracy
-measures used to evaluate the package's models, and the package's
-applicability to data frequencies other than daily. Section 5 sets out
-a full working example of the package for COVID-19 data in Gauteng
-province in South Africa. Section 6 concludes.
+`tsgc`, including the leading-indicator extension. Section 5 sets out a
+full working example of the package, beginning with COVID-19 data for
+Gauteng province in South Africa and continuing with the leading-indicator
+model, a comparison against the dynamic Gompertz model, lag selection by
+rolling cross-validation, the forecast accuracy measures used to
+evaluate the package's models, and the package's applicability to data
+frequencies other than daily. Section 6 concludes.
 
 # Theory
 
@@ -562,352 +563,13 @@ The empirical benefit of this extension is that it can improve
 short-horizon predictions when the relationship between the two series
 is stable. In practice, one usually compares several lag values and
 evaluates them using a rolling-origin experiment, because the
-appropriate lead-lag relationship is seldom known in advance. The
-example below illustrates the configuration used for the England
-cases-hospitalisations application, first with weekly seasonality
-only and then augmented with weather regressors; the subsequent
-section shows how the package can compare alternative lag
-specifications, and how the leading-indicator model compares against
-the dynamic Gompertz model.
+appropriate lead-lag relationship is seldom known in advance. Worked
+examples of the leading-indicator model, including the England
+cases-hospitalisations application, a comparison against the dynamic
+Gompertz model, lag selection by rolling cross-validation, and
+extensions to other data frequencies, are given in the Illustration
+section below.
 
-We load the England data, which contains daily cumulative COVID-19
-cases and hospital admissions, and specify an estimation window
-running from 30 April 2021 to 24 July 2021, with cases as a four-day
-leading indicator for hospitalisations.
-
-```{r li-setup}
-data(england, package = "tsgc")
-data(england_weather_2021, package = "tsgc")
-
-eng <- england[, 1:2]
-
-est.start.eng <- as.Date("2021-04-30")
-est.end.eng   <- as.Date("2021-07-24")
-n.lag.eng     <- 4
-n.forecasts.eng <- 7
-plt.length.eng  <- 14
-```
-
-A preliminary plot of the two series on the log scale is useful for
-inspecting comovement before formal estimation.
-
-```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
-mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng)
-plot(
-  mod.eng.plot,
-  title = "Daily COVID cases and hospitalisations (England)",
-  series.name.lead = "Cases",
-  series.name.target = "Hospitalisations",
-  take.log = TRUE
-)
-```
-
-We then estimate the baseline leading-indicator model, with cases as
-the lead series (`LeadIndCol = 1`) and weekly seasonality.
-
-```{r li-estimate}
-mod.eng <- SSModelLeadingIndicator$new(
-  Y = eng,
-  n.lag = n.lag.eng,
-  LeadIndCol = 1,
-  sea.period = 7,
-  start.date = est.start.eng,
-  end.date = est.end.eng
-)
-res.eng <- mod.eng$estimate()
-summary(res.eng)
-```
-
-The fitted object `res.eng` can be used to generate the same forecast
-and holdout panels as for the dynamic Gompertz model.
-
-```{r fig-li-log, fig.cap = "Figure 12: Forecast of log growth rate of hospitalisations, England."}
-tsgc::plot_log_forecast(
-  res.eng,
-  Y = eng,
-  n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
-  title = "Forecast of log growth rate of hospitalisations (England)"
-)
-```
-
-```{r fig-li-forecast, fig.cap = "Figure 13: Forecast of hospitalisations, England."}
-tsgc::plot_forecast(
-  res.eng,
-  n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
-  series.name = "Hospitalisations",
-  title = "Forecast of hospitalisations (England)"
-)
-```
-
-```{r fig-li-holdout, fig.cap = "Figure 14: Accuracy of the seven-day forecast of hospitalisations, England."}
-tsgc::plot_holdout(
-  res.eng,
-  Y = eng,
-  n.ahead = n.forecasts.eng,
-  series.name = "Hospitalisations",
-  title = "Accuracy: forecast of hospitalisations (England)"
-)
-```
-
-### Adding regressors and future covariate paths
-
-The same specification can be enriched with exogenous predictors. Here
-we add contemporaneous weather variables (wind speed, relative
-humidity, temperature, and maximum temperature) to both the lead and
-target equations, and then supply their future values before
-forecasting using `supply_xpred.new()`.
-
-```{r li-xpred}
-xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
-
-mod.eng.x <- SSModelLeadingIndicator$new(
-  eng,
-  n.lag = n.lag.eng,
-  xpred_lead = xpred_lead,
-  xpred_targ = xpred_targ,
-  sea.period = 7,
-  start.date = est.start.eng,
-  end.date = est.end.eng
-)
-res.eng.x <- mod.eng.x$estimate()
-
-supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
-supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
-```
-
-```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
-tsgc::plot_forecast(
-  res.eng.x,
-  n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
-  title = "Forecast of hospitalisations with regressors (England)",
-  series.name = "Hospitalisations"
-)
-```
-
-In practice, the recommended sequence is to establish a sensible lag
-and seasonal specification first, inspect the resulting forecasts, and
-only then augment the model with regressors if additional covariates
-are available and future paths can be supplied.
-
-## Comparing the dynamic Gompertz and leading-indicator models
-
-We now compare a UK-only dynamic Gompertz model with a leading-indicator
-model that uses Italian case growth as a lead for UK case growth, using
-daily COVID-19 cases in Italy and the UK from the first-wave period.
-Italy experienced the first large European outbreak earlier than the
-UK, making it a natural candidate for a short-horizon lead series
-during the first wave.
-
-```{r cv-setup}
-data(ukitaly, package = "tsgc")
-
-n.forecasts.uk <- 14
-plt.length.uk  <- 30
-q.default.uk   <- 0.005
-
-est.start.uk <- as.Date("2020-02-25")
-est.end.uk   <- as.Date("2020-04-01")
-Yuk          <- ukitaly[, "UK"]
-```
-
-```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
-mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly, n.lag = 4)
-plot(
-  mod.ukit.plot,
-  title = "Daily COVID cases in UK and Italy",
-  series.name.lead = "Italy",
-  series.name.target = "UK",
-  take.log = FALSE
-)
-```
-
-The UK-only dynamic Gompertz model is estimated on UK daily cases
-alone, and the leading-indicator model uses Italy as the lead series
-with a 14-day lag, motivated by the observed timing of the first-wave
-evolution in Italy relative to the UK.
-
-```{r uk-gompertz}
-mod.uk.gomp <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.default.uk,
-  start.date = est.start.uk, end.date = est.end.uk
-)
-res.uk.gomp <- mod.uk.gomp$estimate()
-```
-
-```{r uk-lead}
-n.lag.uk <- 14
-mod.uk.lead <- SSModelLeadingIndicator$new(
-  Y = ukitaly, n.lag = n.lag.uk, sea.period = 7,
-  start.date = est.start.uk, end.date = est.end.uk
-)
-res.uk.lead <- mod.uk.lead$estimate()
-```
-
-```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
-tsgc::plot_compare_forecast(
-  list(res.uk.gomp, res.uk.lead),
-  actual = ukitaly[, "UK"],
-  n.ahead = n.forecasts.uk
-)
-```
-
-```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
-tsgc::plot_holdout(
-  res.uk.lead, Y = ukitaly, n.ahead = n.forecasts.uk,
-  title = "Accuracy: leading-indicator forecast of UK cases",
-  series.name = "UK cases"
-)
-```
-
-In this first-wave window, the leading-indicator model gives
-substantially smaller holdout errors than the UK-only dynamic Gompertz
-model.
-
-### Selecting the lag by rolling cross-validation
-
-The baseline lag $k=14$ is motivated by the observed first-wave timing.
-To avoid selecting the lag purely by inspection, the package provides
-a rolling cross-validation utility, `cross_val()`, which evaluates
-candidate specifications over a rolling origin and reports a chosen
-accuracy criterion. Because `SSModelLeadingIndicator` uses a single
-alignment lag per fitted model, this should be read as model selection
-over alternative alignments, not as estimation of a distributed-lag
-response.
-
-```{r cv-models}
-cv_models <- list()
-
-cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.default.uk, start.date = est.start.uk, end.date = est.end.uk
-)
-
-cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
-  Y = Yuk, start.date = est.start.uk, end.date = est.end.uk, ar1 = TRUE
-)
-
-for (i in c(7, 10, 14, 16, 18, 21)) {
-  cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
-    Y = ukitaly, start.date = est.start.uk, end.date = est.end.uk, n.lag = i
-  )
-}
-```
-
-```{r cv-run}
-cross_val(
-  Y = ukitaly,
-  model_list = cv_models,
-  est.end.date = est.end.uk,
-  criterion = "smape",
-  n.ahead = 14,
-  n.estimate = 5,
-  gap = 2
-)
-```
-
-For each candidate model, `cross_val()` evaluates forecasting
-performance over a rolling-origin scheme, re-estimating the model at
-each origin and recording the chosen accuracy criterion over the
-forecast horizon. The two `Vanilla` rows are UK-only dynamic Gompertz
-benchmarks (fixed $q_\zeta$ and the AR(1) extension respectively); the
-remaining rows are Italy-to-UK leading-indicator models at different
-lags. The best-performing lags in this window are typically found in
-the mid-teens, consistent with a lead of roughly two to two-and-a-half
-weeks from Italy to the UK over this period.
-
-## Forecast accuracy and rolling-origin validation
-
-Forecast accuracy can be evaluated with a variety of scale-dependent
-and scale-free measures. In the notation of the package, the mean
-absolute percentage error is
-$$\mathrm{MAPE}=\frac{100}{n}\sum_{t=1}^n \left|\frac{y_t-\hat y_t}{y_t}\right|,$$
-while the symmetric MAPE is defined as
-$$\mathrm{sMAPE}=\frac{100}{n}\sum_{t=1}^n \frac{2|y_t-\hat y_t|}{|y_t|+|\hat y_t|},$$
-and the mean absolute error and root mean squared error are given by
-$$\mathrm{MAE}=\frac{1}{n}\sum_{t=1}^n |y_t-\hat y_t|, \qquad \mathrm{RMSE}=\sqrt{\frac{1}{n}\sum_{t=1}^n (y_t-\hat y_t)^2}.$$
-sMAPE is reported as the primary percentage-based comparison measure
-in the empirical illustrations above, since MAPE can become unstable
-when observed values are close to zero. The rolling-origin procedure
-used by `cross_val()` re-estimates the model at successive evaluation
-dates, holds back a fixed forecast horizon, and computes the chosen
-loss metric over that out-of-sample window, so that forecast accuracy
-is assessed under a design that matches the practical forecasting
-problem.
-
-## Other data frequencies
-
-The package is not restricted to daily epidemic data. The same
-state-space machinery can be applied to quarterly, monthly, or annual
-data when the underlying series is cumulative and exhibits saturation;
-what changes with the sampling frequency is only the interpretation of
-the time index, forecast horizon, lag length, and seasonal period, not
-the underlying estimation procedure. For example, the quarterly
-Nintendo sales data can be used with a seasonal period of 4 and a
-lagged leading indicator, while monthly trading-app downloads can be
-treated in the same way with a seasonal period of 12.
-
-```{r freq-quarterly}
-data(nintendo_sales, package = "tsgc")
-
-y_q <- nintendo_sales[, c("wii", "switch_all")]
-
-n.lag.q <- round(
-  (zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")) * 4
-)
-
-mod.q <- SSModelLeadingIndicator$new(
-  Y = y_q,
-  sea.period = 4,
-  n.lag = n.lag.q,
-  start.date = zoo::as.yearqtr("2017 Q1"),
-  end.date = zoo::as.yearqtr("2019 Q4")
-)
-res.q <- mod.q$estimate()
-summary(res.q)
-```
-
-```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
-tsgc::plot_log_forecast(
-  res.q, Y = y_q, n.ahead = 8,
-  title = "Log forecasts of Switch sales"
-)
-```
-
-```{r freq-monthly}
-data(etrading_apps, package = "tsgc")
-
-y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
-
-n.lag.m <- round(
-  (zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)) * 12
-)
-
-mod.m <- SSModelLeadingIndicator$new(
-  Y = y_m,
-  sea.period = 12,
-  n.lag = n.lag.m,
-  start.date = zoo::as.yearmon(2017.5),
-  end.date = zoo::as.yearmon(2021 + 1 / 12)
-)
-res.m <- mod.m$estimate()
-summary(res.m)
-```
-
-```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
-tsgc::plot_forecast(
-  res.m, n.ahead = 4,
-  title = "AvaTrade monthly downloads",
-  series.name = "Downloads"
-)
-```
-
-Both examples use the same workflow as the daily illustrations above:
-select an estimation window, fit the model, choose a forecast horizon,
-and evaluate the resulting forecasts. No change to the state-space
-specification or estimation procedure is required when moving between
-frequencies.
 
 # Illustration of the `tsgc` package
 
@@ -1476,6 +1138,347 @@ tsgc::plot_holdout(
 Just as for the standard (non-reinitialized) model, the returned
 estimation results contained in `res.reinit` are a `FilterResults`
 object, and can be written to CSV using the `write_results` method.
+## Leading indicator model: England cases and hospitalisations
+
+We now illustrate the leading-indicator model described above. We load
+the England data, which contains daily cumulative COVID-19 cases and
+hospital admissions, and specify an estimation window running from 30
+April 2021 to 24 July 2021, with cases as a four-day leading indicator
+for hospitalisations.
+
+```{r li-setup}
+data(england, package = "tsgc")
+data(england_weather_2021, package = "tsgc")
+
+eng <- england[, 1:2]
+
+est.start.eng <- as.Date("2021-04-30")
+est.end.eng   <- as.Date("2021-07-24")
+n.lag.eng     <- 4
+n.forecasts.eng <- 7
+plt.length.eng  <- 14
+```
+
+A preliminary plot of the two series on the log scale is useful for
+inspecting comovement before formal estimation.
+
+```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
+mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng)
+plot(
+  mod.eng.plot,
+  title = "Daily COVID cases and hospitalisations (England)",
+  series.name.lead = "Cases",
+  series.name.target = "Hospitalisations",
+  take.log = TRUE
+)
+```
+
+We then estimate the baseline leading-indicator model, with cases as
+the lead series (`LeadIndCol = 1`) and weekly seasonality.
+
+```{r li-estimate}
+mod.eng <- SSModelLeadingIndicator$new(
+  Y = eng,
+  n.lag = n.lag.eng,
+  LeadIndCol = 1,
+  sea.period = 7,
+  start.date = est.start.eng,
+  end.date = est.end.eng
+)
+res.eng <- mod.eng$estimate()
+summary(res.eng)
+```
+
+The fitted object `res.eng` can be used to generate the same forecast
+and holdout panels as for the dynamic Gompertz model.
+
+```{r fig-li-log, fig.cap = "Figure 12: Forecast of log growth rate of hospitalisations, England."}
+tsgc::plot_log_forecast(
+  res.eng,
+  Y = eng,
+  n.ahead = n.forecasts.eng,
+  plt.start.date = est.end.eng - plt.length.eng,
+  title = "Forecast of log growth rate of hospitalisations (England)"
+)
+```
+
+```{r fig-li-forecast, fig.cap = "Figure 13: Forecast of hospitalisations, England."}
+tsgc::plot_forecast(
+  res.eng,
+  n.ahead = n.forecasts.eng,
+  plt.start.date = est.end.eng - plt.length.eng,
+  series.name = "Hospitalisations",
+  title = "Forecast of hospitalisations (England)"
+)
+```
+
+```{r fig-li-holdout, fig.cap = "Figure 14: Accuracy of the seven-day forecast of hospitalisations, England."}
+tsgc::plot_holdout(
+  res.eng,
+  Y = eng,
+  n.ahead = n.forecasts.eng,
+  series.name = "Hospitalisations",
+  title = "Accuracy: forecast of hospitalisations (England)"
+)
+```
+
+### Adding regressors and future covariate paths
+
+The same specification can be enriched with exogenous predictors. Here
+we add contemporaneous weather variables (wind speed, relative
+humidity, temperature, and maximum temperature) to both the lead and
+target equations, and then supply their future values before
+forecasting using `supply_xpred.new()`.
+
+```{r li-xpred}
+xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
+
+mod.eng.x <- SSModelLeadingIndicator$new(
+  eng,
+  n.lag = n.lag.eng,
+  xpred_lead = xpred_lead,
+  xpred_targ = xpred_targ,
+  sea.period = 7,
+  start.date = est.start.eng,
+  end.date = est.end.eng
+)
+res.eng.x <- mod.eng.x$estimate()
+
+supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
+supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
+```
+
+```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
+tsgc::plot_forecast(
+  res.eng.x,
+  n.ahead = n.forecasts.eng,
+  plt.start.date = est.end.eng - plt.length.eng,
+  title = "Forecast of hospitalisations with regressors (England)",
+  series.name = "Hospitalisations"
+)
+```
+
+In practice, the recommended sequence is to establish a sensible lag
+and seasonal specification first, inspect the resulting forecasts, and
+only then augment the model with regressors if additional covariates
+are available and future paths can be supplied.
+
+## Comparing the dynamic Gompertz and leading-indicator models
+
+We now compare a UK-only dynamic Gompertz model with a leading-indicator
+model that uses Italian case growth as a lead for UK case growth, using
+daily COVID-19 cases in Italy and the UK from the first-wave period.
+Italy experienced the first large European outbreak earlier than the
+UK, making it a natural candidate for a short-horizon lead series
+during the first wave.
+
+```{r cv-setup}
+data(ukitaly, package = "tsgc")
+
+n.forecasts.uk <- 14
+plt.length.uk  <- 30
+q.default.uk   <- 0.005
+
+est.start.uk <- as.Date("2020-02-25")
+est.end.uk   <- as.Date("2020-04-01")
+Yuk          <- ukitaly[, "UK"]
+```
+
+```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
+mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly, n.lag = 4)
+plot(
+  mod.ukit.plot,
+  title = "Daily COVID cases in UK and Italy",
+  series.name.lead = "Italy",
+  series.name.target = "UK",
+  take.log = FALSE
+)
+```
+
+The UK-only dynamic Gompertz model is estimated on UK daily cases
+alone, and the leading-indicator model uses Italy as the lead series
+with a 14-day lag, motivated by the observed timing of the first-wave
+evolution in Italy relative to the UK.
+
+```{r uk-gompertz}
+mod.uk.gomp <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.default.uk,
+  start.date = est.start.uk, end.date = est.end.uk
+)
+res.uk.gomp <- mod.uk.gomp$estimate()
+```
+
+```{r uk-lead}
+n.lag.uk <- 14
+mod.uk.lead <- SSModelLeadingIndicator$new(
+  Y = ukitaly, n.lag = n.lag.uk, sea.period = 7,
+  start.date = est.start.uk, end.date = est.end.uk
+)
+res.uk.lead <- mod.uk.lead$estimate()
+```
+
+```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
+tsgc::plot_compare_forecast(
+  list(res.uk.gomp, res.uk.lead),
+  actual = ukitaly[, "UK"],
+  n.ahead = n.forecasts.uk
+)
+```
+
+```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
+tsgc::plot_holdout(
+  res.uk.lead, Y = ukitaly, n.ahead = n.forecasts.uk,
+  title = "Accuracy: leading-indicator forecast of UK cases",
+  series.name = "UK cases"
+)
+```
+
+In this first-wave window, the leading-indicator model gives
+substantially smaller holdout errors than the UK-only dynamic Gompertz
+model.
+
+### Selecting the lag by rolling cross-validation
+
+The baseline lag $k=14$ is motivated by the observed first-wave timing.
+To avoid selecting the lag purely by inspection, the package provides
+a rolling cross-validation utility, `cross_val()`, which evaluates
+candidate specifications over a rolling origin and reports a chosen
+accuracy criterion. Because `SSModelLeadingIndicator` uses a single
+alignment lag per fitted model, this should be read as model selection
+over alternative alignments, not as estimation of a distributed-lag
+response.
+
+```{r cv-models}
+cv_models <- list()
+
+cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.default.uk, start.date = est.start.uk, end.date = est.end.uk
+)
+
+cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, start.date = est.start.uk, end.date = est.end.uk, ar1 = TRUE
+)
+
+for (i in c(7, 10, 14, 16, 18, 21)) {
+  cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
+    Y = ukitaly, start.date = est.start.uk, end.date = est.end.uk, n.lag = i
+  )
+}
+```
+
+```{r cv-run}
+cross_val(
+  Y = ukitaly,
+  model_list = cv_models,
+  est.end.date = est.end.uk,
+  criterion = "smape",
+  n.ahead = 14,
+  n.estimate = 5,
+  gap = 2
+)
+```
+
+For each candidate model, `cross_val()` evaluates forecasting
+performance over a rolling-origin scheme, re-estimating the model at
+each origin and recording the chosen accuracy criterion over the
+forecast horizon. The two `Vanilla` rows are UK-only dynamic Gompertz
+benchmarks (fixed $q_\zeta$ and the AR(1) extension respectively); the
+remaining rows are Italy-to-UK leading-indicator models at different
+lags. The best-performing lags in this window are typically found in
+the mid-teens, consistent with a lead of roughly two to two-and-a-half
+weeks from Italy to the UK over this period.
+
+## Forecast accuracy and rolling-origin validation
+
+Forecast accuracy can be evaluated with a variety of scale-dependent
+and scale-free measures. In the notation of the package, the mean
+absolute percentage error is
+$$\mathrm{MAPE}=\frac{100}{n}\sum_{t=1}^n \left|\frac{y_t-\hat y_t}{y_t}\right|,$$
+while the symmetric MAPE is defined as
+$$\mathrm{sMAPE}=\frac{100}{n}\sum_{t=1}^n \frac{2|y_t-\hat y_t|}{|y_t|+|\hat y_t|},$$
+and the mean absolute error and root mean squared error are given by
+$$\mathrm{MAE}=\frac{1}{n}\sum_{t=1}^n |y_t-\hat y_t|, \qquad \mathrm{RMSE}=\sqrt{\frac{1}{n}\sum_{t=1}^n (y_t-\hat y_t)^2}.$$
+sMAPE is reported as the primary percentage-based comparison measure
+in the empirical illustrations above, since MAPE can become unstable
+when observed values are close to zero. The rolling-origin procedure
+used by `cross_val()` re-estimates the model at successive evaluation
+dates, holds back a fixed forecast horizon, and computes the chosen
+loss metric over that out-of-sample window, so that forecast accuracy
+is assessed under a design that matches the practical forecasting
+problem.
+
+## Other data frequencies
+
+The package is not restricted to daily epidemic data. The same
+state-space machinery can be applied to quarterly, monthly, or annual
+data when the underlying series is cumulative and exhibits saturation;
+what changes with the sampling frequency is only the interpretation of
+the time index, forecast horizon, lag length, and seasonal period, not
+the underlying estimation procedure. For example, the quarterly
+Nintendo sales data can be used with a seasonal period of 4 and a
+lagged leading indicator, while monthly trading-app downloads can be
+treated in the same way with a seasonal period of 12.
+
+```{r freq-quarterly}
+data(nintendo_sales, package = "tsgc")
+
+y_q <- nintendo_sales[, c("wii", "switch_all")]
+
+n.lag.q <- round(
+  (zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")) * 4
+)
+
+mod.q <- SSModelLeadingIndicator$new(
+  Y = y_q,
+  sea.period = 4,
+  n.lag = n.lag.q,
+  start.date = zoo::as.yearqtr("2017 Q1"),
+  end.date = zoo::as.yearqtr("2019 Q4")
+)
+res.q <- mod.q$estimate()
+summary(res.q)
+```
+
+```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
+tsgc::plot_log_forecast(
+  res.q, Y = y_q, n.ahead = 8,
+  title = "Log forecasts of Switch sales"
+)
+```
+
+```{r freq-monthly}
+data(etrading_apps, package = "tsgc")
+
+y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+
+n.lag.m <- round(
+  (zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)) * 12
+)
+
+mod.m <- SSModelLeadingIndicator$new(
+  Y = y_m,
+  sea.period = 12,
+  n.lag = n.lag.m,
+  start.date = zoo::as.yearmon(2017.5),
+  end.date = zoo::as.yearmon(2021 + 1 / 12)
+)
+res.m <- mod.m$estimate()
+summary(res.m)
+```
+
+```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
+tsgc::plot_forecast(
+  res.m, n.ahead = 4,
+  title = "AvaTrade monthly downloads",
+  series.name = "Downloads"
+)
+```
+
+Both examples use the same workflow as the daily illustrations above:
+select an estimation window, fit the model, choose a forecast horizon,
+and evaluate the resulting forecasts. No change to the state-space
+specification or estimation procedure is required when moving between
+frequencies.
 
 # Conclusions
 

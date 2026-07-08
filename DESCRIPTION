@@ -17,8 +17,8 @@ Description: The 'tsgc' package provides comprehensive tools for the analysis an
     officials and researchers who need to understand and predict the course of an epidemic to inform
     decision-making. Beyond its application in public health, the package is also a useful resource for researchers
     and practitioners in fields where the trajectories of interest resemble those of epidemics, such as innovation
-    diffusion and product adoption. The underlying state space framework applies equally to data observed at daily,
-    weekly, monthly, quarterly, or annual frequency. The package includes functionalities for data preprocessing,
+    diffusion and product adoption. The underlying state space framework applies equally to data observed at daily, 
+    monthly, quarterly, or annual frequency. The package includes functionalities for data preprocessing,
     model fitting, forecast visualization, and forecast accuracy evaluation using standard scale-dependent and
     scale-free error measures. The core methodologies implemented in 'tsgc' are based on well-established
     statistical techniques as described in Harvey and Kattuman (2020) <doi:10.1162/99608f92.828f40de>, Harvey and
