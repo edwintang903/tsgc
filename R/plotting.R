@@ -197,7 +197,7 @@ plot_gy_components <- function(res,plt.start.date = NULL,
 #' plot_gy_ci(res, plt.start.date = as.Date("2020-07-13"))
 #'
 #' @importFrom ggplot2 ggplot geom_line geom_hline geom_ribbon labs
-#' scale_color_manual scale_linetype_manual margin
+#' @importFrom ggplot2 scale_color_manual scale_linetype_manual margin
 #' @importFrom ggthemes theme_economist_white
 #' @importFrom utils tail
 #'

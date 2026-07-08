@@ -98,6 +98,7 @@ supply_xpred.new<-function(object, new.xts, idx=NULL){
 #' # Return KFS object in output of res
 #' output(res)
 #'
+#' @export
 output<-function(object){
   return(object$output)
 }
@@ -120,6 +121,7 @@ output<-function(object){
 #' # Extract Z matrix from output(res)
 #' modelKFS(output(res))
 #'
+#' @export
 modelKFS<-function(object){
   return(object$model)
 }
@@ -142,6 +144,7 @@ modelKFS<-function(object){
 #' #Return number of seasonal components
 #' seasonalComp(output(res))
 #'
+#' @export
 seasonalComp<-function(object){
   attr(modelKFS(object)$terms, "specials")$SSMseasonal
 }
@@ -166,6 +169,7 @@ seasonalComp<-function(object){
 #'
 #' @returns Filtered state estimate in KFS object
 #' 
+#' @export
 att<-function(object){
   object$att
 }
@@ -188,7 +192,8 @@ att<-function(object){
 #' 
 #' #Return covariance matrix
 #' Ptt(output(res))
-#'
+#' 
+#' @export
 Ptt<-function(object){
   object$Ptt
 }
@@ -211,7 +216,8 @@ Ptt<-function(object){
 #' 
 #' #Return covariance matrix
 #' get_V(output(res))
-#'
+#' 
+#' @export
 get_V<-function(object){
   object$V
 }
@@ -238,6 +244,7 @@ get_V<-function(object){
 #' # Extract Z matrix from output(res)
 #' matrixKFS(output(res),"Z")
 #' 
+#' @export
 matrixKFS<-function(object,matrix){
   modelKFS(object)[[matrix]]
 }
@@ -259,7 +266,8 @@ matrixKFS<-function(object,matrix){
 #' 
 #' #Return y
 #' gety(modelKFS(output(res)))
-#'
+#' 
+#' @export
 gety<-function(object){
   object$y
 }
@@ -287,6 +295,7 @@ gety<-function(object){
 #' # Get prediction
 #' gety.hat(all_predictions)
 #' 
+#' @export
 gety.hat<-function(object){
   object$y.hat
 }
@@ -310,6 +319,7 @@ gety.hat<-function(object){
 #' #Return alphahat
 #' alphahat(output(res))
 #'
+#' @export
 alphahat<-function(object){
   object$alphahat
 }

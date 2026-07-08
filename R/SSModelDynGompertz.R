@@ -218,7 +218,7 @@ SSModelDynamicGompertz <- setRefClass(
               stop("NotImplmentedError: Unexpected off-diagonal element updating")
             }
           }
-        
+          
           # 2. Set observation noise
           H <- as.matrix(model$H[, , 1])
           if (estH) {
@@ -228,31 +228,31 @@ SSModelDynamicGompertz <- setRefClass(
             diag(H)[naHd] <- exp(0.5 * pars[nparQ])
             model$H[naHd, naHd, 1] <- crossprod(H[naHd, naHd])
           }
-            
-        # 3. Set slope noise
-        # Get index of slope, 1 before the seasonal component.
-        model$Q[naQd, naQd, 1] <- crossprod(Q[naQd, naQd])
-        i.slope <- 2
-        # Estimate slope if no signal to noise ratio specified.
-        if (is.null(q)) {
-          nparQ<-nparQ+1
-          Q.slope <- exp(0.5 * pars[nparQ])
-          model$Q[i.slope, i.slope, 1] <- crossprod(Q.slope)
-        } else {
-          model$Q[i.slope, i.slope, 1] <- crossprod(H[naHd, naHd]) * q
-        }
-        
-        # 4. Set AR1 noise
-        if (ar1){
-          nparQ<-nparQ+1
-          i.ar1 <- nrow(Q)
-          Q[i.ar1, i.ar1] <- exp(0.5 * pars[nparQ])
-          model$Q[i.ar1, i.ar1, 1] <- Q[i.ar1, i.ar1]
           
-          nparQ<-nparQ+1
-          T <- model$T[,,1]
-          model$T[nrow(T),ncol(T),1] <- pars[nparQ]
-        }
+          # 3. Set slope noise
+          # Get index of slope, 1 before the seasonal component.
+          model$Q[naQd, naQd, 1] <- crossprod(Q[naQd, naQd])
+          i.slope <- 2
+          # Estimate slope if no signal to noise ratio specified.
+          if (is.null(q)) {
+            nparQ<-nparQ+1
+            Q.slope <- exp(0.5 * pars[nparQ])
+            model$Q[i.slope, i.slope, 1] <- crossprod(Q.slope)
+          } else {
+            model$Q[i.slope, i.slope, 1] <- crossprod(H[naHd, naHd]) * q
+          }
+          
+          # 4. Set AR1 noise
+          if (ar1){
+            nparQ<-nparQ+1
+            i.ar1 <- nrow(Q)
+            Q[i.ar1, i.ar1] <- exp(0.5 * pars[nparQ])
+            model$Q[i.ar1, i.ar1, 1] <- Q[i.ar1, i.ar1]
+            
+            nparQ<-nparQ+1
+            T <- model$T[,,1]
+            model$T[nrow(T),ncol(T),1] <- pars[nparQ]
+          }
         }
       }
       return(model)
@@ -300,11 +300,11 @@ SSModelDynamicGompertz <- setRefClass(
               if (ar1){
                 ss_model <-SSModel(
                   as.matrix(y) ~ SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope)),
-                      a1 = a1[trend_idx],
-                      P1 = P1[trend_idx, trend_idx]
-                    ) +
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope)),
+                    a1 = a1[trend_idx],
+                    P1 = P1[trend_idx, trend_idx]
+                  ) +
                     SSMseasonal(
                       period = sea.period,
                       Q = Qt.seas,
@@ -320,11 +320,11 @@ SSModelDynamicGompertz <- setRefClass(
               } else {
                 ss_model <-SSModel(
                   as.matrix(y) ~SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope)),
-                      a1 = a1[trend_idx],
-                      P1 = P1[trend_idx, trend_idx]
-                    ) +
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope)),
+                    a1 = a1[trend_idx],
+                    P1 = P1[trend_idx, trend_idx]
+                  ) +
                     SSMseasonal(
                       period = sea.period,
                       Q = Qt.seas,
@@ -379,16 +379,16 @@ SSModelDynamicGompertz <- setRefClass(
             #Case 3: With prior info, no seasonality, yes xpred
             if (need.xpred){
               if (ar1){
-                 ss_model <-SSModel(
+                ss_model <-SSModel(
                   as.matrix(y) ~ SSMtrend(
                     degree = 2,
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[trend_idx],
                     P1 = P1[trend_idx, trend_idx]
                   )+SSMcustom(Z=1,T=ar1_coeff,R=1,Q=Qt.ar1, 
-                                a1=a1[dim(a1)[1]], 
-                                P1=P1[dim(a1)[1],dim(a1)[1]], 
-                                state_names="ar1")
+                              a1=a1[dim(a1)[1]], 
+                              P1=P1[dim(a1)[1],dim(a1)[1]], 
+                              state_names="ar1")
                   +SSMregression(~xpred),
                   H = Ht)
               } else {
@@ -422,7 +422,7 @@ SSModelDynamicGompertz <- setRefClass(
                     P1 = P1[1:2, 1:2]),
                   H = Ht)
               }
-              }
+            }
           } 
           n.pars <- 0
         } else {
@@ -432,9 +432,9 @@ SSModelDynamicGompertz <- setRefClass(
               if(ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope))
-                    ) +
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope))
+                  ) +
                     SSMseasonal(
                       period = sea.period,
                       Q = Qt.seas,
@@ -446,9 +446,9 @@ SSModelDynamicGompertz <- setRefClass(
               } else {
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope))
-                    ) +
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope))
+                  ) +
                     SSMseasonal(
                       period = sea.period,
                       Q = Qt.seas,
@@ -457,7 +457,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = matrix(Ht)
                 )
               }
-          #Case 6: No prior info, no seasonality, yes xpred
+              #Case 6: No prior info, no seasonality, yes xpred
             } else {
               if (ar1){
                 ss_model <- SSModel(
@@ -516,17 +516,17 @@ SSModelDynamicGompertz <- setRefClass(
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope))
-                    )+
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope))
+                  )+
                     SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1"),
                   H = matrix(Ht)
                 )
               } else {
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
-                      degree = 2,
-                      Q = list(matrix(0), matrix(Qt.slope))),
+                    degree = 2,
+                    Q = list(matrix(0), matrix(Qt.slope))),
                   H = matrix(Ht))
               }
             } 
@@ -738,7 +738,7 @@ SSModelDynamicGompertz <- setRefClass(
         ifelse(is.null(seasonalComp(out)),
                "No","Yes"),"\n")
     cat("Exogenous predictors?", ifelse(is.null(xpred),
-                                         "No","Yes"),"\n")
+                                        "No","Yes"),"\n")
     if (!is.null(reinit.date)){
       cat("Reinit date:",format(as.Date(reinit.date, origin = "1970-01-01")))
       cat("\n")
@@ -766,75 +766,73 @@ SSModelDynamicGompertz <- setRefClass(
       \\subsection{Return Value}{A plot of the lagged differences of the 
       cumulated dataset \\code{Y} against time.}
       "
-  cumulative_cases <- Y  
-  
-  resolution<-get_time_resolution(index(Y))
-  
-  if (MA_period>1){
-    # Calculate a centred moving average of daily differences.
-    ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
+    cumulative_cases <- Y  
     
-    # Identify the date with maximum new cases.
-    ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
+    resolution<-get_time_resolution(index(Y))
     
-    # Prepare data for plotting by combining actual new cases and the moving average.
-    d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
-    colnames(d) <- c('New Cases', 'Centered MA')
-    
-    date_col<-if(resolution=='daily'){
-      as.Date(index(d))
-    } else if (resolution=='quarterly' || resolution=='yearly' || resolution=='monthly') {
-      qtr2date(index(d))
-    } 
-    
-    d.df <- data.frame(
-      Date = date_col,
-      New.Cases = coredata(d[, 1]),
-      Centered.MA = coredata(d[, 2])
-    )
-  } else {
-    # Prepare data for plotting by combining actual new cases and the moving average.
-    d <- diff(cumulative_cases)
-    colnames(d) <- c('New Cases')
-    
-    date_col<-if(resolution=='daily'){
-      as.Date(index(d))
-    } else if (resolution=='quarterly' || resolution=='yearly' || resolution=="monthly") {
-      qtr2date(index(d))
-    } 
-    
-    d.df <- data.frame(Date = date_col, New.Cases = coredata(d[, 1]))
-  }
-  
-  # Create base plot
-  data_plot <- ggplot(data = d.df, aes(x = Date)) +
-    geom_line(aes(y = New.Cases, color = "New Cases"), linewidth = 0.1) +
-    scale_y_continuous(n.breaks = 10) +
-    labs(x = "Date", y = paste("New", series.name), title = title)+
-    theme_light(base_size = 12) +
-    theme(
-      legend.title = element_text(size = 5),
-      legend.text = element_text(size = 10),
-      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-      plot.title = element_text(face = "bold")
-    )
-  
-  if (!is.null(date_break)) {
-    data_plot <- data_plot + scale_x_date(date_breaks = date_break)
-  }
-  
-  # Conditionally add Centered 7-day MA line
-  if (MA_period>1) {
-    data_plot <- data_plot + 
-      geom_line(aes(y = Centered.MA, color = "Centered MA"), linewidth = 1)+ 
-      scale_color_manual(
-        name = '',
-        values = c('Centered MA' = 'red')
+    if (MA_period>1){
+      # Calculate a centred moving average of daily differences.
+      ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
+      
+      # Identify the date with maximum new cases.
+      ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
+      
+      # Prepare data for plotting by combining actual new cases and the moving average.
+      d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
+      colnames(d) <- c('New Cases', 'Centered MA')
+      
+      date_col<-if(resolution=='daily'){
+        as.Date(index(d))
+      } else if (resolution=='quarterly' || resolution=='yearly' || resolution=='monthly') {
+        qtr2date(index(d))
+      } 
+      
+      d.df <- data.frame(
+        Date = date_col,
+        New.Cases = coredata(d[, 1]),
+        Centered.MA = coredata(d[, 2])
       )
-  } 
-  data_plot
+    } else {
+      # Prepare data for plotting by combining actual new cases and the moving average.
+      d <- diff(cumulative_cases)
+      colnames(d) <- c('New Cases')
+      
+      date_col<-if(resolution=='daily'){
+        as.Date(index(d))
+      } else if (resolution=='quarterly' || resolution=='yearly' || resolution=="monthly") {
+        qtr2date(index(d))
+      } 
+      
+      d.df <- data.frame(Date = date_col, New.Cases = coredata(d[, 1]))
+    }
+    
+    # Create base plot
+    data_plot <- ggplot(data = d.df, aes(x = Date)) +
+      geom_line(aes(y = New.Cases, color = "New Cases"), linewidth = 0.1) +
+      scale_y_continuous(n.breaks = 10) +
+      labs(x = "Date", y = paste("New", series.name), title = title)+
+      theme_light(base_size = 12) +
+      theme(
+        legend.title = element_text(size = 5),
+        legend.text = element_text(size = 10),
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        plot.title = element_text(face = "bold")
+      )
+    
+    if (!is.null(date_break)) {
+      data_plot <- data_plot + scale_x_date(date_breaks = date_break)
+    }
+    
+    # Conditionally add Centered 7-day MA line
+    if (MA_period>1) {
+      data_plot <- data_plot + 
+        geom_line(aes(y = Centered.MA, color = "Centered MA"), linewidth = 1)+ 
+        scale_color_manual(
+          name = '',
+          values = c('Centered MA' = 'red')
+        )
+    } 
+    data_plot
   }
   )
 )
-
-
