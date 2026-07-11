@@ -604,11 +604,88 @@ on coronavirus). In the example that follows, we use the data on
 confirmed cases in Gauteng. The data series is in cumulative form and is
 loaded as an `xts` object with a date index, as follows.
 
+### Supplying future external regressors from a CSV file
+
+For models that include external regressors, forecasts are conditional on
+future values of those regressors. These values can be supplied from a
+CSV file. The following example first illustrates the required CSV
+structure using an inline text block for reproducibility. In practice,
+the data would normally be read directly from a CSV file.
+
+```{r xpred-csv-example, eval = F}
+# This inline CSV block demonstrates the expected format of a file
+# containing future values of the external regressors.
+txt <- "
+Date,windspd_mtrs_p_sec,temperature_C
+2021-05-04,2.03,14.61
+2021-05-05,1.54,15.51
+2021-05-06,1.94,16.42
+2021-05-07,2.38,15.54
+2021-05-08,2.57,14.18
+2021-05-09,2.65,13.55
+2021-05-10,2.19,14.84
+2021-05-11,2.08,15.55
+2021-05-12,2.07,15.97
+2021-05-13,1.92,15.86
+2021-05-14,1.85,15.79
+2021-05-15,2.86,15.57
+2021-05-16,3.46,16.42
+2021-05-17,2.39,13.53
+"
+
+# Read the demonstration CSV text into a data frame.
+gauteng_weather_future_csv <- read.csv(
+  text = txt,
+  stringsAsFactors = FALSE
+)
+
+gauteng_weather_future_csv$Date <-
+  as.Date(gauteng_weather_future_csv$Date)
+
+# Convert the data frame to the xts format expected by tsgc.
+gauteng_weather_future_xts <- xts(
+  gauteng_weather_future_csv[, -1],
+  order.by = gauteng_weather_future_csv$Date
+)
+
+# Supply the future regressors to the fitted model.
+tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+```
+
+In practice, users would normally read the future regressor values
+directly from a CSV file rather than embedding the data in the code. The
+CSV file should have the same structure as shown above, with a `Date`
+column followed by one column for each external regressor.
+
+```{r xpred-csv-file, eval = F}
+# Read future regressors from a CSV file.
+gauteng_weather_future_csv <- read.csv(
+  "gauteng_weather_future.csv",
+  stringsAsFactors = FALSE
+)
+
+gauteng_weather_future_csv$Date <-
+  as.Date(gauteng_weather_future_csv$Date)
+
+# Convert to xts format.
+gauteng_weather_future_xts <- xts(
+  gauteng_weather_future_csv[, -1],
+  order.by = gauteng_weather_future_csv$Date
+)
+
+# Supply the future regressors to the fitted model.
+tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+```
+
+Once the future regressors have been supplied, subsequent forecasts from
+the fitted model are conditional on these external regressor values.
+
 ```{=tex}
 \begin{Code}
 data(gauteng, package = "tsgc")
 \end{Code}
 ```
+
 New COVID-19 cases reported for Gauteng province and their centered
 7-day moving average presented in Figure 1 show a sequence of four waves
 over the period between 10 March 2020 and 5 January 2022.
@@ -846,7 +923,7 @@ y <- Y[idx.est]
 # May not be ideal as in the paper we use small y for diff(Y)
 
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
-res <- estimate(model)
+res_eval <- estimate(model)
 
 # Specify evaluation dataset
 y.eval <- Y %>%
@@ -855,7 +932,7 @@ y.eval <- Y %>%
 
 
 tsgc::plot_holdout(
-  res = res,
+  res = res_eval,
   Y = Y,
   n.ahead = 14,
   confidence.level = 0.68,
@@ -871,9 +948,7 @@ the six days from 28 April the MAPE was 12.8%. Over the full 14 days of
 the forecasts, the MAPE was 27%.
 
 As discussed earlier, the reproduction numbers $R_t$ and their 68%
-credible intervals can be calculated. The plot in Figure 5 reveals that
-$R_t$ remains above one through the period, indicating that the (third)
-wave in Gauteng had launched by this time.
+credible intervals can be calculated. This is shown in Figure 5.
 
 ```{r calc_rt, eval = FALSE}
 gen_int <- 4
@@ -1069,7 +1144,7 @@ tsgc::plot_log_forecast(
     Y = Y,
     n.ahead = n.forecasts,
     plt.start.date =  tail(res.reinit$index, 1) - plt.length,
-    title='Forecast of $\ln(g_t)$  after reinitialization.'
+    title='Forecast of $ln(g_t)$  after reinitialization.'
 )
 ```
 
@@ -1100,7 +1175,7 @@ tsgc::plot_log_forecast(
     Y = Y,
     n.ahead = n.forecasts,
     plt.start.date =  tail(res.reinit$index, 1) - plt.length,
-    title='Forecast of $\\ln(g_t)$  after reinitialization.'
+    title='Forecast of log growth rate after reinitialization.'
 )
 ```
 
@@ -1262,7 +1337,7 @@ tsgc::plot_forecast(
   res.eng.x,
   n.ahead = n.forecasts.eng,
   plt.start.date = est.end.eng - plt.length.eng,
-  title = "Forecast of hospitalisations with regressors (England)",
+  title = "Forecast of hospitalisations with regressors",
   series.name = "Hospitalisations"
 )
 ```
