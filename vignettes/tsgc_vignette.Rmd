@@ -466,7 +466,7 @@ The main Gompertz class in `tsgc` is `SSModelDynamicGompertz`, which
 implements the models described in (2)-(4), with or without
 reinitialization. A model object is constructed with
 `SSModelDynamicGompertz$new(...)` and its unknown parameters are
-estimated with the `estimate()` method, invoked as `model$estimate()`,
+estimated with the `estimate()` method, invoked as `estimate(model)`,
 which returns an object of the `FilterResults` class. This class wraps
 the underlying `KFAS` `KFS` object with a date index and additional
 methods for prediction attached.
@@ -687,10 +687,10 @@ as defined below.
 
 -   `q` is the signal-to-noise ratio, which controls the smoothness of
     the estimated trend. A lower value will lead to more smoothness. By
-    default, we use `q = 0.005`, which in our experience ensures a good
+    default, we use `q = NULL`, so that it is estimated. Alternatively, 
+    we can set `q`. For example, in our experience, `q = 0.005` ensures a good
     balance between the smoothness of the trend and the speed with which
-    changes in estimates respond to new observations. Alongside, `q` can
-    be estimated and compared with the default value.
+    changes in estimates respond to new observations.
 
 -   `confidence.level` sets the coverage of the confidence intervals for
     $\ln(g_t)$ which is then used to generate the prediction intervals
@@ -714,7 +714,6 @@ options are specified as below.
 ```{r set_options, eval = FALSE}
 file.path = here()
 res.dir <- here::here(file.path, 'results')
-date.format <- "%Y-%m-%d"
 Y = gauteng
 estimation.date.start = as.Date("2021-02-01")
 estimation.date.end = as.Date("2021-04-19")
@@ -729,12 +728,9 @@ plt.length = 30
 We begin by selecting the data series (`Y`) for the defined sample
 period.
 
-```{r select_data, eval=F}
-idx.est =
-    (zoo::index(Y) >= estimation.date.start) &
-    (zoo::index(Y) <= estimation.date.end)
-y = Y[idx.est]
-```
+The estimation period is specified directly when creating the
+`SSModelDynamicGompertz` object using the `start.date` and `end.date`
+arguments, so no manual subsetting of the data is required.
 
 We then estimate the model using a diffuse prior distribution for the
 initial state vector. The signal-to-noise ratio can be left as a free
@@ -742,7 +738,7 @@ parameter to be estimated, as in the code below.
 
 ```{r model_est_free_q, eval = F}
 model_q <- SSModelDynamicGompertz$new(Y = y)
-res_q <- model_q$estimate()
+res_q <- estimate(model_q)
 ```
 
 In the rest of this example we estimate the model setting the
@@ -753,7 +749,7 @@ observations.
 
 ```{r model_est_fix_q, eval = F}
 model = SSModelDynamicGompertz$new(Y = y, q = q)
-res = model$estimate()
+res = estimate(model)
 ```
 
 ## Results
@@ -781,7 +777,6 @@ tsgc::plot_log_forecast(
 
 ```{r fig-2, echo=F, fig.cap="Figure 2: Fourteen-day forecast of $ln(g_t)$ from 4 May 2021, for Gauteng province in South Africa."}
 # Set options
-date.format <- "%Y-%m-%d"
 estimation.date.start <- as.Date("2021-02-01")
 estimation.date.end <- as.Date("2021-05-03")
 n.forecasts <- 14
@@ -799,7 +794,7 @@ y <- Y[idx.est]
 # May not be ideal as in the paper we use small y for diff(Y)
 
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
-res <- model$estimate()
+res <- estimate(model)
 
 # Specify evaluation dataset
 y.eval <- Y %>%
@@ -851,7 +846,7 @@ y <- Y[idx.est]
 # May not be ideal as in the paper we use small y for diff(Y)
 
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
-res <- model$estimate()
+res <- estimate(model)
 
 # Specify evaluation dataset
 y.eval <- Y %>%
@@ -880,39 +875,18 @@ credible intervals can be calculated. The plot in Figure 5 reveals that
 $R_t$ remains above one through the period, indicating that the (third)
 wave in Gauteng had launched by this time.
 
-```{r calc_rt, eval = F}
-r.t <- tail(exp(res$get_gy_ci()*gen_int),7)
+```{r calc_rt, eval = FALSE}
+gen_int <- 4
+r.t <- estimate_r0(res, gen_int)
 ```
 
-```{r fig-5, echo = F, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 19 April 2021, for Gauteng province in South Africa."}
-# Set generation interval
-gen_int <- 4
-
-# Compute R_t and upper/lower bounds of credible intervals following sec 2.5
-r.t <- tail(exp(res$get_gy_ci()*gen_int),7) %>% tk_tbl
-r.t$name <- "Gauteng"
-names(r.t)<-c("Date", "Rt", "lower", "upper", "name")
-
-# Create the plot
-res.rt <- ggplot(r.t, aes(x = Date)) +
-  ylim(0, 1.4)+
-  geom_line(aes(y = Rt, color = "Rt")) +
-  geom_point(aes(y = Rt), color = "red", size = 3) +
-  geom_segment(aes(xend = Date, yend = lower, y = Rt), color = "blue") +
-  geom_segment(aes(xend = Date, yend = upper, y = Rt), color = "blue") +
-  geom_ribbon(aes(ymin = lower, ymax = upper,
-                  fill = "68%  Interval"), alpha = 0.2) +
-  geom_hline(yintercept = 1, linetype="solid",
-             linewidth=1.5, color = "black") +
-  scale_x_date(date_breaks = "1 day") +
-  theme_light(base_size = 12)+    #18
-  theme(legend.position = c(.85, 0.2))+
-  theme(legend.title=element_text(size=2),
-        legend.text=element_text(size=10))+ #13
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10), #16
-        plot.title = element_text(face = "bold"))
-
-res.rt
+```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 19 April 2021, for Gauteng province in South Africa."}
+estimate_r0(
+  res,
+  gen_int = 4,
+  show_plot = TRUE,
+  title = "Reproduction numbers for the 7-day period to 19 April 2021"
+)
 ```
 
 A CSV file (named \\verb\|y-forecast\|) is written to the directory
@@ -976,7 +950,7 @@ idx.est <-
 y <- Y[idx.est]
 
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
-res <- model$estimate()
+res <- estimate(model)
 
 # Extract the smoothed slope and its standard deviation
 smoothed.slope.full <- xts::xts(res$output$alphahat[, "slope"],
@@ -1001,7 +975,6 @@ colnames(d2.df) <- c("Date", "smoothed.slope",
                      "sd.smoothed.slope.2")
 
 d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
-# Is the date restriction needed?
 
 trigger.df <- d2.df %>%
   mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
@@ -1076,10 +1049,9 @@ non-reinitialized model, with the addition of the `reinit.date` argument.
 ```{r reinit_estim, eval=F}
 model <- SSModelDynamicGompertz$new(
   Y = y, q = q,
-  reinit.date = as.Date(reinit.dates,
-  format = date.format)
+  reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
 )
-res.reinit <- model$estimate()
+res.reinit <- estimate(model)
 ```
 
 We generate the reinitialized data frame by setting cumulative cases to
@@ -1108,9 +1080,9 @@ reinit.dates = "2021-04-21"
 # Estimate reinitialized model
 model <- SSModelDynamicGompertz$new(
   Y = y, q = q,
-  reinit.date = as.Date(reinit.dates, format = date.format)
+  reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
 )
-res.reinit <- model$estimate()
+res.reinit <- estimate(model)
 
 # Reinitialize dataframe
 Y.reinit <- Y %>%
@@ -1223,7 +1195,7 @@ mod.eng <- SSModelLeadingIndicator$new(
   start.date = est.start.eng,
   end.date = est.end.eng
 )
-res.eng <- mod.eng$estimate()
+res.eng <- estimate(mod.eng)
 ```
 
 The fitted object `res.eng` can be used to generate the same forecast
@@ -1279,7 +1251,7 @@ mod.eng.x <- SSModelLeadingIndicator$new(
   start.date = est.start.eng,
   end.date = est.end.eng
 )
-res.eng.x <- mod.eng.x$estimate()
+res.eng.x <- estimate(mod.eng.x)
 
 supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
 supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
@@ -1314,7 +1286,7 @@ data(ukitaly, package = "tsgc")
 
 n.forecasts.uk <- 14
 plt.length.uk  <- 30
-q.default.uk   <- 0.005
+q.uk   <- 0.005
 
 est.start.uk <- as.Date("2020-02-25")
 est.end.uk   <- as.Date("2020-04-01")
@@ -1339,10 +1311,10 @@ evolution in Italy relative to the UK.
 
 ```{r uk-gompertz}
 mod.uk.gomp <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.default.uk,
+  Y = Yuk, q = q.uk,
   start.date = est.start.uk, end.date = est.end.uk
 )
-res.uk.gomp <- mod.uk.gomp$estimate()
+res.uk.gomp <- estimate(mod.uk.gomp)
 ```
 
 ```{r uk-lead}
@@ -1351,7 +1323,7 @@ mod.uk.lead <- SSModelLeadingIndicator$new(
   Y = ukitaly, n.lag = n.lag.uk, sea.period = 7,
   start.date = est.start.uk, end.date = est.end.uk
 )
-res.uk.lead <- mod.uk.lead$estimate()
+res.uk.lead <- estimate(mod.uk.lead)
 ```
 
 ```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
@@ -1389,7 +1361,7 @@ response.
 cv_models <- list()
 
 cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.default.uk, start.date = est.start.uk, end.date = est.end.uk
+  Y = Yuk, q = q.uk, start.date = est.start.uk, end.date = est.end.uk
 )
 
 cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
@@ -1424,7 +1396,8 @@ remaining rows are Italy-to-UK leading-indicator models at different
 lags. The best-performing lags in this window are typically found in
 the mid-teens, consistent with a lead of roughly two to two-and-a-half
 weeks from Italy to the UK over this period.
-## Other data frequencies
+
+## Extensions: non-epdimeological applications and alternative data frequencies
 
 The package is not restricted to daily epidemic data. The same
 state-space machinery can be applied to quarterly, monthly, or annual
@@ -1452,7 +1425,7 @@ mod.q <- SSModelLeadingIndicator$new(
   start.date = zoo::as.yearqtr("2017 Q1"),
   end.date = zoo::as.yearqtr("2019 Q4")
 )
-res.q <- mod.q$estimate()
+res.q <- estimate(mod.q)
 ```
 
 ```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
@@ -1478,7 +1451,7 @@ mod.m <- SSModelLeadingIndicator$new(
   start.date = zoo::as.yearmon(2017.5),
   end.date = zoo::as.yearmon(2021 + 1 / 12)
 )
-res.m <- mod.m$estimate()
+res.m <- estimate(mod.m)
 ```
 
 ```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
