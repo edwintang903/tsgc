@@ -612,44 +612,6 @@ CSV file. The following example first illustrates the required CSV
 structure using an inline text block for reproducibility. In practice,
 the data would normally be read directly from a CSV file.
 
-```{r xpred-csv-example, eval = F}
-# This inline CSV block demonstrates the expected format of a file
-# containing future values of the external regressors.
-txt <- "
-Date,windspd_mtrs_p_sec,temperature_C
-2021-05-04,2.03,14.61
-2021-05-05,1.54,15.51
-2021-05-06,1.94,16.42
-2021-05-07,2.38,15.54
-2021-05-08,2.57,14.18
-2021-05-09,2.65,13.55
-2021-05-10,2.19,14.84
-2021-05-11,2.08,15.55
-2021-05-12,2.07,15.97
-2021-05-13,1.92,15.86
-2021-05-14,1.85,15.79
-2021-05-15,2.86,15.57
-2021-05-16,3.46,16.42
-2021-05-17,2.39,13.53
-"
-
-# Read the demonstration CSV text into a data frame.
-gauteng_weather_future_csv <- read.csv(
-  text = txt,
-  stringsAsFactors = FALSE
-)
-
-gauteng_weather_future_csv$Date <-
-  as.Date(gauteng_weather_future_csv$Date)
-
-# Convert the data frame to the xts format expected by tsgc.
-gauteng_weather_future_xts <- xts(
-  gauteng_weather_future_csv[, -1],
-  order.by = gauteng_weather_future_csv$Date
-)
-
-# Supply the future regressors to the fitted model.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
 ```
 
 In practice, users would normally read the future regressor values
@@ -657,24 +619,6 @@ directly from a CSV file rather than embedding the data in the code. The
 CSV file should have the same structure as shown above, with a `Date`
 column followed by one column for each external regressor.
 
-```{r xpred-csv-file, eval = F}
-# Read future regressors from a CSV file.
-gauteng_weather_future_csv <- read.csv(
-  "gauteng_weather_future.csv",
-  stringsAsFactors = FALSE
-)
-
-gauteng_weather_future_csv$Date <-
-  as.Date(gauteng_weather_future_csv$Date)
-
-# Convert to xts format.
-gauteng_weather_future_xts <- xts(
-  gauteng_weather_future_csv[, -1],
-  order.by = gauteng_weather_future_csv$Date
-)
-
-# Supply the future regressors to the fitted model.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
 ```
 
 Once the future regressors have been supplied, subsequent forecasts from
@@ -873,12 +817,7 @@ y <- Y[idx.est]
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
 res <- estimate(model)
 
-# Specify evaluation dataset
-y.eval <- Y %>%
-  subset(zoo::index(.) > tail(res$index,1)) %>%
-  tsgc::df2ldl()
-
-# y.eval is LDL
+# Subsetting of holdout period is already done in the plot_holdout function
 
 # Plot filtered, forecast and realised log growth rate
 p1 <- tsgc::plot_log_forecast(
@@ -925,12 +864,6 @@ y <- Y[idx.est]
 model <- SSModelDynamicGompertz$new(Y = y, q = q)
 res_eval <- estimate(model)
 
-# Specify evaluation dataset
-y.eval <- Y %>%
-  subset(zoo::index(.) > tail(res$index,1)) %>%
-  tsgc::df2ldl()
-
-
 tsgc::plot_holdout(
   res = res_eval,
   Y = Y,
@@ -969,22 +902,6 @@ specified. The forecast options specified earlier are retained.
 
 ```{r write_results, eval=F}
 tsgc::write_results(
- res=res,
- res.dir = res.dir,
- n.ahead = n.forecasts,
- confidence.level =  confidence.level
-)
-```
-
-## Reinitialization
-
-In all countries the coronavirus pandemic was characterized by a series
-of recurring waves due to a combination of biological, behavioral, and
-environmental reasons. In an epidemic, the onset of a new wave is
-signalled when the slope parameter $\gamma$, which measures of the
-growth rate of the growth rate of new cases, rises above zero for a
-sustained period. Such a super-exponential phase of the epidemic in
-which the growth rate of new cases is itself increasing over time is
 typically short.
 
 This section illustrates the reinitialization procedure which allows us
@@ -1090,11 +1007,6 @@ ggplot(data = d2.df,
              aes(xintercept = Date),
              linetype = "solid", size = .5,
              color = "black")+
-  geom_vline(data = reinit_zero.df,
-             aes(xintercept = Date),
-             linetype = "solid",size = 1,
-             color = "black")+
-  xlab("Day") +
   ylab("Slope") +
   scale_x_date(date_breaks = "10 days") +
   scale_color_manual(name='',
@@ -1639,3 +1551,79 @@ $(\nu_{1,t},\nu_{2,t},\ldots,\nu_{s^*,t})'$ to be zero. The covariance
 between $\delta_t$ and $\gamma_t$, as well as the covariances between
 $\nu_{1,t},\nu_{2,t},\ldots,\nu_{s^*,t}$, are permitted to be non-zero
 and come directly from $P_{r+1}$.
+
+# Appendix: Supplying future external regressors from a CSV file
+
+For models that include external regressors, forecasts are conditional on
+future values of those regressors. These values can be supplied from a
+CSV file. The following example first illustrates the required CSV
+structure using an inline text block for reproducibility. In practice,
+the data would normally be read directly from a CSV file.
+
+```{r xpred-csv-example, eval = F}
+# This inline CSV block demonstrates the expected format of a file
+# containing future values of the external regressors.
+txt <- "
+Date,windspd_mtrs_p_sec,temperature_C
+2021-05-04,2.03,14.61
+2021-05-05,1.54,15.51
+2021-05-06,1.94,16.42
+2021-05-07,2.38,15.54
+2021-05-08,2.57,14.18
+2021-05-09,2.65,13.55
+2021-05-10,2.19,14.84
+2021-05-11,2.08,15.55
+2021-05-12,2.07,15.97
+2021-05-13,1.92,15.86
+2021-05-14,1.85,15.79
+2021-05-15,2.86,15.57
+2021-05-16,3.46,16.42
+2021-05-17,2.39,13.53
+"
+
+# Read the demonstration CSV text into a data frame.
+gauteng_weather_future_csv <- read.csv(
+  text = txt,
+  stringsAsFactors = FALSE
+)
+
+gauteng_weather_future_csv$Date <-
+  as.Date(gauteng_weather_future_csv$Date)
+
+# Convert the data frame to the xts format expected by tsgc.
+gauteng_weather_future_xts <- xts(
+  gauteng_weather_future_csv[, -1],
+  order.by = gauteng_weather_future_csv$Date
+)
+
+# Supply the future regressors to the fitted model.
+tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+```
+
+In practice, users would normally read the future regressor values
+directly from a CSV file rather than embedding the data in the code. The
+CSV file should have the same structure as shown above, with a `Date`
+column followed by one column for each external regressor.
+
+```{r xpred-csv-file, eval = F}
+# Read future regressors from a CSV file.
+gauteng_weather_future_csv <- read.csv(
+  "gauteng_weather_future.csv",
+  stringsAsFactors = FALSE
+)
+
+gauteng_weather_future_csv$Date <-
+  as.Date(gauteng_weather_future_csv$Date)
+
+# Convert to xts format.
+gauteng_weather_future_xts <- xts(
+  gauteng_weather_future_csv[, -1],
+  order.by = gauteng_weather_future_csv$Date
+)
+
+# Supply the future regressors to the fitted model.
+tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+```
+
+Once the future regressors have been supplied, subsequent forecasts from
+the fitted model are conditional on these external regressor values.
