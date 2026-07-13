@@ -95,11 +95,11 @@ in real time but a rule for triggering reinitialization that works well
 in practice is presented. Section 4 describes the functionality of
 `tsgc`, including the leading-indicator extension. Section 5 sets out a
 full working example of the package, beginning with COVID-19 data for
-Gauteng province in South Africa and continuing with the leading-indicator
-model, a comparison against the dynamic Gompertz model, lag selection by
-rolling cross-validation, the forecast accuracy measures used to
-evaluate the package's models, and the package's applicability to data
-frequencies other than daily. Section 6 concludes.
+Gauteng province in South Africa and continuing with the
+leading-indicator model, a comparison against the dynamic Gompertz
+model, lag selection by rolling cross-validation, the forecast accuracy
+measures used to evaluate the package's models, and the package's
+applicability to data frequencies other than daily. Section 6 concludes.
 
 # Theory
 
@@ -186,12 +186,11 @@ Q =
 \end{equation*} This model can be estimated using techniques based on
 the Kalman filter once a prior is specified. The prior is
 
-```{=tex}
 \begin{equation*}
 (\delta_1, \gamma_1)'
 \sim N(a_1,P_1),
 \end{equation*}
-```
+
 where $a_1$ is a $2\times 1$ vector of prior means and $P_1$ a
 $2\times 2$ prior variance matrix. We use a diffuse prior due to the
 absence of prior information about the epidemic when the model is first
@@ -246,12 +245,12 @@ $\widehat{Y}_{T+\ell \mid T}=\widehat{\mu }_{T+\ell \mid T};$ the
 initial value is $\widehat{\mu }_{T\mid T}=Y_{T}.$
 
 We construct state-implied forecast bands for $y_t$ by propagating the
-predictive distribution of the latent state vector. In the one-step-ahead
-case the implied distribution for $y_{T+\ell}$ is lognormal, but beyond
-one step the cumulative structure of the model means that the forecast
-path is path-dependent. The bands should therefore be interpreted as
-state-implied forecast bands rather than as calibrated prediction or
-confidence intervals.[^2]
+predictive distribution of the latent state vector. In the
+one-step-ahead case the implied distribution for $y_{T+\ell}$ is
+lognormal, but beyond one step the cumulative structure of the model
+means that the forecast path is path-dependent. The bands should
+therefore be interpreted as state-implied forecast bands rather than as
+calibrated prediction or confidence intervals.[^2]
 
 [^2]: These are not proper prediction or confidence intervals for
     $y_{T+\ell}$. The one-step-ahead predictive distribution of
@@ -264,11 +263,10 @@ be extracted from the continuous-time incidence curve:
 $\mu^{\prime}(t) = g(t) \mu(t)$, where $\mu(t)$ is the growth curve and
 $g(t)$ is its growth rate. Taking logarithms and differentiating we get
 
-```{=tex}
 \begin{align}
 \hat{g}_{y,t\mid t}&=\hat{g}_{t\mid t}+\hat\gamma_{t\mid t},   & (6)
 \end{align}
-```
+
 where $\hat{g}_{t\mid t}=\exp \hat\delta_{t\mid t}.$ The sampling
 variability of $\hat{g}_{t\mid t}$ is dominated by that of
 $\hat\gamma_{t\mid t}$ (see @Harvey2021a). Therefore when constructing
@@ -322,11 +320,10 @@ epidemic. The nowcasts of $y_{t}$ peak when $\hat{g}_{y,t\mid t}=0$,
 corresponding to $\widetilde{R}_{t,\tau}=\widetilde{R}_{\tau,t}^{e}=1.$
 Based on (7), predictions of $g_{y,t}$ are given by
 
-```{=tex}
 \begin{align}
 \hat{g}_{y,T+\ell\mid T} & =\exp\hat\delta_{T+\ell\mid T}+\hat\gamma_{T+\ell\mid T}=\exp(\hat\delta_{T\mid T}+\hat\gamma_{T\mid T}\ell)+\hat\gamma_{T\mid T},\;\;\;\;\;\ell=1,2,... & (9)
 \end{align}
-```
+
 We can then obtain predictions of $R_{t},$ as in (8). If
 $\hat\gamma_{T\mid T}$ is zero, the estimated growth of $y_{t}$ is
 exponential and it is helpful to characterize it by the doubling time,
@@ -376,31 +373,29 @@ wave is taking off.
 
 In practice the reinitialization rule is implemented in two stages. Let
 $d$ denote the date on which the trigger condition is first observed in
-real time and let $r\le d$ denote the date to which the cumulative series
-is reset. The sequence is then redefined from the reset date $r$, while
-the trigger date $d$ records the point at which the decision rule is
-activated. In the notation below, $t=r$ denotes the reset date and
+real time and let $r\le d$ denote the date to which the cumulative
+series is reset. The sequence is then redefined from the reset date $r$,
+while the trigger date $d$ records the point at which the decision rule
+is activated. In the notation below, $t=r$ denotes the reset date and
 $r_0$ the date at which the cumulative series is set to 0. Then:
 
-```{=tex}
 \begin{align}
 \ln g_t &= \ln y_t - \ln Y_{t-1} & t=1, \ldots, r \notag \\
 \ln g_t^r &= \ln y_t - \ln Y_{t-1}^r & t=r+1, \ldots, T && (10)\\
 Y_{t}^{r}&=Y_{t-1}^{r}+y_{t}  & t=r,\ldots,T &&   (11)
 \end{align}
-```
+
 where $Y_{t}^{r}$ denotes the cumulative cases after re-initialization.
 We set $Y_{r-1}^{r}=0$, so that the growth rate of cumulative cases is
 available from $t=r+1$ onwards. Note that $Y_{t}^r = Y_{t} - Y_{r_0}$.
 
 The gap between the two series becomes apparent by writing
 
-```{=tex}
 \begin{equation}
 \ln g_t^r = \ln g_t +  \ln \frac{Y_{t-1}}{Y_{t-1}^r}
 = \ln g_t +  \ln \frac{Y_{t-1}}{Y_{t-1} - Y_{r_0}} \;\;\;\; t=r+1, \ldots, T  \;\;\;\;\;\;\;\; (12)
 \end{equation}
-```
+
 In the next section, where we illustrate the working of the program, it
 can be seen that in contrast to the original $\ln g_t$ series, which
 continues to increase, the reinitialized $\ln g_t$ series begins to
@@ -419,13 +414,12 @@ $a_{t|t} = E(\alpha_t|\mathcal{F}_t)$,
 $P_t = Var(\alpha_t|\mathcal{F}_{t-1})$,
 $P_{t|t} = Var(\alpha_t|\mathcal{F}_t).$ Then,
 
-```{=tex}
 \begin{align*}
 a^r_{\delta,1} &= a_{\delta,r+1} + \ln(Y_r/y_r) \\
 a^r_{\gamma,1} &= 0\\
 P^r_1 &= P_{r+1},
 \end{align*}
-```
+
 where $a_{\delta,r+1}$ and $P_{r+1}$ are obtained from the
 non-reinitialized model estimated over $t=1, \ldots, r$ via the usual
 Kalman filter recursions. Adding $\ln(Y_r/y_r)$ to $a_{\delta,r+1}$
@@ -475,27 +469,27 @@ The `SSModelDynamicGompertz` needs only a cumulative series $Y$ as an
 input. In our application, this is the cumulative number of new
 coronavirus cases. There is an option to specify the signal-to-noise
 ratio $q_{\zeta}$, rather than estimate it, and an option to specify the
-model to have a seasonal component through the `sea.period` argument. The
-period of a seasonal component is specified through the `sea.period`
+model to have a seasonal component through the `sea.period` argument.
+The period of a seasonal component is specified through the `sea.period`
 option.
 
-The `SSModelDynamicGompertz` class allows the model to be estimated
-for a new wave without losing information from prior waves. It will
-accept the reinitialization date specified by `reinit.date` or a
+The `SSModelDynamicGompertz` class allows the model to be estimated for
+a new wave without losing information from prior waves. It will accept
+the reinitialization date specified by `reinit.date` or a
 `FilterResults` object from which it can extract the initial values. If
 the user wishes to reinitialize the model without using prior
 information (i.e. treat the new wave as an entirely separate epidemic),
-a reinitialization date can be specified through the `reinit.date` option
-and `use.presample.info` can be set to `FALSE`.
+a reinitialization date can be specified through the `reinit.date`
+option and `use.presample.info` can be set to `FALSE`.
 
 The `FilterResults` class contains prediction methods which can be
 applied to estimated dynamic Gompertz curve models (both reinitialized
 and non-reinitialized). `get_growth_y()` returns filtered or smoothed
 estimates of the growth rate of new cases ($g_t$), while `get_gy_ci()`
-returns the same with confidence intervals. Forecasts of the
-incidence variable (new cases, $y_t$) can be obtained with the
-`predict_level()` call, and forecasts of all the states can be obtained
-with the `predict_all()` call.
+returns the same with confidence intervals. Forecasts of the incidence
+variable (new cases, $y_t$) can be obtained with the `predict_level()`
+call, and forecasts of all the states can be obtained with the
+`predict_all()` call.
 
 Several functions are available to generate plots of smoothed and
 filtered estimates and forecasts. `plot_log_forecast()` plots the
@@ -504,29 +498,30 @@ forecast and realised values of $\ln(g_t)$. `plot_gy_components()` and
 its components, and confidence intervals, respectively. Forecasts of the
 incidence variable ($y_t$) and forecast intervals can be plotted using
 `plot_forecast()`, while `plot_holdout()` adds plots of prediction
-intervals and of realized outcomes over a holdout period to help evaluate
-forecast accuracy. Finally, the `reinitialise_dataframe()` function can be
-used to reinitialise a data frame at a given `reinit.date`.
+intervals and of realized outcomes over a holdout period to help
+evaluate forecast accuracy. Finally, the `reinitialise_dataframe()`
+function can be used to reinitialise a data frame at a given
+`reinit.date`.
 
 More details on how to use the methods and functions described are
 presented in the following section.
 
 ## Leading indicator model
 
-The basic dynamic Gompertz model uses only the cumulative target
-series. A useful extension is the leading-indicator model, in which a
-second series is used to improve forecasts of an outcome of interest.
-The motivation is simple: many indicators move earlier than the
-target, so their information can be exploited to improve
-short-horizon forecasts. In the epidemic setting, for example,
-hospital admissions often respond with a lag to the underlying growth
-in cases, while in marketing applications early sales of related
-products may foreshadow demand for a new item. The package therefore
-allows the target series to be modeled jointly with a lagged auxiliary
-series rather than treating the target in isolation.
+The basic dynamic Gompertz model uses only the cumulative target series.
+A useful extension is the leading-indicator model, in which a second
+series is used to improve forecasts of an outcome of interest. The
+motivation is simple: many indicators move earlier than the target, so
+their information can be exploited to improve short-horizon forecasts.
+In the epidemic setting, for example, hospital admissions often respond
+with a lag to the underlying growth in cases, while in marketing
+applications early sales of related products may foreshadow demand for a
+new item. The package therefore allows the target series to be modeled
+jointly with a lagged auxiliary series rather than treating the target
+in isolation.
 
-Let $\ln g_{1,t-k}$ denote the log growth rate of the leading series
-and $\ln g_{2,t}$ the log growth rate of the target series. The
+Let $\ln g_{1,t-k}$ denote the log growth rate of the leading series and
+$\ln g_{2,t}$ the log growth rate of the target series. The
 leading-indicator specification in `tsgc` is
 
 \begin{align}
@@ -539,24 +534,23 @@ shared by both series and evolves exactly as in the dynamic Gompertz
 model (equations (3)-(4)), $\psi_t$ is a target-independent deviation
 specific to the leading equation, and $\varepsilon_{1t}$ and
 $\varepsilon_{2t}$ are mutually independent Gaussian observation
-disturbances. The lag $k$ is an alignment parameter: after shifting
-the leading series by $k$ periods, the lead and target growth rates
-are treated as two noisy measurements of a common latent growth
-component, rather than the leading series entering as an exogenous
-regressor. Estimation is by maximum likelihood using the Kalman
-filter, exactly as for the univariate model, and the resulting object
-is a `FilterResultsLI` object, which supports the same forecasting,
-plotting, and diagnostic methods as the `FilterResults` class used for
-the dynamic Gompertz model.
+disturbances. The lag $k$ is an alignment parameter: after shifting the
+leading series by $k$ periods, the lead and target growth rates are
+treated as two noisy measurements of a common latent growth component,
+rather than the leading series entering as an exogenous regressor.
+Estimation is by maximum likelihood using the Kalman filter, exactly as
+for the univariate model, and the resulting object is a
+`FilterResultsLI` object, which supports the same forecasting, plotting,
+and diagnostic methods as the `FilterResults` class used for the dynamic
+Gompertz model.
 
-The role of `n.lag` is therefore to align the information in the
-leading series with the target series. If the indicator is known to
-anticipate the target by several periods, a larger lag is appropriate.
-The package also allows the user to supply future values of exogenous
-covariates through `xpred_lead` and `xpred_targ`, together with
-`supply_xpred.new()`, making the model suitable for settings where
-both the lead and target series are influenced by observed external
-drivers.
+The role of `n.lag` is therefore to align the information in the leading
+series with the target series. If the indicator is known to anticipate
+the target by several periods, a larger lag is appropriate. The package
+also allows the user to supply future values of exogenous covariates
+through `xpred_lead` and `xpred_targ`, together with
+`supply_xpred.new()`, making the model suitable for settings where both
+the lead and target series are influenced by observed external drivers.
 
 The empirical benefit of this extension is that it can improve
 short-horizon predictions when the relationship between the two series
@@ -571,22 +565,21 @@ section below.
 
 # Forecast accuracy and rolling-origin validation
 
-Forecast accuracy can be evaluated with a variety of scale-dependent
-and scale-free measures. In the notation of the package, the mean
-absolute percentage error is
+Forecast accuracy can be evaluated with a variety of scale-dependent and
+scale-free measures. In the notation of the package, the mean absolute
+percentage error is
 $$\mathrm{MAPE}=\frac{100}{n}\sum_{t=1}^n \left|\frac{y_t-\hat y_t}{y_t}\right|,$$
 while the symmetric MAPE is defined as
 $$\mathrm{sMAPE}=\frac{100}{n}\sum_{t=1}^n \frac{2|y_t-\hat y_t|}{|y_t|+|\hat y_t|},$$
 and the mean absolute error and root mean squared error are given by
 $$\mathrm{MAE}=\frac{1}{n}\sum_{t=1}^n |y_t-\hat y_t|, \qquad \mathrm{RMSE}=\sqrt{\frac{1}{n}\sum_{t=1}^n (y_t-\hat y_t)^2}.$$
-sMAPE is reported as the primary percentage-based comparison measure
-in the empirical illustrations above, since MAPE can become unstable
-when observed values are close to zero. The rolling-origin procedure
-used by `cross_val()` re-estimates the model at successive evaluation
-dates, holds back a fixed forecast horizon, and computes the chosen
-loss metric over that out-of-sample window, so that forecast accuracy
-is assessed under a design that matches the practical forecasting
-problem.
+sMAPE is reported as the primary percentage-based comparison measure in
+the empirical illustrations above, since MAPE can become unstable when
+observed values are close to zero. The rolling-origin procedure used by
+`cross_val()` re-estimates the model at successive evaluation dates,
+holds back a fixed forecast horizon, and computes the chosen loss metric
+over that out-of-sample window, so that forecast accuracy is assessed
+under a design that matches the practical forecasting problem.
 
 # Illustration of the `tsgc` package
 
@@ -604,85 +597,21 @@ on coronavirus). In the example that follows, we use the data on
 confirmed cases in Gauteng. The data series is in cumulative form and is
 loaded as an `xts` object with a date index, as follows.
 
-### Supplying future external regressors from a CSV file
-
-For models that include external regressors, forecasts are conditional on
-future values of those regressors. These values can be supplied from a
-CSV file. The following example first illustrates the required CSV
-structure using an inline text block for reproducibility. In practice,
-the data would normally be read directly from a CSV file.
-
-```
-
-In practice, users would normally read the future regressor values
-directly from a CSV file rather than embedding the data in the code. The
-CSV file should have the same structure as shown above, with a `Date`
-column followed by one column for each external regressor.
-
-```
-
-Once the future regressors have been supplied, subsequent forecasts from
-the fitted model are conditional on these external regressor values.
-
-```{=tex}
 \begin{Code}
 data(gauteng, package = "tsgc")
 \end{Code}
-```
 
 New COVID-19 cases reported for Gauteng province and their centered
 7-day moving average presented in Figure 1 show a sequence of four waves
 over the period between 10 March 2020 and 5 January 2022.
 
-```{r fig-1, include = F}
+```{r make-fig-1, echo = FALSE, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
 # Load Gauteng data
 data(gauteng, package = "tsgc")
 
-# Calculate the 7 day centered moving average
-Y <- gauteng
-ma.cent.new.cases <- zoo::rollmean(diff(Y), 7, align = "center")
-str(Y)
-
-# Find the date at which cases are the maximum in this sample
-ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>%
-                            zoo::index()
-
-ma.cent.wave.3.idx.max
-
-# Create the object to be plotted - column 1 has the actual daily data and
-# column 2 has the centred moving average
-d <- cbind(diff(Y), ma.cent.new.cases)
-names(d) <- c('New Cases', 'Centered 7-day MA')
-
-d.df <-
-  data.frame(Date = index(d),
-             New.Cases = coredata(d[,1]),
-             Centered.7.day.MA = coredata(d[,2]))
-```
-
-```{r make-fig-1, echo = FALSE, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
-# Create the plot
-data_plot<-ggplot(data = d.df,
-                  aes(x = Date)) +
-  geom_line(aes(y = New.Cases, color = "New Cases"),
-            linewidth=0.1) +
-  geom_line(aes(y = Centered.7.day.MA,
-                color = "Centered 7 day MA"), linewidth=1) +
-  scale_y_continuous(n.breaks = 10) +
-  xlab("Day") +
-  ylab("New cases") +
-  scale_x_date(date_breaks = "60 days") +
-  scale_color_manual(name='', # Data: Gauteng
-                     values=c('New Cases'='blue',
-                              'Centered 7 day MA'='red'))+
-  theme_light(base_size = 12)+    #18
-  theme(legend.position = c(.2, 0.85))+
-  theme(legend.title=element_text(size=2),
-        legend.text=element_text(size=10))+ #13
-  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 10), #16
-        plot.title = element_text(face = "bold"))
-
-data_plot
+# Instantiate the SSModelDynamicGompertz model
+mod_all <- SSModelDynamicGompertz(Y=gauteng)
+plot(mod_all, series.name = "daily cases", MA_period = 7)
 ```
 
 ## Setting up the forecasting exercise
@@ -708,10 +637,10 @@ as defined below.
 
 -   `q` is the signal-to-noise ratio, which controls the smoothness of
     the estimated trend. A lower value will lead to more smoothness. By
-    default, we use `q = NULL`, so that it is estimated. Alternatively, 
-    we can set `q`. For example, in our experience, `q = 0.005` ensures a good
-    balance between the smoothness of the trend and the speed with which
-    changes in estimates respond to new observations.
+    default, we use `q = NULL`, so that it is estimated. Alternatively,
+    we can set `q`. For example, in our experience, `q = 0.005` ensures
+    a good balance between the smoothness of the trend and the speed
+    with which changes in estimates respond to new observations.
 
 -   `confidence.level` sets the coverage of the confidence intervals for
     $\ln(g_t)$ which is then used to generate the prediction intervals
@@ -732,12 +661,12 @@ the sample period set from 1 February to 19 April 2021. This marks the
 beginning of the third wave in Gauteng as can be seen in Figure 1. The
 options are specified as below.
 
-```{r set_options, eval = FALSE}
+```{r set_options}
 file.path = here()
 res.dir <- here::here(file.path, 'results')
 Y = gauteng
 estimation.date.start = as.Date("2021-02-01")
-estimation.date.end = as.Date("2021-04-19")
+estimation.date.end = as.Date("2021-05-03")
 n.forecasts = 14
 q = 0.005
 confidence.level = 0.68
@@ -757,8 +686,9 @@ We then estimate the model using a diffuse prior distribution for the
 initial state vector. The signal-to-noise ratio can be left as a free
 parameter to be estimated, as in the code below.
 
-```{r model_est_free_q, eval = F}
-model_q <- SSModelDynamicGompertz$new(Y = y)
+```{r model_est_free_q}
+model_q <- SSModelDynamicGompertz(Y = Y, start.date = estimation.date.start, 
+                                      end.date = estimation.date.end)
 res_q <- estimate(model_q)
 ```
 
@@ -768,8 +698,9 @@ value strikes a useful balance between the smoothness of the estimate of
 the slope parameter $\gamma$, and the speed with which it adapts to new
 observations.
 
-```{r model_est_fix_q, eval = F}
-model = SSModelDynamicGompertz$new(Y = y, q = q)
+```{r model_est_fix_q}
+model = SSModelDynamicGompertz(Y = Y, q = q, start.date = estimation.date.start,
+                                   end.date = estimation.date.end)
 res = estimate(model)
 ```
 
@@ -785,48 +716,16 @@ cases series to the log of the growth rate of the cumulative cases.
 
 First, we create the evaluation sample.
 
-`tsgc::plot_log_forecast` then creates and plots forecasts of $\ln(g_t)$.
+`tsgc::plot_log_forecast` then creates and plots forecasts of
+$\ln(g_t)$.
 
-```{r plot_forecast1, eval=F}
+```{r fig-2, fig.cap="Figure 2: Fourteen-day forecast of $ln(g_t)$ from 4 May 2021, for Gauteng province in South Africa."}
 tsgc::plot_log_forecast(
   res = res,
   Y = Y,
   n.ahead = n.forecasts,
   plt.start.date = tail(res$index, 1) - plt.length
 )
-```
-
-```{r fig-2, echo=F, fig.cap="Figure 2: Fourteen-day forecast of $ln(g_t)$ from 4 May 2021, for Gauteng province in South Africa."}
-# Set options
-estimation.date.start <- as.Date("2021-02-01")
-estimation.date.end <- as.Date("2021-05-03")
-n.forecasts <- 14
-q <- 0.005
-confidence.level <- 0.68
-plt.length <- 30
-
-# Estimate model
-idx.est <-
-  (zoo::index(Y) >= estimation.date.start) &
-  (zoo::index(Y) <= estimation.date.end)
-y <- Y[idx.est]
-
-# Cumulative Y over the estimation window is small y
-# May not be ideal as in the paper we use small y for diff(Y)
-
-model <- SSModelDynamicGompertz$new(Y = y, q = q)
-res <- estimate(model)
-
-# Subsetting of holdout period is already done in the plot_holdout function
-
-# Plot filtered, forecast and realised log growth rate
-p1 <- tsgc::plot_log_forecast(
-  res = res,
-  Y = Y,
-  n.ahead = n.forecasts,
-  plt.start.date = tail(res$index, 1) - plt.length
-)
-p1
 ```
 
 From these results we can recover the forecasts of new cases from 20
@@ -852,16 +751,10 @@ window.
 # Update estimation date
 estimation.date.end <- as.Date("2021-04-19")
 
-# Re-estimate model
-idx.est <-
-  (zoo::index(Y) >= estimation.date.start) &
-  (zoo::index(Y) <= estimation.date.end)
-y <- Y[idx.est]
-
-# Cumulative Y over the estimation window is small y
-# May not be ideal as in the paper we use small y for diff(Y)
-
-model <- SSModelDynamicGompertz$new(Y = y, q = q)
+# Reestimate the model
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, 
+                                    start.date = estimation.date.start, 
+                                    end.date = estimation.date.end)
 res_eval <- estimate(model)
 
 tsgc::plot_holdout(
@@ -888,12 +781,12 @@ gen_int <- 4
 r.t <- estimate_r0(res, gen_int)
 ```
 
-```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 19 April 2021, for Gauteng province in South Africa."}
+```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
 estimate_r0(
   res,
   gen_int = 4,
   show_plot = TRUE,
-  title = "Reproduction numbers for the 7-day period to 19 April 2021"
+  title = "Reproduction numbers for the 7-day period to 3 May 2021"
 )
 ```
 
@@ -902,6 +795,22 @@ specified. The forecast options specified earlier are retained.
 
 ```{r write_results, eval=F}
 tsgc::write_results(
+ res=res,
+ res.dir = res.dir,
+ n.ahead = n.forecasts,
+ confidence.level =  confidence.level
+)
+```
+
+## Reinitialization
+
+In all countries the coronavirus pandemic was characterized by a series
+of recurring waves due to a combination of biological, behavioral, and
+environmental reasons. In an epidemic, the onset of a new wave is
+signalled when the slope parameter $\gamma$, which measures of the
+growth rate of the growth rate of new cases, rises above zero for a
+sustained period. Such a super-exponential phase of the epidemic in
+which the growth rate of new cases is itself increasing over time is
 typically short.
 
 This section illustrates the reinitialization procedure which allows us
@@ -911,7 +820,7 @@ window to 25 June 2021, by which date the third wave is well on course
 with its peak within sight (see Figure 1). All other options remain the
 same.
 
-```{r change-est-date-end, eval=F}
+```{r change-est-date-end}
 estimation.date.end = as.Date("2021-06-25")
 ```
 
@@ -931,29 +840,16 @@ Figure 6 shows that for the third wave in Gauteng, the smoothed slope
 estimate exceeded twice its standard error on 1 May 2021, having risen
 above zero on 21 April 2021.
 
-```{r fig-6, echo = F, fig.cap = "Figure 6: Trigger for reinitialization: when filtered slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the filtered slope crossed zero."}
-# Update estimation date end
-estimation.date.end = as.Date("2021-06-25")
-
+```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when filtered slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the filtered slope crossed zero."}
 # Re-estimate model
-idx.est <-
-  (zoo::index(Y) >= estimation.date.start) &
-  (zoo::index(Y) <= estimation.date.end)
-y <- Y[idx.est]
-
-model <- SSModelDynamicGompertz$new(Y = y, q = q)
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, start.date=estimation.date.start,
+                                    end.date=estimation.date.end)
 res <- estimate(model)
 
 # Extract the smoothed slope and its standard deviation
 smoothed.slope.full <- xts::xts(res$output$alphahat[, "slope"],
                                 order.by = res$index)
 smoothed.P.slope <- xts::xts(res$output$P[2, 2,-1], order.by = res$index)
-
-# smoothed slope
-# plot(smoothed.slope.full)
-
-# SD(smoothed slope)
-# plot(smoothed.P.slope)
 
 d2 <- cbind(smoothed.slope.full, sqrt(smoothed.P.slope),
             1.5 * sqrt(smoothed.P.slope),
@@ -1024,18 +920,20 @@ ggplot(data = d2.df,
 
 The date for reinitialization is set accordingly.
 
-```{r set_reinit_date, eval=F}
+```{r set_reinit_date}
 reinit.dates = "2021-04-21"
 ```
 
 ### Estimating the reinitialized model
 
 A reinitialized `SSModelDynamicGompertz` uses the same arguments as the
-non-reinitialized model, with the addition of the `reinit.date` argument.
+non-reinitialized model, with the addition of the `reinit.date`
+argument.
 
-```{r reinit_estim, eval=F}
+```{r reinit_estim}
 model <- SSModelDynamicGompertz$new(
-  Y = y, q = q,
+  Y = Y, q = q, start.date=estimation.date.start,
+  end.date=estimation.date.end,
   reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
 )
 res.reinit <- estimate(model)
@@ -1050,7 +948,7 @@ Estimating the model with the reinitialized series, the actual and
 forecast $\ln(g_t)$ can be plotted as in Figure 7, which is analogous to
 Figure 2 for the non-reinitialized series.
 
-```{r plot_forecast2, eval=F}
+```{r fig-7, fig.cap = "Figure 7: Forecast of $ln(g_t)$ after reinitialization."}
 tsgc::plot_log_forecast(
     res = res.reinit,
     Y = Y,
@@ -1059,63 +957,6 @@ tsgc::plot_log_forecast(
     title='Forecast of $ln(g_t)$  after reinitialization.'
 )
 ```
-
-```{r fig-7, echo=F, fig.cap = "Figure 7: Forecast of $ln(g_t)$ after reinitialization."}
-# Set reinitialization date
-reinit.dates = "2021-04-21"
-
-# Estimate reinitialized model
-model <- SSModelDynamicGompertz$new(
-  Y = y, q = q,
-  reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
-)
-res.reinit <- estimate(model)
-
-# Reinitialize dataframe
-Y.reinit <- Y %>%
-  reinitialise_dataframe(., reinit.dates)
-
-# Reinitialize the evaluation data (log growth rate)
-y.eval.reinit <- Y %>%
-  reinitialise_dataframe(., reinit.dates) %>%
-  df2ldl() %>%
-  subset(zoo::index(.) > tail(res.reinit$index,1))
-
-# Create plot
-tsgc::plot_log_forecast(
-    res = res.reinit,
-    Y = Y,
-    n.ahead = n.forecasts,
-    plt.start.date =  tail(res.reinit$index, 1) - plt.length,
-    title='Forecast of log growth rate after reinitialization.'
-)
-```
-
-The plot of the forecasts of new cases, and that of these forecasts
-against the actual number of new cases can be produced as before. See
-Figures 8 and 9. The trend has begun to turn down in model forecasts
-with the reinitialized series.
-
-```{r fig-8, fig.cap="Figure 8: Forecast of new cases after reinitialization."}
-tsgc::plot_forecast(
-  res = res.reinit,
-  n.ahead = n.forecasts,
-  confidence.level = confidence.level,
-  plt.start.date = tail(res.reinit$index, 1) - plt.length,
-  series.name = "cases"
-)
-```
-
-```{r fig-9, fig.cap="Figure 9: Forecast accuracy of the reinitialized model over the hold-out sample period: 14 days past 25 June 2021."}
-tsgc::plot_holdout(
-  res = res.reinit,
-  Y = Y,
-  n.ahead = 14,
-  confidence.level = 0.68,
-  series.name = "cases"
-)
-```
-
 Comparing forecasts, without reinitialization the 14-day forecast MAPE
 is 41.9% (see Figure 10). With reinitialization, it falls to 20.2%. The
 corresponding MAPE figures for 7-day forecasts is 15.2% without
@@ -1170,8 +1011,8 @@ plot(
 )
 ```
 
-We then estimate the baseline leading-indicator model, with cases as
-the lead series (`LeadIndCol = 1`) and weekly seasonality.
+We then estimate the baseline leading-indicator model, with cases as the
+lead series (`LeadIndCol = 1`) and weekly seasonality.
 
 ```{r li-estimate}
 mod.eng <- SSModelLeadingIndicator$new(
@@ -1221,10 +1062,10 @@ tsgc::plot_holdout(
 ### Adding regressors and future covariate paths
 
 The same specification can be enriched with exogenous predictors. Here
-we add contemporaneous weather variables (wind speed, relative
-humidity, temperature, and maximum temperature) to both the lead and
-target equations, and then supply their future values before
-forecasting using `supply_xpred.new()`.
+we add contemporaneous weather variables (wind speed, relative humidity,
+temperature, and maximum temperature) to both the lead and target
+equations, and then supply their future values before forecasting using
+`supply_xpred.new()`.
 
 ```{r li-xpred}
 xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
@@ -1254,19 +1095,19 @@ tsgc::plot_forecast(
 )
 ```
 
-In practice, the recommended sequence is to establish a sensible lag
-and seasonal specification first, inspect the resulting forecasts, and
-only then augment the model with regressors if additional covariates
-are available and future paths can be supplied.
+In practice, the recommended sequence is to establish a sensible lag and
+seasonal specification first, inspect the resulting forecasts, and only
+then augment the model with regressors if additional covariates are
+available and future paths can be supplied.
 
 ## Comparing the dynamic Gompertz and leading-indicator models
 
 We now compare a UK-only dynamic Gompertz model with a leading-indicator
 model that uses Italian case growth as a lead for UK case growth, using
 daily COVID-19 cases in Italy and the UK from the first-wave period.
-Italy experienced the first large European outbreak earlier than the
-UK, making it a natural candidate for a short-horizon lead series
-during the first wave.
+Italy experienced the first large European outbreak earlier than the UK,
+making it a natural candidate for a short-horizon lead series during the
+first wave.
 
 ```{r cv-setup}
 data(ukitaly, package = "tsgc")
@@ -1291,10 +1132,10 @@ plot(
 )
 ```
 
-The UK-only dynamic Gompertz model is estimated on UK daily cases
-alone, and the leading-indicator model uses Italy as the lead series
-with a 14-day lag, motivated by the observed timing of the first-wave
-evolution in Italy relative to the UK.
+The UK-only dynamic Gompertz model is estimated on UK daily cases alone,
+and the leading-indicator model uses Italy as the lead series with a
+14-day lag, motivated by the observed timing of the first-wave evolution
+in Italy relative to the UK.
 
 ```{r uk-gompertz}
 mod.uk.gomp <- SSModelDynamicGompertz$new(
@@ -1336,8 +1177,8 @@ model.
 ### Selecting the lag by rolling cross-validation
 
 The baseline lag $k=14$ is motivated by the observed first-wave timing.
-To avoid selecting the lag purely by inspection, the package provides
-a rolling cross-validation utility, `cross_val()`, which evaluates
+To avoid selecting the lag purely by inspection, the package provides a
+rolling cross-validation utility, `cross_val()`, which evaluates
 candidate specifications over a rolling origin and reports a chosen
 accuracy criterion. Because `SSModelLeadingIndicator` uses a single
 alignment lag per fitted model, this should be read as model selection
@@ -1378,11 +1219,11 @@ For each candidate model, `cross_val()` evaluates forecasting
 performance over a rolling-origin scheme, re-estimating the model at
 each origin and recording the chosen accuracy criterion over the
 forecast horizon. The two `Vanilla` rows are UK-only dynamic Gompertz
-benchmarks (fixed $q_\zeta = 0.005$ and the AR(1) extension respectively); the
-remaining rows are Italy-to-UK leading-indicator models at different
-lags. The best-performing lags in this window are typically found in
-the mid-teens, consistent with a lead of roughly two to two-and-a-half
-weeks from Italy to the UK over this period.
+benchmarks (fixed $q_\zeta = 0.005$ and the AR(1) extension
+respectively); the remaining rows are Italy-to-UK leading-indicator
+models at different lags. The best-performing lags in this window are
+typically found in the mid-teens, consistent with a lead of roughly two
+to two-and-a-half weeks from Italy to the UK over this period.
 
 ## Extensions: non-epdimeological applications and alternative data frequencies
 
@@ -1391,10 +1232,10 @@ state-space machinery can be applied to quarterly, monthly, or annual
 data when the underlying series is cumulative and exhibits saturation;
 what changes with the sampling frequency is only the interpretation of
 the time index, forecast horizon, lag length, and seasonal period, not
-the underlying estimation procedure. For example, the quarterly
-Nintendo sales data can be used with a seasonal period of 4 and a
-lagged leading indicator, while monthly trading-app downloads can be
-treated in the same way with a seasonal period of 12.
+the underlying estimation procedure. For example, the quarterly Nintendo
+sales data can be used with a seasonal period of 4 and a lagged leading
+indicator, while monthly trading-app downloads can be treated in the
+same way with a seasonal period of 12.
 
 ```{r freq-quarterly}
 data(nintendo_sales, package = "tsgc")
@@ -1473,23 +1314,24 @@ in this context is that there is very little data pertinent to the new
 wave available in its initial stages. The package employs a
 reinitialization method using priors in a way that allows data from
 before the beginning of the new wave to be used in estimation. The same
-framework can be extended to a leading-indicator formulation for outcomes
-that are preceded by an observable correlate, and it can be applied to
-data measured at different frequencies once the relevant seasonal period
-and lag structure are chosen.
+framework can be extended to a leading-indicator formulation for
+outcomes that are preceded by an observable correlate, and it can be
+applied to data measured at different frequencies once the relevant
+seasonal period and lag structure are chosen.
 
 The package is demonstrated using COVID-19 data from South Africa and
-England, but it can be used to model and forecast any time series variable
-where a growth curve-like trajectory is expected. Examples might include
-sales of a new product, innovation adoption or website traffic. The
-approach is phenomenological rather than mechanistic: it is designed for
-short-horizon forecasting and exploratory analysis rather than for causal
-identification or structural epidemiological inference. The forecast bands
-are state-implied summaries of the latent-state uncertainty and should
-not be interpreted as calibrated prediction or confidence intervals in the
-usual sense. In addition, the implied lead–lag relationship between a
-leading indicator and a target series can break down over time, so the
-model should be monitored and re-estimated as conditions change.
+England, but it can be used to model and forecast any time series
+variable where a growth curve-like trajectory is expected. Examples
+might include sales of a new product, innovation adoption or website
+traffic. The approach is phenomenological rather than mechanistic: it is
+designed for short-horizon forecasting and exploratory analysis rather
+than for causal identification or structural epidemiological inference.
+The forecast bands are state-implied summaries of the latent-state
+uncertainty and should not be interpreted as calibrated prediction or
+confidence intervals in the usual sense. In addition, the implied
+lead–lag relationship between a leading indicator and a target series
+can break down over time, so the model should be monitored and
+re-estimated as conditions change.
 
 # Acknowledgements {.unnumbered}
 
@@ -1533,11 +1375,10 @@ effects.
 Letting $\nu_{j,t}$ be the effect of season $j$ at time $t$, the
 seasonal terms evolve according to
 
-```{=tex}
 \begin{align}
 \nu_{t} &= \sum_{j=1}^{s^{*}} \nu_{j,t}, & (13)
 \end{align}
-```
+
 where \begin{align}
 \nu_{j,t} &= \nu_{j,t-1} \cos \lambda_j + \nu^*_{j,t-1} \sin \lambda_j + \omega_{j,t} & (14)\\
 \nu^*_{j,t} &= -\nu_{j,t-1} \sin \lambda_j + \nu^*_{j,t-1} \cos \lambda_j  + \omega^*_{j,t}, \;\;\;\;\; j = 1, \ldots, s^*, & (15)
@@ -1554,11 +1395,11 @@ and come directly from $P_{r+1}$.
 
 # Appendix: Supplying future external regressors from a CSV file
 
-For models that include external regressors, forecasts are conditional on
-future values of those regressors. These values can be supplied from a
-CSV file. The following example first illustrates the required CSV
-structure using an inline text block for reproducibility. In practice,
-the data would normally be read directly from a CSV file.
+For models that include external regressors, forecasts are conditional
+on future values of those regressors. These values can be supplied from
+a CSV file. The following example illustrates the required CSV structure
+using an inline text block for reproducibility. In practice, the data
+would normally be read directly from a CSV file.
 
 ```{r xpred-csv-example, eval = F}
 # This inline CSV block demonstrates the expected format of a file
