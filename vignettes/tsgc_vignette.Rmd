@@ -99,7 +99,8 @@ Gauteng province in South Africa and continuing with the
 leading-indicator model, a comparison against the dynamic Gompertz
 model, lag selection by rolling cross-validation, the forecast accuracy
 measures used to evaluate the package's models, and the package's
-applicability to data frequencies other than daily. Section 6 concludes.
+applicability to data of non-daily frequency and non-epidemological
+nature. Section 6 concludes.
 
 # Theory
 
@@ -597,6 +598,11 @@ on coronavirus). In the example that follows, we use the data on
 confirmed cases in Gauteng. The data series is in cumulative form and is
 loaded as an `xts` object with a date index, as follows.
 
+While the data is already an `xts` object in these examples, typical 
+applications are likely to begin with data stored as a `CSV`. A minimal
+example of how to convert a `CSV` file to an `xts` object is presented in 
+the appendix, and can be extended as needed.
+
 \begin{Code}
 data(gauteng, package = "tsgc")
 \end{Code}
@@ -706,18 +712,12 @@ res = estimate(model)
 
 ## Results
 
-We can now plot the forecast of $\ln g_t$ - the log of the growth rate
-of $Y$, the cumulative cases -- which is the transformation of the data
+We can now plot the forecast of $\ln g_t$ -- the log of the growth rate
+of $Y$, the cumulative cases -- which is the transformation of the
 series that is taken to the model, and we can compare these forecasts to
 the actual $\ln g_t$ series. We do this by passing the output (`res`) of
 the estimation step along with an evaluation sample to a plotting
-function. We specify the evaluation sample by converting the cumulative
-cases series to the log of the growth rate of the cumulative cases.
-
-First, we create the evaluation sample.
-
-`tsgc::plot_log_forecast` then creates and plots forecasts of
-$\ln(g_t)$.
+function `tsgc::plot_log_forecast`.
 
 ```{r fig-2, fig.cap="Figure 2: Fourteen-day forecast of $ln(g_t)$ from 4 May 2021, for Gauteng province in South Africa."}
 tsgc::plot_log_forecast(
@@ -728,8 +728,8 @@ tsgc::plot_log_forecast(
 )
 ```
 
-From these results we can recover the forecasts of new cases from 20
-April 2021, with their prediction intervals.
+From these results we can recover the forecasts of new cases from 4
+May 2021, with their prediction intervals.
 
 ```{r fig-3, fig.cap = "Figure 3: Fourteen-day forecast of new cases from 4 May 2021 for Gauteng province in South Africa. The shaded region is a state-implied forecast band obtained by propagating uncertainty in the latent log growth rate."}
 tsgc::plot_forecast(
@@ -790,7 +790,7 @@ estimate_r0(
 )
 ```
 
-A CSV file (named \\verb\|y-forecast\|) is written to the directory
+A CSV file (`y-forecast`) is written to the directory
 specified. The forecast options specified earlier are retained.
 
 ```{r write_results, eval=F}
@@ -804,7 +804,7 @@ tsgc::write_results(
 
 ## Reinitialization
 
-In all countries the coronavirus pandemic was characterized by a series
+In all countries, the coronavirus pandemic was characterized by a series
 of recurring waves due to a combination of biological, behavioral, and
 environmental reasons. In an epidemic, the onset of a new wave is
 signalled when the slope parameter $\gamma$, which measures of the
@@ -832,8 +832,8 @@ estimate of the slope parameter, $\gamma_t$, breaches a threshold of two
 standard errors above zero, and at that point backdate reinitialization
 to when the estimate of $\gamma_t$ first turned positive. In applying
 the above heuristic there is a choice between the filtered slope
-estimate and the smoothed slope estimate. Experiments suggests that the
-greater noisiness of the filtered estimate of $\gamma_t$ often triggers
+estimate and the smoothed slope estimate. Experimental results suggest that the
+greater noise in the filtered estimate of $\gamma_t$ often triggers
 reinitialization too early. The smoothed estimate is more reliable.
 
 Figure 6 shows that for the third wave in Gauteng, the smoothed slope
@@ -958,11 +958,11 @@ tsgc::plot_log_forecast(
 )
 ```
 Comparing forecasts, without reinitialization the 14-day forecast MAPE
-is 41.9% (see Figure 10). With reinitialization, it falls to 20.2%. The
+is 41.9% (see Figure 8). With reinitialization, it falls to 20.2%. The
 corresponding MAPE figures for 7-day forecasts is 15.2% without
 reinitialization and 9.5% with reinitialization.
 
-```{r fig-10, echo=FALSE, fig.cap = "Figure 10: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+```{r fig-8, echo=FALSE, fig.cap = "Figure 8: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
 tsgc::plot_holdout(
   res = res,
   Y = Y,
@@ -1000,7 +1000,7 @@ plt.length.eng  <- 14
 A preliminary plot of the two series on the log scale is useful for
 inspecting comovement before formal estimation.
 
-```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
+```{r li-plot, fig.cap = "Figure 9: Daily COVID cases and hospitalisations, England."}
 mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng)
 plot(
   mod.eng.plot,
@@ -1029,7 +1029,7 @@ res.eng <- estimate(mod.eng)
 The fitted object `res.eng` can be used to generate the same forecast
 and holdout panels as for the dynamic Gompertz model.
 
-```{r fig-li-log, fig.cap = "Figure 12: Forecast of log growth rate of hospitalisations, England."}
+```{r fig-li-log, fig.cap = "Figure 10: Forecast of log growth rate of hospitalisations, England."}
 tsgc::plot_log_forecast(
   res.eng,
   Y = eng,
@@ -1039,7 +1039,7 @@ tsgc::plot_log_forecast(
 )
 ```
 
-```{r fig-li-forecast, fig.cap = "Figure 13: Forecast of hospitalisations, England."}
+```{r fig-li-forecast, fig.cap = "Figure 11: Forecast of hospitalisations, England."}
 tsgc::plot_forecast(
   res.eng,
   n.ahead = n.forecasts.eng,
@@ -1049,7 +1049,7 @@ tsgc::plot_forecast(
 )
 ```
 
-```{r fig-li-holdout, fig.cap = "Figure 14: Accuracy of the seven-day forecast of hospitalisations, England."}
+```{r fig-li-holdout, fig.cap = "Figure 12: Accuracy of the seven-day forecast of hospitalisations, England."}
 tsgc::plot_holdout(
   res.eng,
   Y = eng,
@@ -1085,7 +1085,7 @@ supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
 supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
 ```
 
-```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
+```{r fig-li-x-forecast, fig.cap = "Figure 13: Forecast of hospitalisations with weather regressors, England."}
 tsgc::plot_forecast(
   res.eng.x,
   n.ahead = n.forecasts.eng,
@@ -1121,7 +1121,7 @@ est.end.uk   <- as.Date("2020-04-01")
 Yuk          <- ukitaly[, "UK"]
 ```
 
-```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
+```{r fig-uk-italy, fig.cap = "Figure 14: Daily COVID cases in UK and Italy."}
 mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly, n.lag = 4)
 plot(
   mod.ukit.plot,
@@ -1154,7 +1154,7 @@ mod.uk.lead <- SSModelLeadingIndicator$new(
 res.uk.lead <- estimate(mod.uk.lead)
 ```
 
-```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
+```{r fig-uk-compare, fig.cap = "Figure 15: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
 tsgc::plot_compare_forecast(
   list(res.uk.gomp, res.uk.lead),
   actual = ukitaly[, "UK"],
@@ -1162,7 +1162,7 @@ tsgc::plot_compare_forecast(
 )
 ```
 
-```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
+```{r fig-uk-holdout, fig.cap = "Figure 16: Accuracy of the leading-indicator forecast, UK daily cases."}
 tsgc::plot_holdout(
   res.uk.lead, Y = ukitaly, n.ahead = n.forecasts.uk,
   title = "Accuracy: leading-indicator forecast of UK cases",
@@ -1256,7 +1256,7 @@ mod.q <- SSModelLeadingIndicator$new(
 res.q <- estimate(mod.q)
 ```
 
-```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
+```{r fig-freq-q, fig.cap = "Figure 17: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
 tsgc::plot_log_forecast(
   res.q, Y = y_q, n.ahead = 8,
   title = "Log forecasts of Switch sales"
@@ -1282,7 +1282,7 @@ mod.m <- SSModelLeadingIndicator$new(
 res.m <- estimate(mod.m)
 ```
 
-```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
+```{r fig-freq-m, fig.cap = "Figure 18: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
 tsgc::plot_forecast(
   res.m, n.ahead = 4,
   title = "AvaTrade monthly downloads",
@@ -1468,3 +1468,5 @@ tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
 
 Once the future regressors have been supplied, subsequent forecasts from
 the fitted model are conditional on these external regressor values.
+
+While this example is specifically for exogenous predictors, it can be extended to CSV files containing the target data in the same way.
