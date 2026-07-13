@@ -957,8 +957,9 @@ tsgc::plot_log_forecast(
     title='Forecast of log growth rate after reinitialization.'
 )
 ```
+
 Comparing forecasts, without reinitialization the 14-day forecast MAPE
-is 41.9% (see Figure 8). With reinitialization, it falls to 20.2%. The
+is 41.9% (see Figure 8). With reinitialization, it falls to 20.2% (see Figure 9). The
 corresponding MAPE figures for 7-day forecasts is 15.2% without
 reinitialization and 9.5% with reinitialization.
 
@@ -969,6 +970,27 @@ tsgc::plot_holdout(
   n.ahead = 14,
   confidence.level = 0.68,
   series.name = "cases"
+)
+```
+
+```{r fig-9, echo=FALSE, fig.cap = "Figure 9: Forecast accuracy of the model with reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+tsgc::plot_holdout(
+  res = res.reinit,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
+```
+
+We can also compare the standard (no reinitialization) and reinitalized 
+forecasts in a single plot:
+
+```{r fig-10, fig.cap = "Figure 10: Comparison of standard (green) and reinitialized (blue) forecasts"}
+tsgc::plot_compare_forecast(
+  results = list(res.reinit, res),
+  n.ahead = 14,
+  actual = Y
 )
 ```
 
@@ -1000,7 +1022,7 @@ plt.length.eng  <- 14
 A preliminary plot of the two series on the log scale is useful for
 inspecting comovement before formal estimation.
 
-```{r li-plot, fig.cap = "Figure 9: Daily COVID cases and hospitalisations, England."}
+```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
 mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng)
 plot(
   mod.eng.plot,
@@ -1029,7 +1051,7 @@ res.eng <- estimate(mod.eng)
 The fitted object `res.eng` can be used to generate the same forecast
 and holdout panels as for the dynamic Gompertz model.
 
-```{r fig-li-log, fig.cap = "Figure 10: Forecast of log growth rate of hospitalisations, England."}
+```{r fig-li-log, fig.cap = "Figure 12: Forecast of log growth rate of hospitalisations, England."}
 tsgc::plot_log_forecast(
   res.eng,
   Y = eng,
@@ -1039,7 +1061,7 @@ tsgc::plot_log_forecast(
 )
 ```
 
-```{r fig-li-forecast, fig.cap = "Figure 11: Forecast of hospitalisations, England."}
+```{r fig-li-forecast, fig.cap = "Figure 13: Forecast of hospitalisations, England."}
 tsgc::plot_forecast(
   res.eng,
   n.ahead = n.forecasts.eng,
@@ -1049,7 +1071,7 @@ tsgc::plot_forecast(
 )
 ```
 
-```{r fig-li-holdout, fig.cap = "Figure 12: Accuracy of the seven-day forecast of hospitalisations, England."}
+```{r fig-li-holdout, fig.cap = "Figure 14: Accuracy of the seven-day forecast of hospitalisations, England."}
 tsgc::plot_holdout(
   res.eng,
   Y = eng,
@@ -1085,7 +1107,7 @@ supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
 supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
 ```
 
-```{r fig-li-x-forecast, fig.cap = "Figure 13: Forecast of hospitalisations with weather regressors, England."}
+```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
 tsgc::plot_forecast(
   res.eng.x,
   n.ahead = n.forecasts.eng,
@@ -1121,7 +1143,7 @@ est.end.uk   <- as.Date("2020-04-01")
 Yuk          <- ukitaly[, "UK"]
 ```
 
-```{r fig-uk-italy, fig.cap = "Figure 14: Daily COVID cases in UK and Italy."}
+```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
 mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly, n.lag = 4)
 plot(
   mod.ukit.plot,
@@ -1154,7 +1176,7 @@ mod.uk.lead <- SSModelLeadingIndicator$new(
 res.uk.lead <- estimate(mod.uk.lead)
 ```
 
-```{r fig-uk-compare, fig.cap = "Figure 15: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
+```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
 tsgc::plot_compare_forecast(
   list(res.uk.gomp, res.uk.lead),
   actual = ukitaly[, "UK"],
@@ -1162,7 +1184,7 @@ tsgc::plot_compare_forecast(
 )
 ```
 
-```{r fig-uk-holdout, fig.cap = "Figure 16: Accuracy of the leading-indicator forecast, UK daily cases."}
+```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
 tsgc::plot_holdout(
   res.uk.lead, Y = ukitaly, n.ahead = n.forecasts.uk,
   title = "Accuracy: leading-indicator forecast of UK cases",
@@ -1256,7 +1278,7 @@ mod.q <- SSModelLeadingIndicator$new(
 res.q <- estimate(mod.q)
 ```
 
-```{r fig-freq-q, fig.cap = "Figure 17: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
+```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
 tsgc::plot_log_forecast(
   res.q, Y = y_q, n.ahead = 8,
   title = "Log forecasts of Switch sales"
@@ -1282,7 +1304,7 @@ mod.m <- SSModelLeadingIndicator$new(
 res.m <- estimate(mod.m)
 ```
 
-```{r fig-freq-m, fig.cap = "Figure 18: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
+```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
 tsgc::plot_forecast(
   res.m, n.ahead = 4,
   title = "AvaTrade monthly downloads",
