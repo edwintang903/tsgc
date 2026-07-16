@@ -460,11 +460,11 @@ seasonal term, as described in the Appendix.
 The main Gompertz class in `tsgc` is `SSModelDynamicGompertz`, which
 implements the models described in (2)-(4), with or without
 reinitialization. A model object is constructed with
-`SSModelDynamicGompertz$new(...)` and its unknown parameters are
-estimated with the `estimate()` method, invoked as `estimate(model)`,
-which returns an object of the `FilterResults` class. This class wraps
-the underlying `KFAS` `KFS` object with a date index and additional
-methods for prediction attached.
+`SSModelDynamicGompertz$new(...)` or `tsgc::SSModelDynamicGompertz(...)`
+and its unknown parameters are estimated with the `estimate()` method, 
+invoked as `estimate(model)`, which returns an object of the `FilterResults` 
+class. This class wraps the underlying `KFAS` `KFS` object with a date index 
+and additional methods for prediction attached.
 
 The `SSModelDynamicGompertz` needs only a cumulative series $Y$ as an
 input. In our application, this is the cumulative number of new
