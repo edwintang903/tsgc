@@ -310,11 +310,14 @@ $R_{t}.$ @Harvey2021a propose \begin{align}
 \widetilde{R}_{t,\tau}&=1+\tau g_{y,t\mid t}\;\;\;\text{or}\;\;\;\widetilde{R}_{\tau,t}^{e} =\exp(\tau g_{y,t\mid t}),\;\;\; & (8)
 \end{align} \noindent where $\tau$ is the generation interval -- the
 typical number of days between an infected person becoming infected and
-them transmitting the disease to someone else. We construct credible
-intervals for $\widetilde{R}_{t,\tau}$ and $\widetilde{R}_{\tau,t}^{e}$
-by substituting the upper and lower bounds of the confidence intervals
-for $g_{y,t}$ into (8) to get the upper and lower bounds of the credible
-intervals. See @Harvey2021b for an application.
+them transmitting the disease to someone else. We construct approximate
+pointwise uncertainty bands for $\widetilde{R}_{t,\tau}$ and
+$\widetilde{R}_{\tau,t}^{e}$ by substituting the upper and lower bounds
+of the pointwise uncertainty bands for $g_{y,t}$ into (8). These are
+approximate bands for the latent reproduction-number summaries implied
+by the fitted state-space model, conditional on the chosen generation
+interval $\tau$; they are not Bayesian credible intervals. See
+@Harvey2021b for an application.
 
 The estimates of $R_{t}$ can be used for tracking and forecasting the
 epidemic. The nowcasts of $y_{t}$ peak when $\hat{g}_{y,t\mid t}=0$,
@@ -663,7 +666,7 @@ In this example the data is the cumulative confirmed cases time series
 for Gauteng. The start and end dates (`estimation.date.start` and
 `estimation.date.end`) that define the sample used for estimation are
 chosen as appropriate for the exercise. In this example, we begin with
-the sample period set from 1 February to 19 April 2021. This marks the
+the sample period set from 1 February to 3 May 2021. This marks the
 beginning of the third wave in Gauteng as can be seen in Figure 1. The
 options are specified as below.
 
@@ -693,7 +696,8 @@ initial state vector. The signal-to-noise ratio can be left as a free
 parameter to be estimated, as in the code below.
 
 ```{r model_est_free_q}
-model_q <- SSModelDynamicGompertz(Y = Y, start.date = estimation.date.start, 
+model_q <- SSModelDynamicGompertz(Y = Y, sea.period = 7,
+                                      start.date = estimation.date.start, 
                                       end.date = estimation.date.end)
 res_q <- estimate(model_q)
 ```
@@ -705,7 +709,8 @@ the slope parameter $\gamma$, and the speed with which it adapts to new
 observations.
 
 ```{r model_est_fix_q}
-model = SSModelDynamicGompertz(Y = Y, q = q, start.date = estimation.date.start,
+model = SSModelDynamicGompertz(Y = Y, q = q, sea.period = 7,
+                                   start.date = estimation.date.start,
                                    end.date = estimation.date.end)
 res = estimate(model)
 ```
@@ -752,7 +757,7 @@ window.
 estimation.date.end <- as.Date("2021-04-19")
 
 # Reestimate the model
-model <- SSModelDynamicGompertz$new(Y = Y, q = q, 
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
                                     start.date = estimation.date.start, 
                                     end.date = estimation.date.end)
 res_eval <- estimate(model)
@@ -774,7 +779,8 @@ the six days from 28 April the MAPE was 12.8%. Over the full 14 days of
 the forecasts, the MAPE was 27%.
 
 As discussed earlier, the reproduction numbers $R_t$ and their 68%
-credible intervals can be calculated. This is shown in Figure 5.
+approximate pointwise uncertainty bands can be calculated. This is
+shown in Figure 5.
 
 ```{r calc_rt, eval = FALSE}
 gen_int <- 4
@@ -838,11 +844,17 @@ reinitialization too early. The smoothed estimate is more reliable.
 
 Figure 6 shows that for the third wave in Gauteng, the smoothed slope
 estimate exceeded twice its standard error on 1 May 2021, having risen
-above zero on 21 April 2021.
+above zero on 21 April 2021. For clarity of illustration, the smoothed
+slope shown here is computed once over the full sample rather than
+recomputed at each successive forecast origin; a fully prospective,
+expanding-window implementation using the filtered endpoint state at
+each origin is a direction for future development of the
+reinitialization procedure.
 
-```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when filtered slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the filtered slope crossed zero."}
+```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
 # Re-estimate model
-model <- SSModelDynamicGompertz$new(Y = Y, q = q, start.date=estimation.date.start,
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
+                                    start.date=estimation.date.start,
                                     end.date=estimation.date.end)
 res <- estimate(model)
 
@@ -932,7 +944,8 @@ argument.
 
 ```{r reinit_estim}
 model <- SSModelDynamicGompertz$new(
-  Y = Y, q = q, start.date=estimation.date.start,
+  Y = Y, q = q, sea.period = 7,
+  start.date=estimation.date.start,
   end.date=estimation.date.end,
   reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
 )
@@ -1157,11 +1170,15 @@ plot(
 The UK-only dynamic Gompertz model is estimated on UK daily cases alone,
 and the leading-indicator model uses Italy as the lead series with a
 14-day lag, motivated by the observed timing of the first-wave evolution
-in Italy relative to the UK.
+in Italy relative to the UK. Both models are estimated with weekly
+seasonality (`sea.period = 7`, the package default for daily data),
+specified explicitly here so that the two specifications are directly
+comparable; a fuller factorial comparison across seasonal and other
+tuning choices is beyond the scope of this vignette.
 
 ```{r uk-gompertz}
 mod.uk.gomp <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.uk,
+  Y = Yuk, q = q.uk, sea.period = 7,
   start.date = est.start.uk, end.date = est.end.uk
 )
 res.uk.gomp <- estimate(mod.uk.gomp)
@@ -1211,16 +1228,19 @@ response.
 cv_models <- list()
 
 cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
-  Y = Yuk, q = q.uk, start.date = est.start.uk, end.date = est.end.uk
+  Y = Yuk, q = q.uk, sea.period = 7,
+  start.date = est.start.uk, end.date = est.end.uk
 )
 
 cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
-  Y = Yuk, start.date = est.start.uk, end.date = est.end.uk, ar1 = TRUE
+  Y = Yuk, sea.period = 7,
+  start.date = est.start.uk, end.date = est.end.uk, ar1 = TRUE
 )
 
 for (i in c(7, 10, 14, 16, 18, 21)) {
   cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
-    Y = ukitaly, start.date = est.start.uk, end.date = est.end.uk, n.lag = i
+    Y = ukitaly, sea.period = 7,
+    start.date = est.start.uk, end.date = est.end.uk, n.lag = i
   )
 }
 ```
@@ -1388,7 +1408,7 @@ are equivalent.
 
 In the trigonometric seasonal approach, the seasonal pattern is captured
 by a set of trigonometric terms at the seasonal frequencies
-$\lambda_j = \frac{2 \pi j}{2}$ for $j=1, \ldots s^*$, where
+$\lambda_j = \frac{2 \pi j}{s}$ for $j=1, \ldots s^*$, where
 $s^*=\frac{s}{2}$ if $s$, the periodicity of the seasonal effect, is
 even, and $s^*=\frac{s-1}{2}$ if $s$ is odd @Durbin2012. Our
 applications use daily data and we set $s=7$ to capture day-of-the-week
