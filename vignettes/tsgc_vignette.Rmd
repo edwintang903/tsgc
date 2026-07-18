@@ -869,8 +869,8 @@ more reliable, and is what we use to compute $z_{\gamma,T}$ below.
 
 Figure 6 shows that for the third wave in Gauteng, the smoothed slope
 estimate exceeded twice its standard error on 1 May 2021, having risen
-above zero on 21 April 2021, giving trigger date $ d = $ 1 May 2021 and
-reset date $ r = $ 21 April 2021.
+above zero on 21 April 2021, giving trigger date $d =$ 1 May 2021 and
+reset date $r =$ 21 April 2021.
 
 ```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
 # Re-estimate model
