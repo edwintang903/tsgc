@@ -375,13 +375,35 @@ wave is taking off.
 
 ## Reinitializing the data series
 
-In practice the reinitialization rule is implemented in two stages. Let
-$d$ denote the date on which the trigger condition is first observed in
-real time and let $r\le d$ denote the date to which the cumulative
-series is reset. The sequence is then redefined from the reset date $r$,
-while the trigger date $d$ records the point at which the decision rule
-is activated. In the notation below, $t=r$ denotes the reset date and
-$r_0$ the date at which the cumulative series is set to 0. Then:
+In practice the reinitialization rule is implemented in two stages,
+following a real-time trigger condition. Let $T$ denote the current
+forecast origin and let $\mathcal{F}_T$ denote the information available
+up to and including date $T$. Write $P_{\gamma,T\mid T} = Var(\gamma_T
+\mid \mathcal{F}_T)$ for the relevant element of $P_{T\mid T}$, so that
+$\sqrt{P_{\gamma,T\mid T}}$ is the conditional standard deviation of the
+latent slope $\gamma_T$ given the information available at $T$. Define
+the standardised signal
+$$z_{\gamma,T} = \frac{\hat\gamma_{T\mid T}}{\sqrt{P_{\gamma,T\mid T}}}.$$
+The reinitialization warning is triggered when
+$$z_{\gamma,T} > c_{reinit}, \qquad c_{reinit} = 2,$$
+that is, when $\hat\gamma_{T\mid T}$ exceeds zero by approximately two
+conditional standard deviations. This threshold is an operational rule
+of thumb rather than a fixed statistical decision rule, and can be
+adjusted depending on the noisiness of the data and the desired
+trade-off between early warning and false reinitialization.
+
+Let $d$ denote the first forecast origin at which this trigger condition
+holds. The reset date $r$ supplied to `reinit.date` is then defined as
+the start of the current positive spell in the smoothed slope estimate
+computed on the sample ending at $d$:
+$$r = \min\{t \le d : \hat\gamma^S_{u\mid d} > 0 \text{ for all } u=t,\ldots,d\},$$
+where $\hat\gamma^S_{u\mid d}$ denotes the smoothed estimate of the slope
+at date $u$, using observations only up to and including date $d$. Thus
+the trigger date $d$ and the reset date $r$ are distinct: $d$ is the
+date on which the warning first fires in real time, whereas $r$ is the
+earlier date at which the cumulative series is reinitialized. In the
+notation below, $t=r$ denotes the reset date and $r_0$ the date at which
+the cumulative series is set to 0. Then:
 
 \begin{align}
 \ln g_t &= \ln y_t - \ln Y_{t-1} & t=1, \ldots, r \notag \\
@@ -832,24 +854,23 @@ estimation.date.end = as.Date("2021-06-25")
 
 ### Triggering reinitialization
 
-It is not obvious, a priori, when precisely to reinitialize the model.
-Based on experiments a reasonable option is to reinitialize when the
-estimate of the slope parameter, $\gamma_t$, breaches a threshold of two
-standard errors above zero, and at that point backdate reinitialization
-to when the estimate of $\gamma_t$ first turned positive. In applying
-the above heuristic there is a choice between the filtered slope
-estimate and the smoothed slope estimate. Experimental results suggest that the
-greater noise in the filtered estimate of $\gamma_t$ often triggers
-reinitialization too early. The smoothed estimate is more reliable.
+As set out above, reinitialization is triggered at the first forecast
+origin $T$ at which the standardised signal $z_{\gamma,T} =
+\hat\gamma_{T\mid T}/\sqrt{P_{\gamma,T\mid T}}$ exceeds the threshold
+$c_{reinit}=2$, that is, when the estimate of the slope parameter,
+$\gamma_t$, breaches two standard errors above zero. Reinitialization is
+then backdated to $r$, the start of the current positive spell in the
+smoothed slope estimate computed on the sample ending at the trigger
+date. In applying this rule there is a choice between the filtered
+slope estimate and the smoothed slope estimate. Experimental results
+suggest that the greater noise in the filtered estimate of $\gamma_t$
+often triggers reinitialization too early. The smoothed estimate is
+more reliable, and is what we use to compute $z_{\gamma,T}$ below.
 
 Figure 6 shows that for the third wave in Gauteng, the smoothed slope
 estimate exceeded twice its standard error on 1 May 2021, having risen
-above zero on 21 April 2021. For clarity of illustration, the smoothed
-slope shown here is computed once over the full sample rather than
-recomputed at each successive forecast origin; a fully prospective,
-expanding-window implementation using the filtered endpoint state at
-each origin is a direction for future development of the
-reinitialization procedure.
+above zero on 21 April 2021, giving trigger date $ d = $ 1 May 2021 and
+reset date $ r = $ 21 April 2021.
 
 ```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
 # Re-estimate model
