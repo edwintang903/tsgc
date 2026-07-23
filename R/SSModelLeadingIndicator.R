@@ -1,5 +1,10 @@
 # Created by: Craig Thamotheram
 # Created on: 27/07/2022
+# Refactored: model works on idx_series (integer-indexed) data rather than
+# xts/Date-indexed data. n.lag is a number of integer positions rather than
+# a calendar lag. Plotting has been removed from this file; it will be
+# reintroduced elsewhere as a purely cosmetic layer that translates integer
+# positions back to calendar time.
 
 #  This program is free software; you can redistribute it and/or modify
 #  it under the terms of the GNU General Public License as published by
@@ -15,17 +20,17 @@
 #  http://www.r-project.org/Licenses/
 
 setOldClass("KFS")
+setOldClass("idx_series")
 #'
 #' @title Class for designing a Leading Indicator Model
 #'
 #' @description A class for specifying the parameters of a leading indicator model. The model 
 #' settings are stored in the fields of this object, and the class contains 
-#' methods to obtain FilterResultsLI object for further analysis and plotting 
-#' the time series under investigation as an exploratory data analysis.
+#' methods to obtain a FilterResultsLI object for further analysis.
 #'
-#' @field Y A cumulated time series with 2 columns: a leading indicator and a target variable. 
-#' Both the target variable and the lagged leading indicator must be strictly increasing in time 
-#' within the estimation window.
+#' @field Y A cumulated \code{idx_series} with 2 columns: a leading indicator and a target
+#' variable. Both the target variable and the lagged leading indicator must be strictly
+#' increasing within the estimation window.
 #' @field q The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance). 
 #' Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
@@ -34,49 +39,40 @@ setOldClass("KFS")
 #'   data to model day-of-the-week effects. A value of \code{0} disables the seasonal 
 #'   component entirely. The default is \code{7}, which is suitable for capturing 
 #'   weekly seasonality in daily time series.
-#' @field n.lag Number of days/months/quarters/years to lag the leading indicator.
-#' @field xpred_lead An xts object containing the values of exogenous variables for 
-#' the leading indicator. Dataset must contain values for all dates in the 
+#' @field n.lag Number of integer positions to lag the leading indicator by.
+#' @field xpred_lead An \code{idx_series} object containing the values of exogenous
+#' variables for the leading indicator. Dataset must contain values for all positions in the 
 #' estimation time frame. Defaults to NULL, indicating no exogenous variables are needed 
 #' for the leading indicator.
-#' @field xpred_targ An xts object containing the values of exogenous variables for 
-#' the target variable. Dataset must contain values for all dates in the 
+#' @field xpred_targ An \code{idx_series} object containing the values of exogenous
+#' variables for the target variable. Dataset must contain values for all positions in the 
 #' estimation time frame. Defaults to NULL, indicating no exogenous variables are 
 #' needed for the target variable.
 #' @field LeadIndCol The column in \code{Y} that contains the leading indicator. 
 #' Defaults to 1.
-#' @field start.date Start date of the estimation period for estimating the target variable. 
-#' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
-#' @field end.date End date of the estimation period for estimating the target variable. 
-#' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
+#' @field start Integer position marking the start of the estimation period.
+#' @field end Integer position marking the end of the estimation period.
 #'
-#' @importFrom xts periodicity last lag.xts
 #' @importFrom methods new setRefClass setOldClass
-#' @importFrom magrittr %>%
-#' @importFrom KFAS SSMtrend SSMseasonal SSModel SSMregression
+#' @importFrom KFAS SSMtrend SSMseasonal SSModel SSMregression KFS fitSSM
 #' @importFrom purrr partial
-#' @import ggplot2
 #'
 #' @examples
 #' library(tsgc)
-#' 
+#' set.seed(1)
+#' lead <- cumsum(rpois(120, 6)) + 1
+#' targ <- cumsum(rpois(120, 8)) + 1
+#' Y <- idx_series(cbind(lead, targ), start = 1)
+#'
 #' # Specify a model with the estimation timeframe
-#' estimation.date.start <- as.Date("2020-02-25")
-#' estimation.date.end <- as.Date("2020-04-01")
-#' 
-#' model <- SSModelLeadingIndicator(Y=ukitaly, n.lag = 14, 
-#' sea.period = 7,LeadIndCol=1, start.date=estimation.date.start,
-#' end.date=estimation.date.end)
-#' 
+#' model <- SSModelLeadingIndicator(Y = Y, n.lag = 5, sea.period = 0,
+#'   LeadIndCol = 1, start = 1, end = 100)
+#'
 #' # Show summary of the model object
 #' summary(model)
-#' 
+#'
 #' # Print a short description of the model object
 #' print(model)
-#' 
-#' # Plot the time series stored in the model object
-#' plot(model, title="COVID Daily Cases in UK and Italy",
-#' series.name.lead="Italy", series.name.target="UK", take.log=FALSE)
 #'
 #' # Estimate a specified model
 #' res <- estimate(model)
@@ -87,19 +83,19 @@ setOldClass("KFS")
 SSModelLeadingIndicator <- setRefClass(
   "SSModelLeadingIndicator",
   fields = list(
-    Y = "ANY",
+    Y = "idx_series",
     q = "ANY",
     sea.period= "numeric",
     n.lag = "numeric",
     LeadIndCol ="numeric",
     xpred_lead = "ANY",  
     xpred_targ = "ANY",
-    start.date = "ANY",
-    end.date = "ANY"),
+    start = "ANY",
+    end = "ANY"),
   methods = list(
     initialize = function(Y, n.lag, sea.period=7, q = NULL,
                           LeadIndCol=1, xpred_lead=NULL, xpred_targ=NULL,
-                          start.date=index(Y)[1], end.date=tail(index(Y),1))
+                          start=idx_range(Y)[1], end=idx_range(Y)[2])
     {"Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
       if (length(sea.period) != 1 || 
@@ -107,16 +103,15 @@ SSModelLeadingIndicator <- setRefClass(
           sea.period==1 || sea.period<0){
         stop("sea.period must be a non-negative integer that is not 1.")
       } 
-      if (!is.null(xpred_lead) && !is.xts(xpred_lead)){
-        stop("xpred_lead must be NULL or an xts object.")
+      if (!is.null(xpred_lead) && !is_idx_series(xpred_lead)){
+        stop("xpred_lead must be NULL or an idx_series object.")
       } 
-      if (!is.null(xpred_targ) && !is.xts(xpred_targ)){
-        stop("xpred_targ must be NULL or an xts object.")
+      if (!is.null(xpred_targ) && !is_idx_series(xpred_targ)){
+        stop("xpred_targ must be NULL or an idx_series object.")
       } 
       if (length(LeadIndCol) != 1 || !(LeadIndCol %in% c(1, 2))){
         stop("LeadIndCol must take values 1 or 2.")
       }
-      resolu<-get_time_resolution(index(Y))
       Y <<- Y
       q <<- q
       sea.period<<-sea.period
@@ -124,12 +119,12 @@ SSModelLeadingIndicator <- setRefClass(
       LeadIndCol <<- LeadIndCol
       xpred_lead<<-xpred_lead
       xpred_targ<<-xpred_targ
-      start.date<<-start.date
-      end.date<<-end.date
+      start<<-start
+      end<<-end
     },
     estimate = function()
     {
-    "Estimates the Leading Indicator model when applied to an object of
+      "Estimates the Leading Indicator model when applied to an object of
       class \\code{SSModelLeadingIndicator}.
       \\subsection{Return Value}{An object of class \\code{FilterResultsLI}
       containing the result output for the estimated Leading Indicator
@@ -138,33 +133,63 @@ SSModelLeadingIndicator <- setRefClass(
       # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
       
-      y$newLead = stats::lag(y$newLead,n.lag)
-      y$LDLlead = stats::lag(y$LDLlead,n.lag)
-      y$cLead = stats::lag(y$cLead,n.lag)
+      y$newLead <- idx_lag(y$newLead, n.lag)
+      y$LDLlead <- idx_lag(y$LDLlead, n.lag)
+      y$cLead <- idx_lag(y$cLead, n.lag)
       
-      y[is.infinite(y)] <- NA
+      # Combine into a single, position-aligned idx_series (inner join on
+      # position, i.e. keep only positions present in every component
+      # series - cLead/cTarg span the full range but newLead/LDLlead etc.
+      # are one position shorter due to differencing, and now additionally
+      # shifted forward by n.lag positions).
+      common_pos <- Reduce(intersect, lapply(y, idx_positions))
+      combined_mat <- do.call(cbind, lapply(y, function(s) idx_values(s[common_pos])))
+      colnames(combined_mat) <- names(y)
+      y_combined <- idx_series(combined_mat, start = common_pos[1])
       
-      y.full <- get_timeframe(na.omit(y),start.date)
-      y.estimate<-get_timeframe(na.omit(y),start.date, end.date)
+      # Treat +/-Inf (e.g. from log(0) in df2ldl when an increment happens
+      # to be recorded as exactly matching the prior level) as missing,
+      # then drop any position with a missing value in any column - the
+      # idx_series analogue of xts's na.omit().
+      finite_rows <- apply(idx_values(y_combined), 1, function(row) all(is.finite(row)))
+      keep_pos <- idx_positions(y_combined)[finite_rows]
+      if (length(keep_pos) == 0) {
+        stop("No positions remain after removing missing/infinite values (check n.lag and the estimation range).")
+      }
+      # keep_pos may not be contiguous if interior rows were dropped; the
+      # idx_series class only supports contiguous ranges, so we require
+      # contiguity here (matching the implicit assumption in the original
+      # xts-based code, which relied on na.omit() typically only trimming
+      # from the ends when only the lag-induced leading NAs are present).
+      if (!identical(keep_pos, seq.int(keep_pos[1], keep_pos[length(keep_pos)]))) {
+        stop("Missing/infinite values leave gaps in the middle of the series after filtering, which idx_series cannot represent. Consider a different n.lag or estimation range.")
+      }
+      y_clean <- y_combined[keep_pos]
       
-      if (any(y.full[,c("newLead","newTarg")]<=0)){
-        stop("Y must be a time series strictly increasing in time within the selected timeframe 
+      y.full <- get_timeframe(y_clean, start)
+      y.estimate <- get_timeframe(y_clean, start, end)
+      
+      newLead_col <- idx_values(y.full)[, "newLead"]
+      newTarg_col <- idx_values(y.full)[, "newTarg"]
+      if (any(newLead_col<=0) || any(newTarg_col<=0)){
+        stop("Y must be strictly increasing within the selected timeframe 
         after lagging the leading indicator. If the cumulative 
            values exhibit plateaus it is necessary to add small increments to 
            eliminate flat segments and allow model estimation. This can be done 
            by ensuring the non-cumulated series is strictly positive.")}
       
-      data_ldl <- y.estimate[,c("LDLlead","LDLtarg")]
-
-      data_mat <- as.matrix(data_ldl)
+      data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg")]
+      est_pos <- idx_positions(y.estimate)
       
       if (!is.null(xpred_lead)){
-        xpred_lead<<-get_timeframe(stats::lag(xpred_lead,n.lag),index(data_ldl)[1],tail(index(data_ldl),1))
+        xpred_lead<<-get_timeframe(idx_lag(xpred_lead,n.lag), est_pos[1], tail(est_pos,1))
       }
       if (!is.null(xpred_targ)){
-        xpred_targ<<-get_timeframe(xpred_targ,index(data_ldl)[1],tail(index(data_ldl),1))
+        xpred_targ<<-get_timeframe(xpred_targ, est_pos[1], tail(est_pos,1))
       }
-
+      xreg_lead <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
+      xreg_targ <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL
+      
       # Standard update function - edited to allow the targeting of the signal-to-noise ratio
       # Signal-to-noise ratio is defined as the variance of the trend component of order 'order'
       # (= 1 for level, = 2 for slope, etc) relative to variance of irregular of series 'index'
@@ -197,38 +222,38 @@ SSModelLeadingIndicator <- setRefClass(
       # Create the SSM model
       # This has a common trend and slope (common trend of degree 2),
       # an extra trend [random walk] in LDLtarg only [degree = 1],
-      # and 7 day dummy variable seasonal.
+      # and a trigonometric seasonal (period = sea.period, if > 1).
       
       if (sea.period<2){
-        if (is.null(xpred_lead)){
-          if (is.null(xpred_targ)){
+        if (is.null(xreg_lead)){
+          if (is.null(xreg_targ)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_targ, type="distinct", index=2),
+                             SSMregression(~xreg_targ, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         } else {
-          if (is.null(xpred_targ)){
+          if (is.null(xreg_targ)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_lead, type="distinct", index=1),
+                             SSMregression(~xreg_lead, type="distinct", index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_lead, type="distinct", index=1)+
-                             SSMregression(~xpred_targ, type="distinct", index=2),
+                             SSMregression(~xreg_lead, type="distinct", index=1)+
+                             SSMregression(~xreg_targ, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         }
       }
       else {
-        if (is.null(xpred_lead)){
-          if (is.null(xpred_targ)){
+        if (is.null(xreg_lead)){
+          if (is.null(xreg_targ)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1),
@@ -237,96 +262,78 @@ SSModelLeadingIndicator <- setRefClass(
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_targ, type="distinct", index=2),
+                             SSMregression(~xreg_targ, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         } else {
-          if (is.null(xpred_targ)){
+          if (is.null(xreg_targ)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_lead, type="distinct", index=1),
+                             SSMregression(~xreg_lead, type="distinct", index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xpred_lead, type="distinct", index=1)+
-                             SSMregression(~xpred_targ, type="distinct", index=2),
+                             SSMregression(~xreg_lead, type="distinct", index=1)+
+                             SSMregression(~xreg_targ, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         }
       }
-
+      
       # Compute number of parameters - this is just the number of NAs in the model Q and H combined.
       npar = sum(is.na(mod$Q)) + sum(is.na(mod$H))
-
+      
       # Set the options for the update function
       # We have a signal/noise ratio of 0.005, the signal is the slope and we are
       # targeting the variance of the irregular in cases
-
+      
       if (is.null(q)){
         fit = fitSSM(mod, rep(0,npar))
       }
       else{
-        update = updatesn %>% partial(snr=q,order=2,index=2)
-
+        update = updatesn %>% purrr::partial(snr=q,order=2,index=2)
+        
         # Fit the state-space model (ML, diffuse prior)
         fit = fitSSM(mod, rep(0,npar), updatefn = update)
       }
-
+      
       # Apply the Kalman filter and smoother to the fitted model
       out = KFS(fit$model)
-
+      
       results <- FilterResultsLI$new(
-        data_xts = y.full,
+        data = y.full,
         output = out,
         n.lag=n.lag,
         sea.period=sea.period,
         LeadIndCol=LeadIndCol,
         xpred_logical=c(!is.null(xpred_lead),!is.null(xpred_targ)),
-        start.date=index(data_ldl)[1],
-        end.date=tail(index(data_ldl),1))
+        start=est_pos[1],
+        end=tail(est_pos,1))
       return(results)},
     summary = function() {
       "Supplies details of the SSModelLeadingIndicator object, such as estimated 
-      parameter values, start and end dates of estimation."
+      parameter values, start and end positions of estimation."
       result<-.self$estimate()
       out <- output(result)
-      # q<-.self$q
-      # if(is.null(q)){
-      #   qest <- matrixKFS(out,"Q")[3, 3, 1]/matrixKFS(out,"H")[2, 2, 1]
-      # }
-      start<-result$start.date
-      end<-result$end.date
-      resolution<-result$resolution
+      start_pos<-result$start
+      end_pos<-result$end
       
       cat("Summary of SSModelLeadingIndicator Model")
       cat("\n")
       cat("--------------------------------------\n")
       cat("Cumulated Variable:\n")
-      base::print(head(.self$Y))
-      # cat("Signal-to-Noise Ratio (q):",
-      #     ifelse(is.null(q), paste(signif(qest,3), "(estimated)"),
-      #            paste(q, ("(user specified)"))), "\n")
+      base::print(head(idx_values(.self$Y)))
       cat("Model Details:\n")
       cat("  - Model Type: Leading Indicator Model")
       cat("\n")
-      cat("  - Seasonal Component: ", ifelse(is.na(sea.period), "None", "Trigonometric"), "\n")
-      cat("  - Period of Seasonality: ", ifelse(is.na(sea.period), "N/A", sea.period), "\n")
-      if (resolution=="daily"){
-        cat("  - Estimation start date:", format(as.Date(start, origin = "1970-01-01"))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.Date(end, origin = "1970-01-01")))
-      } else if (resolution=="quarterly"){
-        cat("  - Estimation start date:", format(as.yearqtr(start))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.yearqtr(end)))
-      } else if (resolution=="monthly"  || resolution=="yearly"){
-        cat("  - Estimation start date:", format(as.yearmon(start))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.yearmon(end)))
-      } 
+      cat("  - Seasonal Component: ", ifelse(sea.period>1, "Trigonometric", "None"), "\n")
+      cat("  - Period of Seasonality: ", ifelse(sea.period>1, sea.period, "N/A"), "\n")
+      cat("  - Estimation start position:", start_pos)
+      cat("\n")
+      cat("  - Estimation end position:", end_pos)
       cat("\n")
       cat("  - Model States and Standard Errors\n")
       base::print(out)
@@ -336,88 +343,16 @@ SSModelLeadingIndicator <- setRefClass(
       model states and standard errors."
       
       out <- output(.self$estimate()) #KFS object
-      # if(is.null(.self$q)){
-      #   qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
-      # }
       cat("SSModelLeadingIndicator Model")
       cat("\n")
       cat("\n")
       cat("Cumulated Variable:\n")
-      base::print(head(.self$Y))
+      base::print(head(idx_values(.self$Y)))
       cat("Number of observations:", length(.self$Y))
       cat("\n")
-      # cat("Signal-to-Noise Ratio (q):", 
-      #     ifelse(is.null(.self$q), paste(signif(qest,5), "(estimated)"), 
-      #            paste(.self$q, ("(user specified)"))), "\n")
       cat("Seasonal components?",
           ifelse(is.null(seasonalComp(out)),
                  "No","Yes"),"\n")
-    },
-    plot=function(title=NULL, series.name.lead="Leading Indicator", 
-                  series.name.target="Target Variable",
-                  date_break=NULL, take.log=TRUE){
-      "Plots the lagged differences of the cumulated dataset \\code{Y} in this 
-      \\code{SSModelLinearIndicator} object against time, which could represent 
-      daily cases.
-      \\subsection{Parameters}{\\itemize{
-        \\item{\\code{title} Title for forecast plot. Enter as character string. 
-        \\code{NULL} (i.e. no title) by default.}
-        \\item{\\code{series.name.lead} The name of the leading indicator series 
-        for. E.g. \\code{'cases'}. Enter as character string. Default is `Leading Indicator`.}
-        \\item{\\code{series.name.target} The name of the target variable series 
-        for. E.g. \\code{'hospitalizations'}. Enter as character string. Default is `Target Variable`.}
-        \\item{\\code{date_break} A character string (e.g. '60 days') specifying the interval 
-        between date labels, used in \\code{scale_x_date} within 
-        \\code{ggplot}. If \\code{NULL} (default), a suitable interval is chosen 
-        automatically by \\code{ggplot}.}
-        \\item{\\code{take.log} A logical value indicating whether to return 
-        take log of the lagged differences. Defaults to \\code{TRUE}.}
-        }
-      }
-      \\subsection{Return Value}{A plot of the lagged differences of the 
-      cumulated dataset \\code{Y} against time.}"
-      # Transform the data to calculate daily cases and log growth rates.
-      eng_full <- add_daily_ldl(Y)
-      eng_daily <- eng_full[, 3:4]
-      dates<-index(eng_daily)
-      reso<-get_time_resolution(dates)
-      if (reso!="daily"){
-        dates<-qtr2date(dates)
-      }
-      
-      # Plot daily new cases and admissions.
-      if (take.log){
-        base_plot<-ggplot(log(eng_daily), aes(x = dates))+
-          labs(
-            title = title,
-            x = "Date",
-            y = "log(Number)",
-            color = "Legend"
-          ) 
-      } else {
-        base_plot<-ggplot(eng_daily, aes(x = dates))+
-          labs(
-            title = title,
-            x = "Date",
-            y = "Number",
-            color = "Legend"
-          ) 
-      }
-      
-      data_plot<-base_plot+
-        geom_line(aes(y = newLead, color = series.name.lead), lwd = 0.85) +
-        geom_line(aes(y = newTarg, color = series.name.target), lwd = 0.85) +
-        scale_color_manual(values = c("red", "blue"))+
-        theme(
-          legend.title = element_text(size = 10),
-          legend.text = element_text(size = 10),
-          axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-          plot.title = element_text(face = "bold")
-        ) 
-      if (!is.null(date_break)) {
-        data_plot <- data_plot + scale_x_date(date_breaks = date_break)
-      } 
-      data_plot
     }
   )
 )

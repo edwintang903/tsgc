@@ -1,4 +1,24 @@
+# Created by: Craig Thamotheram
+# Refactored: analysis-only FilterResults class operating on idx_series
+# (integer-indexed) data. All plotting methods have been removed from this
+# file; they will be reintroduced elsewhere as a purely cosmetic layer that
+# translates integer positions back to calendar time before plotting.
+
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 or 3 of the License
+#  (at your option).
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  A copy of the GNU General Public License is available at
+#  http://www.r-project.org/Licenses/
+
 setOldClass("KFS")
+setOldClass("idx_series")
 #'
 #' @title Class for estimated Dynamic Gompertz Curve model
 #'
@@ -7,51 +27,42 @@ setOldClass("KFS")
 #' the incidence variable \eqn{y}, and forecasts of \eqn{y}. The output from the estimate method
 #' of the SSModelDynamicGompertz class is of the class FilterResults.
 #' 
-#' @field data_xts An xts object containing the non-reinitialized cumulated
-#' variable.
+#' @field data An \code{idx_series} object containing the non-reinitialized
+#' cumulated variable.
 #' @field xpred_logical Logical value indicating whether exogenous predictors were 
 #' used to estimate the FilterResults object. 
-#' @field index The list of dates in the index of \code{data_xts}.
-#' @field reinit.date The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable). 
-#' Should be specified as an object of class \code{"Date"}.
+#' @field index The integer positions of the observations used in
+#' estimation (of \code{data}).
+#' @field reinit.idx The reinitialisation position (a single integer) of the
+#' estimated \code{SSModelDynamicGompertz} model (if applicable).
 #' @field ar1 Logical value indicating whether an ar1 component should be 
 #' included in the model.
 #' @field output A \code{KFS} results object obtained after fitting a 
 #' \code{SSModelDynamicGompertz} model.
-#' @field xpred.new An xts object containing exogenous predictors to be used in 
-#' prediction. Defaults to \code{NULL}, and should be provided if xpred is 
-#' used for model estimation.
+#' @field xpred.new An \code{idx_series} object containing exogenous
+#' predictors to be used in prediction. Defaults to \code{NULL}, and should
+#' be provided if xpred is used for model estimation.
 #' @field sea.period The period of seasonality, inherited from the estimated 
 #' \code{SSModelDynamicGompertz} model. For a day-of-the-week
 #'   effect with daily data, this would be 7. 
-#' @field resolution A character object showing the time resolution of the data 
-#' in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
-#' Automatically estimated when \code{data_xts} is provided.
 #' 
 #' @references Harvey, A. C. and Kattuman, P. (2021). A Farewell to R:
 #' Time Series Models for Tracking and
 #' Forecasting Epidemics, Journal of the Royal Society Interface, vol 18(182):
 #' 20210179
 #'
-#' @importFrom xts periodicity last
-#' @importFrom stats end predict
+#' @importFrom stats predict
 #' @importFrom magrittr %>%
 #' @importFrom methods new setRefClass setOldClass
 #' @importFrom abind abind
-#' @importFrom zoo as.yearqtr as.yearmon as.Date.yearmon as.Date.yearqtr
-#' @importFrom scales date_format
 #' 
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
+#' set.seed(1)
+#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
 #'
-#' # Estimation and prediction settings
-#' estimation.date.end=as.Date("2020-07-20")
-#' plt.length=30
-#' 
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, 
-#' end.date=estimation.date.end)
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 100)
 #' 
 #' # Estimate a specified model
 #' res <- estimate(model)
@@ -65,11 +76,11 @@ setOldClass("KFS")
 #' # Print estimation results
 #' res$print_estimation_results()
 #' 
-#' # Forecast 7 days ahead from the end of the estimation window
+#' # Forecast 7 periods ahead from the end of the estimation window
 #' res$predict_level(n.ahead = 7,
 #'   confidence.level = 0.68, sea.on=TRUE)
 #'   
-#' # Forecast 7 days ahead from the model and return filtered states
+#' # Forecast 7 periods ahead from the model and return filtered states
 #' res$predict_all(n.ahead = 7, return.all = TRUE)
 #' 
 #' # Return the filtered growth rate and its components
@@ -79,62 +90,42 @@ setOldClass("KFS")
 #' # interval
 #' res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
 #'
-#' # Plot forecast and realised log growth rate of cumulative cases
-#' res$plot_log_forecast(Y=gauteng,n.ahead=7,
-#' plt.start.date=estimation.date.end-plt.length)
-#' 
-#' # Plot forecast of new cases 7 days ahead
-#' res$plot_forecast(n.ahead=7,
-#' plt.start.date = estimation.date.end-plt.length,
-#' series.name="hospitalizations")
-#' 
-#' # Plot forecasts and outcomes over evaluation period
-#' res$plot_holdout(Y=gauteng,n.ahead=7, series.name="hospitalizations")
-#' 
-#' # Plot filtered gy, g and gamma
-#' res$plot_gy_components()
-#' 
-#' # Plot filtered gy, g and gamma
-#' res$plot_gy_ci()
-#' 
 #' # Return MAPE of forecast
-#' res$mapes(n.ahead=7,gauteng)
+#' res$mapes(n.ahead=7,Y)
 #'
 #' @export
 #'
 FilterResults <- setRefClass(
   "FilterResults",
   fields = list(
-    data_xts = "xts",
+    data = "idx_series",
     xpred_logical = "ANY",
     xpred.new="ANY",
     index = "ANY",
-    reinit.date= "ANY",
+    reinit.idx= "ANY",
     ar1 = "logical",
     output = "KFS",
-    sea.period="numeric",
-    resolution="character"),
+    sea.period="numeric"),
   methods = list(
-    initialize = function(data_xts,xpred_logical,index,reinit.date, ar1, 
-                          output, sea.period, xpred.new=NULL, resolution="daily")
+    initialize = function(data,xpred_logical,index,reinit.idx, ar1, 
+                          output, sea.period, xpred.new=NULL)
     {
       "Create an instance of the \\code{FilterResults} class with fields defined
       earlier in the fields section."
-      data_xts<<-data_xts
+      data<<-data
       index <<- index
       xpred_logical<<-xpred_logical
       xpred.new<<-xpred.new
-      reinit.date<<-reinit.date
+      reinit.idx<<-reinit.idx
       ar1<<-ar1
       output <<- output
       sea.period<<-sea.period
-      resolution<<-get_time_resolution(index)
     },
     predict_level = function(
-      n.ahead,
-      confidence.level=0.68,
-      sea.on = TRUE, 
-      return.diff=TRUE)
+    n.ahead,
+    confidence.level=0.68,
+    sea.on = TRUE, 
+    return.diff=TRUE)
     {
       "Forecast the cumulated variable or the incidence of it. This function returns
       the forecast of the cumulated variable \\eqn{Y}, or the forecast of the incidence of the cumulated variable, \\eqn{y}. For
@@ -154,100 +145,92 @@ FilterResults <- setRefClass(
         \\eqn{y} (i.e., the first difference of the cumulated variable). Default is
         \\code{TRUE}.}
       }}
-      \\subsection{Return Value}{\\code{xts} object containing the point
+      \\subsection{Return Value}{\\code{idx_series} object containing the point
       forecasts and upper and lower bounds of
       the forecast interval.}"
-      if (!is.null(reinit.date)){
-        y.cum<-reinitialise_dataframe(data_xts, reinit.date)
+      if (!is.null(reinit.idx)){
+        y.cum<-reinitialise_dataframe(data, reinit.idx)
       } else {
-        y.cum<-data_xts
+        y.cum<-data
       }
       model <- modelKFS(output)
       n <- attr(model, "n")
       p <- attr(model, "p")
-
-      freq <- unclass(periodicity(y.cum))$label
-      endtime <- end(gety(model)) + c(0, n.ahead)
+      
       filtered.out <- .self$predict_all(n.ahead, sea.on = sea.on,
                                         return.all = FALSE, 
                                         confidence.level = confidence.level)
-
+      
       # # 1. Extract parameters.
       timespan <- n + 0:n.ahead
-
+      
       # Calculate g.t as exponent of y.t
-      g.t <- exp(gety.hat(filtered.out)[,1])
-      g.t.lwr <- exp(gety.hat(filtered.out)[,2])
-      g.t.upr <- exp(gety.hat(filtered.out)[,3])
-
-      # Forecast dates
-      v_dates_end <- if (resolution=='daily'){
-        seq(last(index(y.cum)), last(index(gety.hat(filtered.out))), by = freq)
-      } else if (resolution=='quarterly'){
-        as.yearqtr(seq(as.numeric(last(index(y.cum))),
-                                as.numeric(last(index(gety.hat(filtered.out)))),
-                                by=0.25))
-      } else if (resolution=='yearly'){
-        as.yearmon(seq(as.numeric(last(index(y.cum))),
-                       as.numeric(last(index(gety.hat(filtered.out)))),
-                       by=1))
-      } else if (resolution=='monthly'){
-        as.yearmon(seq(as.numeric(last(index(y.cum))),
-                       as.numeric(last(index(gety.hat(filtered.out)))),
-                       by=1/12))}
-
-      y.hat <- xts(matrix(NA, nrow = n.ahead + 1, ncol = 3),
-                   order.by = v_dates_end)
-      y.hat[v_dates_end[1],] <- y.cum[v_dates_end[1]]
-      for (i in seq_len(length(v_dates_end[-1]))) {
-        date.forecast <- v_dates_end[i + 1]
-        date.lag <- if (resolution=='daily' || resolution=='yearly'){date.forecast - 1} 
-        else if (resolution=='quarterly'){date.forecast - 0.25}
-        else if (resolution=='monthly'){date.forecast - 1/12}
+      yhat_mat <- idx_values(gety.hat(filtered.out))
+      g.t <- exp(yhat_mat[,1])
+      g.t.lwr <- exp(yhat_mat[,2])
+      g.t.upr <- exp(yhat_mat[,3])
+      
+      # Forecast positions: last position of estimation window through
+      # n.ahead positions beyond it.
+      last.pos <- idx_range(y.cum)[2]
+      fc.positions <- seq.int(last.pos, length.out = n.ahead + 1)
+      
+      y.hat <- matrix(NA_real_, nrow = n.ahead + 1, ncol = 3)
+      y.hat[1, 1] <- idx_values(y.cum[last.pos])
+      for (i in seq_len(n.ahead)) {
         # Update level
-        y.hat[date.forecast, 1] <- as.numeric(y.hat[date.lag, 1]) *
-          as.numeric(1 + g.t[date.forecast,])
-
+        y.hat[i + 1, 1] <- y.hat[i, 1] * (1 + g.t[i])
+        
         # Make prediction intervals
-        y.hat[date.forecast, 2] <- as.numeric(y.hat[date.lag, 1]) *
-          as.numeric(1 + g.t.lwr[date.forecast,])
-        y.hat[date.forecast, 3] <- as.numeric(y.hat[date.lag, 1]) *
-          as.numeric(1 + g.t.upr[date.forecast,])
+        y.hat[i + 1, 2] <- y.hat[i, 1] * (1 + g.t.lwr[i])
+        y.hat[i + 1, 3] <- y.hat[i, 1] * (1 + g.t.upr[i])
       }
-
+      y.hat <- idx_series(y.hat, start = fc.positions[1])
+      
       # Difference output if requested
-      d <- if (return.diff) { diff(y.hat[, 1])[-1] } else { (y.hat[, 1])[-1] }
-
+      d <- if (return.diff) { idx_diff(idx_series(y.hat$data[,1], start=y.hat$start), 1L) } else {
+        idx_series(y.hat$data[-1, 1], start = y.hat$start + 1L)
+      }
+      
       ci_bounds <- if (return.diff) {
-        (y.hat[, 2:3] - as.vector(y.hat[, 1]))[-1] + as.vector(d)
-      } else { y.hat[2:dim(y.hat)[1], 2:3] }
-
-      pred <- vector("list", length = p)
-      pred[[p]] <- cbind(fit = d, prediction = ci_bounds)
-      pred <- lapply(pred, ts, end = endtime, frequency = 1)
-
-      y.hat <- xts(pred[[p]], order.by = v_dates_end[-1])
-      names(y.hat)[2:3] <- list('lower', 'upper')
-
-      return(as.xts(y.hat))
+        base_mat <- y.hat$data[-1, 2:3, drop = FALSE] - y.hat$data[-nrow(y.hat$data), 1]
+        base_mat + idx_values(d)
+      } else {
+        y.hat$data[-1, 2:3, drop = FALSE]
+      }
+      
+      out <- idx_series(cbind(fit = idx_values(d), lower = ci_bounds[,1], upper = ci_bounds[,2]),
+                        start = d$start)
+      return(out)
     },
     print_estimation_results = function() {
       "Prints a table of estimated parameters in a format ready to paste into
       LaTeX."
       H <- output$model$H[, , 1]
       Q_gamma <- output$model$Q[2, 2, 1]
-      Q_seasonal <- output$model$Q[3, 3, 1]
-
-      tbl <- data.frame(
-        a = format(H, digits = 3),
-        b = format(Q_gamma, digits = 3),
-        c = format(Q_seasonal, digits = 3),
-        d = format(Q_gamma / H, digits = 4))
-      header.names <- c('$\\sigma_\\varepsilon^2$',
-                        '$\\sigma_\\gamma^2$',
-                        '$\\sigma_{seas}^2$',
-                        'q')
-
+      has_seasonal <- sea.period > 1
+      
+      if (has_seasonal) {
+        Q_seasonal <- output$model$Q[3, 3, 1]
+        tbl <- data.frame(
+          a = format(H, digits = 3),
+          b = format(Q_gamma, digits = 3),
+          c = format(Q_seasonal, digits = 3),
+          d = format(Q_gamma / H, digits = 4))
+        header.names <- c('$\\sigma_\\varepsilon^2$',
+                          '$\\sigma_\\gamma^2$',
+                          '$\\sigma_{seas}^2$',
+                          'q')
+      } else {
+        tbl <- data.frame(
+          a = format(H, digits = 3),
+          b = format(Q_gamma, digits = 3),
+          d = format(Q_gamma / H, digits = 4))
+        header.names <- c('$\\sigma_\\varepsilon^2$',
+                          '$\\sigma_\\gamma^2$',
+                          'q')
+      }
+      
       out <- tbl %>%
         kableExtra::kbl(
           caption = "Estimated parameters",
@@ -258,7 +241,7 @@ FilterResults <- setRefClass(
         ) %>%
         kableExtra::kable_classic(full_width = FALSE, html_font = "Cambria") %>%
         kableExtra::footnote(general = " ")
-
+      
       return(out)
     },
     predict_all = function(n.ahead, sea.on = TRUE, return.all = FALSE, confidence.level = 0.68) {
@@ -278,13 +261,13 @@ FilterResults <- setRefClass(
          rate that should be used to compute. Confidence intervals only reported
          for the incidence variable \\eqn{y}.}
       }}
-      \\subsection{Return Value}{\\code{xts} object containing the forecast
+      \\subsection{Return Value}{\\code{idx_series} objects containing the forecast
       (and filtered, where applicable) level
       of \\eqn{y} (\\code{y.hat}), \\eqn{\\delta} (\\code{level.t.t}),
       \\eqn{\\gamma} (\\code{slope.t.t}), vector of states including the
       seasonals where applicable (\\code{a.t.t}) and covariance matrix of all
       states including seasonals where applicable (\\code{P.t.t}).}"
-
+      
       new.model <- modelKFS(output)
       oldn<-attr(new.model, 'n')
       new.model$y <- rbind(
@@ -297,19 +280,14 @@ FilterResults <- setRefClass(
         if (is.null(xpred.new)){
           stop("xpred.new cannot be NULL.")
         } else {
-          firstpred<-if (resolution=='quarterly'){
-            tail(index,1)+0.25
-          } else if (resolution=='monthly'){
-            tail(index,1)+1/12
-          } else {
-            tail(index,1)+1
-          }
+          firstpred <- tail(index,1) + 1L
           
-          xpred.new<<-get_timeframe(xpred.new, firstpred)[1:n.ahead,]
+          xpred.new<<-get_timeframe(xpred.new, firstpred, firstpred + n.ahead - 1L)
           
           newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                       dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
-          newZ[,1:dim(xpred.new)[2],]<-t(xpred.new)
+          xpred.new.mat <- as.matrix(idx_values(xpred.new))
+          newZ[,1:dim(xpred.new.mat)[2],]<-t(xpred.new.mat)
           
           new.model$Z <- abind::abind(
             new.model$Z,
@@ -319,45 +297,46 @@ FilterResults <- setRefClass(
           
           model_output <- KFS(new.model)
           new.Q <- new.model$Q
+          xpred.new.vec <- xpred.new.mat
           if (ar1){
             #AR1 with sea.period
-            if (!is.null(sea.period)){
+            if (sea.period > 1){
               ar1_index<-dim(new.Q)[1]
-              newdata<-SSModel(rep(NA,dim(xpred.new)[1])
+              newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
                                          Q = list(matrix(0), matrix(new.Q[2,2,1])))
                                +SSMseasonal(
                                  period = sea.period, 
                                  Q = new.Q[3,3,1],
                                  sea.type = "trigonometric")
-                               +SSMregression(~xpred.new)
+                               +SSMregression(~xpred.new.vec)
                                +SSMcustom(Z=1,T=1,R=1,Q=new.Q[ar1_index,ar1_index,1],state_names="ar1"))
             } else {
               #AR1 and no sea.period
               ar1_index<-dim(new.Q)[1]
-              newdata<-SSModel(rep(NA,dim(xpred.new)[1])
+              newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
                                          Q = list(matrix(0), matrix(new.Q[2,2,1])))
-                               +SSMregression(~xpred.new)
+                               +SSMregression(~xpred.new.vec)
                                +SSMcustom(Z=1,T=1,R=1,Q=new.Q[ar1_index,ar1_index,1],state_names="ar1"))
             }
           } else {
             #sea period only
-            if (!is.null(sea.period)){
-              newdata<-SSModel(rep(NA,dim(xpred.new)[1])
+            if (sea.period > 1){
+              newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
                                          Q = list(matrix(0), matrix(new.Q[2,2,1])))
                                +SSMseasonal(
                                  period = sea.period, 
                                  Q = new.Q[3,3,1],
                                  sea.type = "trigonometric")
-                               +SSMregression(~xpred.new))
+                               +SSMregression(~xpred.new.vec))
             } else {
               #no sea period 
-            newdata<-SSModel(rep(NA,dim(xpred.new)[1])
-                             ~SSMtrend(degree = 2,
-                                       Q = list(matrix(0), matrix(new.Q[2,2,1])))
-                             +SSMregression(~xpred.new))
+              newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
+                               ~SSMtrend(degree = 2,
+                                         Q = list(matrix(0), matrix(new.Q[2,2,1])))
+                               +SSMregression(~xpred.new.vec))
             }
           }
           
@@ -397,33 +376,30 @@ FilterResults <- setRefClass(
         }
       } 
       
-      dates <- seq_dates(from=index[1], length.out = (oldn + n.ahead), 
-                         resolution=resolution)
-
-      y.hat <- xts::xts(
-        rbind(y.t.t, y.hat.kfas),
-        order.by = dates)
-      names(y.hat)<-c("y.hat","y.hat.upr","y.hat.lwr")
+      positions <- seq.int(index[1], length.out = (oldn + n.ahead))
+      
+      y.hat <- idx_series(
+        as.matrix(rbind(y.t.t, y.hat.kfas)),
+        start = positions[1])
+      colnames(y.hat$data)<-c("y.hat","y.hat.upr","y.hat.lwr")
       
       i.level <- grep("level", colnames(att(model_output)))
-      level.t.t <- xts::xts(att(model_output)[, i.level], order.by = dates) %>%
-        as.xts()
-      names(level.t.t)<-c("level.t.t")
+      level.t.t <- idx_series(as.numeric(att(model_output)[, i.level]), start = positions[1])
       
       i.slope <- grep("slope", colnames(att(model_output)))
-      slope.t.t <- xts::xts(att(model_output)[, i.slope], order.by = dates) %>%
-        as.xts()
-      names(slope.t.t)<-c("slope.t.t")
-
+      slope.t.t <- idx_series(as.numeric(att(model_output)[, i.slope]), start = positions[1])
+      
       if (!return.all) {
-        y.hat <- y.hat %>%
-          subset(index(.) > tail(index, 1))
-        level.t.t <- level.t.t %>%
-          subset(index(.) > tail(index, 1))
-        slope.t.t <- slope.t.t %>%
-          subset(index(.) > tail(index, 1))
+        cutoff <- tail(index, 1)
+        keep <- positions > cutoff
+        keep_positions <- positions[keep]
+        if (length(keep_positions) > 0) {
+          y.hat <- y.hat[keep_positions]
+          level.t.t <- level.t.t[keep_positions]
+          slope.t.t <- slope.t.t[keep_positions]
+        }
       }
-
+      
       out <- list(
         y.hat = y.hat,
         level.t.t = level.t.t,
@@ -447,26 +423,22 @@ FilterResults <- setRefClass(
         the estimates of the growth rate, or just the growth rate. Default is
         \\code{FALSE}.}
       }}
-      \\subsection{Return Value}{\\code{xts} object containing
+      \\subsection{Return Value}{\\code{idx_series} objects containing
       smoothed/filtered growth rates and components (\\eqn{\\delta} and
       \\eqn{\\gamma}), where applicable.}"
       kfs_out <- output
       idx <- index
-
+      
       if (smoothed) {
         att <- alphahat(kfs_out)
       } else {
         att <- att(kfs_out)
       }
-
-      filtered_slope <- xts(att[, "slope"], order.by = idx)
-      filtered.level <- xts(att[, "level"], order.by = idx)
-      g.t <- exp(filtered.level)
-      gy.t <- g.t + filtered_slope
-      names(gy.t) <- if (smoothed) { "smoothed gy.t" } else { "filtered gy.t" }
-      names(g.t) <- if (smoothed) { "smoothed g.t" } else { "filtered g.t" }
-      names(filtered_slope) <- if (smoothed) { "smoothed gamma.t" } else {
-        "filtered gamma.t" }
+      
+      filtered_slope <- idx_series(as.numeric(att[, "slope"]), start = idx[1])
+      filtered.level <- idx_series(as.numeric(att[, "level"]), start = idx[1])
+      g.t <- idx_series(exp(idx_values(filtered.level)), start = idx[1])
+      gy.t <- idx_series(idx_values(g.t) + idx_values(filtered_slope), start = idx[1])
       if (return.components) {
         return(list(gy.t, g.t, filtered_slope))
       } else {
@@ -486,12 +458,12 @@ FilterResults <- setRefClass(
         interval.  Default is \\eqn{0.68}, which is one standard deviation for
         a normally distributed random variable.}
       }}
-      \\subsection{Return Value}{\\code{xts} object containing smoothed/filtered
+      \\subsection{Return Value}{\\code{idx_series} object containing smoothed/filtered
        growth rates and upper and lower bounds for the confidence intervals.}"
-
+      
       kfs_out <- output
       idx <- index
-
+      
       if (smoothed) {
         att <- alphahat(kfs_out)
         var <- get_V(kfs_out)
@@ -499,20 +471,19 @@ FilterResults <- setRefClass(
         att <- att(kfs_out)
         var <- Ptt(kfs_out)
       }
-
-      filtered_slope <- xts(att[, "slope"], order.by = idx)
-      filtered.level <- xts(att[, "level"], order.by = idx)
+      
+      filtered_slope <- as.numeric(att[, "slope"])
+      filtered.level <- as.numeric(att[, "level"])
       g.t <- exp(filtered.level)
       gy.t <- g.t + filtered_slope
-
+      
       idx.slope <- grep("slope", colnames(att(kfs_out)))
       ci <- qnorm((1 - confidence.level) / 2) *
-        sqrt(var[idx.slope, idx.slope,]) %o% c(1, -1)
-      ci_bounds <- as.vector(gy.t) + ci
-
-      pred <- xts(cbind(gy.t, ci_bounds), order.by = idx)
-      colnames(pred) <- c("fit","lower","upper")
-
+        sqrt(as.numeric(var[idx.slope, idx.slope,])) %o% c(1, -1)
+      ci_bounds <- gy.t + ci
+      
+      pred <- idx_series(cbind(fit = gy.t, lower=ci_bounds[,1], upper=ci_bounds[,2]), start = idx[1])
+      
       return(pred)
     },
     print=function(){
@@ -523,31 +494,21 @@ FilterResults <- setRefClass(
     },
     summary=function(){
       "Supplies details of the FilterResults object, such as estimated
-      parameter values, start and end dates of estimation."
+      parameter values, start and end positions of estimation."
       H <- matrixKFS(output, "H")[, , 1]
       Q_gamma <- matrixKFS(output, "Q")[2, 2, 1]
       if (sea.period>1){  
         Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
       }
       
-      start.date <- index[1]
-      end.date <- index[length(index)]
+      start.idx <- index[1]
+      end.idx <- index[length(index)]
       
       cat("Summary of FilterResults Object\n")
       cat("Model Details:\n")
-      if (resolution=="daily"){
-        cat("  - Estimation start date:", format(as.Date(start.date, origin = "1970-01-01"))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.Date(end.date, origin = "1970-01-01")))
-      } else if (resolution=="quarterly"){
-        cat("  - Estimation start date:", format(as.yearqtr(start.date))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.yearqtr(end.date)))
-      } else if (resolution=="monthly"  || resolution=="yearly"){
-        cat("  - Estimation start date:", format(as.yearmon(start.date))) 
-        cat("\n")
-        cat("  - Estimation end date:", format(as.yearmon(end.date)))
-      } 
+      cat("  - Estimation start position:", start.idx)
+      cat("\n")
+      cat("  - Estimation end position:", end.idx)
       cat("\n")
       cat("  - Model States and Standard Errors\n")
       base::print(output)
@@ -567,467 +528,6 @@ FilterResults <- setRefClass(
         cat("Seasonality noise:",format(Q_seasonal, digits = 4))
       }
     }, 
-    plot_forecast=function(n.ahead=14, confidence.level = 0.68, 
-                            title=NULL, plt.start.date=NULL, 
-                            series.name="target variable") {
-      "Generates a forecast plot for the difference in the cumulative variable,
-      showing actual values, forecasts including seasonal components,
-      and prediction intervals around the forecasts. 
-      For more details, see \\link{plot_forecast}."
-      
-      if (xpred_logical){
-        if (is.null(xpred.new)){
-          stop("xpred.new cannot be NULL.")
-        } 
-      }
-      
-      Date <- Data <- Forecast <- ForecastTrend <- lower <- upper <- NULL
-      if (is.null(title)) {title <- ""}
-       
-      estimation.date.end <- tail(index, 1)
-      
-      if (!is.null(reinit.date)){
-        Y<-reinitialise_dataframe(data_xts, reinit.date)
-      } else{
-        Y<-data_xts
-      }
-    y.level.est <- Y[index]
-    if (is.null(plt.start.date)) {plt.start.date <- head(index, 1)}
-    
-    y.hat.diff.final.ci <- .self$predict_level(
-      n.ahead = n.ahead, confidence.level = confidence.level,
-      sea.on=TRUE
-    )
-    # y.hat.diff.final <- .self$predict_level(
-    #   n.ahead = n.ahead, confidence.level = confidence.level,
-    #   sea.on = TRUE
-    # )
-    # 
-    tmp.date <- if (resolution=='daily'){
-      as.Date(plt.start.date)
-    } else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly'){
-      as.Date(format(as.yearmon(plt.start.date), format="%Y-%m-%d"))
-    }
-    s <- sprintf("%s/", format(tmp.date, "%Y-%m-%d"))
-    d.plot <- cbind(
-      diff(y.level.est)[s],
-      #y.hat.diff.final[, 1],
-      y.hat.diff.final.ci[, 1]
-    )
-    names(d.plot) <- c('Data', 'Forecast')
-    
-    date_col<-if(resolution=='daily'){
-      as.Date(index(y.hat.diff.final.ci))} 
-    else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
-      qtr2date(index(y.hat.diff.final.ci))
-      }
-    
-    ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
-                              date_col))
-    colnames(ci) <- c('lower', 'upper', 'date')
-    ci[, 'date'] <- as.Date(ci[, 'date'], origin = "1970-01-01")
-    
-    df_plot <- as.data.frame(d.plot)
-    
-    df_plot$Date<-if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(df_plot)))
-    } else if (resolution=='monthly'|| resolution=='yearly'){
-      qtr2date(as.yearmon(rownames(df_plot)))
-    } else {
-      as.Date(rownames(df_plot))
-    }
-    
-    ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-      ggplot2::geom_line(aes(y = Data, color = "Data"), lwd = 0.85) +
-      ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-      ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
-      ggplot2::geom_ribbon(data = ci, aes(x = date, ymin = lower, ymax = upper),
-                           linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-      labs(x = "Date", y = paste("New", series.name), title = title) +
-      theme_economist_white(gray_bg = FALSE, base_size = 12) +
-      theme(legend.title = element_blank()) +
-      theme(
-        text = element_text(size = rel(1.1)),
-        axis.text = element_text(size = rel(1)),
-        axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
-        axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-        plot.title = element_text(margin=margin(b=5)),
-        plot.caption = element_text(size = rel(1))
-      ) +
-      ggplot2::scale_linetype_manual(
-        values = c("solid", "solid")) +
-      ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
-      ggplot2::scale_size_manual(values = c(1, 1, 1))
-    },
-    plot_log_forecast=function(Y,n.ahead = 14, plt.start.date=NULL, title="", caption = "") {
-      "Plots actual and filtered values of the log cumulative growth rate 
-      (\\eqn{\\ln(g_t)}) in the estimation sample and the forecast and realised 
-      log cumulative growth rate out of the estimation sample. For more details,
-      see \\link{plot_log_forecast}."
-      model <- modelKFS(output)
-      if (!is.null(reinit.date)){
-        y.eval <- Y %>%
-          reinitialise_dataframe(., reinit.date) %>%
-          df2ldl() %>%
-          subset(index(.) > tail(index,1))
-      } else {y.eval<-Y %>%
-        df2ldl()%>% subset(zoo::index(.) > tail(index,1))}
-      
-      y <- xts::xts(model$y %>% as.numeric(), order.by = index)
-      p <- attr(model, 'p')
-      
-      firstpred<-if (resolution=='quarterly'){
-        tail(index,1)+0.25
-      } else if (resolution=='monthly'){
-        tail(index,1)+1/12
-      } else {
-        tail(index,1)+1
-      }
-      
-      y.hat.all <- .self$predict_all(n.ahead, return.all = TRUE)
-      y.pred <-  get_timeframe(y.hat.all$y.hat$y.hat, firstpred)
-      filtered.level <- y.hat.all$level
-      
-      if (p == 1) {
-        if (xpred_logical){
-          d <- cbind(y, y.pred, get_timeframe(y.eval, firstpred))
-          if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
-          d <- d[index(d) <= tail(index(y.pred),1)]
-          names(d) <- c('EstimationSample', 'Forecast', 'RealisedData')
-        } else {
-          d <- cbind(y, filtered.level, y.pred, get_timeframe(y.eval, firstpred))
-          if (!is.null(plt.start.date)) { d <- d[index(d) > plt.start.date] }
-          d <- d[index(d) <= tail(index(y.pred),1)]
-          names(d) <- c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
-        }
-        
-        df_plot <- as.data.frame(d)
-        
-        df_plot$Date<-if (resolution=='quarterly'){
-          qtr2date(as.yearqtr(rownames(df_plot)))
-        } else if (resolution=='monthly' || resolution=="yearly"){
-          qtr2date(as.yearmon(rownames(df_plot)))
-        } else {
-          as.Date(rownames(df_plot))
-        }
-        
-        
-        if (!xpred_logical){
-          color_values <- c("Estimation\nSample" = 1, "Filtered\nLevel" = 2, 
-                            "Forecast" = 3, "Realised\nData" = "grey")
-          linetype_values <-c("solid",
-                              "solid",
-                              "solid",
-                              "dashed")
-          p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date))+
-            ggplot2::geom_line(aes(
-              y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85) +
-            ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"), lwd = 0.85)
-        } else {
-          color_values <-c("Estimation\nSample" = 1,
-            "Forecast" = 3, "Realised\nData" = "grey")
-          linetype_values<-c("solid", "solid", "dashed")
-          p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date))+
-            ggplot2::geom_line(aes(
-              y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
-        }
-        p1 <- p1+
-          ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-          ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData"),
-                             lwd = 0.85) +
-          ggplot2::scale_color_manual(values = color_values) +
-          scale_linetype_manual(values = linetype_values) +
-          scale_x_date(labels = scales::date_format("%d %b %y")) +
-          labs(x = "Date", y = "Log Growth Rate", caption = caption,
-               title = title
-          ) +
-          theme_economist_white(gray_bg = FALSE) +
-          scale_fill_economist() +
-          theme(legend.title = element_blank()) +
-          theme(
-            text = element_text(size = rel(1)),
-            axis.text = element_text(size = rel(1)),
-            axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
-            axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-            plot.title = element_text(margin=margin(b=5)),
-            plot.caption = element_text(size = rel(1))
-          )
-      } else if (p == 2) {
-        g_1 <- g_2 <- delta <- Forecast <- RealisedData <- NULL
-        d <- cbind(y, filtered.level, y.pred[,2],
-                   y.eval[index(y.eval)>tail(index(index),1),2])
-        d <- d[index(d) <= tail(index(y.pred),1)]
-        names(d) <- c('g_1', 'g_2', 'delta', 'Forecast', 'RealisedData')
-        
-        df_plot <- as.data.frame(d)
-        df_plot$Date <- if (resolution=='quarterly'){
-          qtr2date(as.yearqtr(rownames(df_plot)))
-        } else if (resolution=='monthly' || resolution=="yearly"){
-          qtr2date(as.yearmon(rownames(df_plot)))
-        } else {
-          as.Date(rownames(df_plot))
-        }
-        
-        p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-          ggplot2::geom_line(aes(y = g_1, color = "g_1")) +
-          ggplot2::geom_line(aes(y = g_2, color = "g_2")) +
-          ggplot2::geom_line(aes(y = g_2, color = "delta")) +
-          ggplot2::geom_line(aes(y = Forecast, color = "Forecast")) +
-          ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData")) +
-          ggplot2::scale_color_manual(
-            values = c(1, 2, 3, 4, 'grey')) +
-          ggplot2::scale_linetype_manual(
-            values = c("solid", "solid", "solid", "solid", "dashed")
-          ) +
-          ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
-          labs(x = "Date", y = "Log Growth Rate", caption = caption,
-               title = title
-          ) +
-          theme_economist_white(gray_bg = FALSE) +
-          scale_fill_economist() +
-          theme(legend.title = element_blank()) +
-          theme(
-            text = element_text(size = rel(1.)),
-            axis.text = element_text(size = rel(1)),
-            axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
-            axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-            plot.title = element_text(margin=margin(b=5)),
-            plot.caption = element_text(size = rel(1))
-          )
-      } else { stop('NotImplemented Error') }
-      
-      return(p1)
-    }, 
-    plot_gy_components = function(plt.start.date = NULL,
-                                   smoothed = FALSE, title = NULL){
-      "Plots the growth rates and slope of the log cumulative growth rate 
-      against the dates in estimation sample. 
-      For more details, please see \\link{plot_gy_components}."
-      Value <- Variable <- NULL
-      # Determine plot start date
-      if(is.null(plt.start.date)) {plt.start.date <-.self$index[1]}
-      
-      # Get gy.t, g.t and gamma
-      gy.components <-.self$get_growth_y(return.components = TRUE, smoothed =
-                                          smoothed)
-      gy.t <- gy.components[[1]]
-      g.t <- gy.components[[2]]
-      gamma.t <- gy.components[[3]]
-      
-      d <- cbind(gy.t,g.t,gamma.t)
-      names(d) <- c('gy.t','g.t','gamma.t')
-      
-      df_plot <- as.data.frame(d)
-      df_plot$Date <- if (resolution=='quarterly'){
-        qtr2date(as.yearqtr(rownames(df_plot)))
-      } else if (resolution=='monthly' || resolution=="yearly"){
-        qtr2date(as.yearmon(rownames(df_plot)))
-      } else {
-        as.Date(rownames(df_plot))
-      } 
-      
-      df_long <- df_plot %>%
-        dplyr::filter(Date >= zoo::as.Date(plt.start.date)) %>%
-        pivot_longer(cols = c(gy.t, g.t, gamma.t), names_to = "Variable",
-                     values_to = "Value")
-      
-      p1 <- ggplot(df_long, aes(x = Date, y = Value, color = Variable)) +
-        geom_line(lwd=0.85) +
-        ggplot2::facet_wrap(~ factor(
-          Variable, c("gy.t", "g.t", "gamma.t")), ncol = 1, scales = "free_y") +
-        labs(title = title, y=ggplot2::element_blank()) +
-        scale_color_manual(values = c("#AA2045","darkgrey","black")) +
-        scale_x_date(labels = scales::date_format("%d %b %y")) +
-        scale_y_continuous(breaks = waiver(), n.breaks = 4) +
-        theme_economist_white(gray_bg = FALSE, base_size = 14) +
-        theme(text = element_text(size= rel(1), margin=ggplot2::margin(b=5)),
-              axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-              legend.position = "none")
-      
-      return(p1)
-    },
-    plot_gy_ci = function(plt.start.date = NULL, smoothed = FALSE,
-                           title = NULL, series.name = NULL, pad.right = NULL){
-      "Plots the growth rates and the slope of the log cumulative growth rate 
-      against the dates in estimation sample. 
-      For more details, please see \\link{plot_gy_ci}."
-      Date <- fit <- upper <- lower <- NULL
-      
-      # Determine plot start date
-      if(is.null(plt.start.date)) {plt.start.date <-.self$index[1]}
-      
-      # Get confidence intervals to plot
-      gy.ci<-.self$get_gy_ci(smoothed = smoothed)
-      
-      y.lab <- if(is.null(series.name)) { c("Growth rate") } else {
-        paste("Growth rate of"," ",series.name,sep="")
-      }
-      
-      df_plot <- as.data.frame(gy.ci)
-      df_plot$Date <- if (resolution=='quarterly'){
-        qtr2date(as.yearqtr(rownames(df_plot)))
-      } else if (resolution=='monthly' || resolution=="yearly"){
-        qtr2date(as.yearmon(rownames(df_plot)))
-      } else {
-        as.Date(rownames(df_plot))
-      } 
-      
-      p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=zoo::as.Date(plt.start.date),], 
-                            aes(x=Date)) +
-        ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
-        ggplot2::geom_hline(yintercept=0, linetype="solid",
-                            color = "green", linewidth=1)+
-        ggplot2::geom_ribbon(aes(ymin = lower, ymax = upper),
-                             linetype = 0, linewidth = 0, fill = "#AA2045",
-                             alpha = 0.3) +
-        ggplot2::scale_color_manual(values = c("black")) +
-        geom_hline(
-          aes(yintercept = 0.0), linetype = "solid", color = "green", lwd = 1.
-        ) +
-        labs(title=title, x="Date", y=y.lab) +
-        theme_economist_white(gray_bg = FALSE, base_size = 14) +
-        theme(
-          legend.title = element_blank(),
-          text = element_text(size = rel(1.)),
-          axis.text = element_text(size = rel(1.)),
-          axis.title.y = element_text(
-            size = rel(1.),margin = ggplot2::margin(r=10)),
-          axis.title.x = element_text(
-            size = rel(1.),margin = ggplot2::margin(t=10)),
-          plot.caption = element_text(size = rel(1))
-        ) +
-        theme(panel.grid.major.x = ggplot2::element_line(
-          color = "gray50", linewidth = 0.5)) +
-        scale_linetype_manual(
-          values = c("solid")) +
-        scale_x_date(labels = scales::date_format("%d %b %y"))
-      
-      if (!is.null(pad.right)) {
-        end.date <- tail(index(gy.ci),1)
-        p1 <- p1 +
-          ggplot2::scale_x_date(
-            limits = c(as.Date(plt.start.date), end.date + pad.right))
-      }
-      
-      return(p1)
-    }, 
-    plot_holdout = function(Y, n.ahead=14,
-                            confidence.level = 0.68,
-                            series.name = "target variable",
-                             title= NULL, caption = NULL) {
-      "Plots the forecast of new cases (the difference of the cumulated
-      variable) over a holdout sample. For more details, please refer to 
-      \\link{plot_holdout}."
-      
-      if (xpred_logical){
-        if (is.null(xpred.new)){
-          stop("xpred.new cannot be NULL.")
-        } 
-      }
-      
-      estimation.date.end <- tail(index, 1)
-      if (tail(index(Y),1)<=estimation.date.end){
-        stop("The time series 'Y' must extend beyond the estimation end date to 
-             provide a holdout sample analysis.")
-      }
-      
-      if (!is.null(reinit.date)){
-        Y.est<-reinitialise_dataframe(data_xts, reinit.date)
-      } else {
-        Y.est<-data_xts
-      }
-      
-      model <- modelKFS(output)
-      
-      y.level.est <- Y.est[index]
-      
-      
-      
-      p <- attr(model, 'p')
-      if(p!=1) { stop('NotImplementedError') }
-      
-      #Evaluation values
-      y.eval.diff <- diff(Y) %>% na.omit
-      
-      y.hat.diff.final.ci <-.self$predict_level(
-        n.ahead = n.ahead,  sea.on=TRUE,
-        confidence.level = confidence.level
-      )
-      
-      if (resolution=='daily' || resolution=='yearly'){
-        ids=(index(y.eval.diff)>estimation.date.end) & 
-          (index(y.eval.diff)<estimation.date.end+n.ahead+1)
-      } else if (resolution=='quarterly'){
-        ids=(index(y.eval.diff)>estimation.date.end) & 
-          (index(y.eval.diff)<estimation.date.end+(n.ahead+1)/4)
-      } else if (resolution=='monthly'){
-        ids=(index(y.eval.diff)>estimation.date.end) & 
-          (index(y.eval.diff)<estimation.date.end+(n.ahead+1)/12)
-      }
-      
-      d <- cbind(
-        y.eval.diff[ids,],
-        y.hat.diff.final.ci[, 1]
-      )
-      names(d) <- c('Actual', 'Forecast')
-      d.eval <- na.omit(d)
-      
-      df_plot <- as.data.frame(d)
-      df_plot$Date <- if (resolution=='quarterly'){
-        qtr2date(as.yearqtr(rownames(df_plot)))
-      } else if (resolution=='monthly' || resolution=="yearly"){
-        qtr2date(as.yearmon(rownames(df_plot)))
-      } else {
-        as.Date(rownames(df_plot))
-      }
-      
-      if (any(d.eval$Actual==0)){
-        warning("Validation data contains zeros. MAPE is not a reliable measure.")
-      }
-      
-      mape.sea <- 100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual) %>%
-        mean %>% signif(digits=4)
-      smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast))) %>% round(2)
-      mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean %>% signif(digits=4)
-      rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2)) %>% signif(digits=4)
-      
-      date_col<-if(resolution=='daily'){
-        as.Date(index(y.hat.diff.final.ci))} 
-      else if (resolution=='quarterly' || resolution=='monthly' || resolution=='yearly') {
-        qtr2date(index(y.hat.diff.final.ci))
-      }
-      
-      ci <- as.data.frame(cbind(zoo::coredata(y.hat.diff.final.ci[, 2:3]),
-                                date_col))
-      colnames(ci) <- c('lower', 'upper', 'date')
-      ci[, 'date'] <- as.Date(ci[, 'date'], origin = "1970-01-01")
-      
-      p1 <- ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-        ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
-        ggplot2::geom_line(aes(y = Forecast, color = "Forecast"),lwd = 0.85) +
-        ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
-        ggplot2::geom_ribbon(data = ci, aes(x = date, ymin = lower, ymax = upper),
-                             linetype = 0, linewidth = 0, fill = "#AA2045",
-                             alpha = 0.1) +
-        labs(x = "Date", y = paste("New",series.name), title = title,
-             subtitle = paste("MAPE: ",mape.sea,"%; SMAPE: ",smape,"%; MAE: ", mae,"; RMSE: ", rmse,".", sep="")) +
-        theme_economist_white(gray_bg = FALSE, base_size = 14) +
-        theme(legend.title = element_blank()) +
-        theme(
-          text = element_text(size = rel(1)),
-          axis.text = element_text(size = rel(1)),
-          axis.title.y = element_text(size = rel(1), margin = margin(r=10)),
-          axis.title.x = element_text(size = rel(1), margin = margin(t=10)),
-          plot.title = element_text(margin=margin(b=5)),
-          plot.subtitle = element_text(
-            size = rel(1), hjust=0,  margin = margin(t=3))
-        ) +
-        scale_linetype_manual(
-          values = c("solid", "solid")) +
-        scale_x_date(labels = scales::date_format("%d %b %y")) +
-        scale_size_manual(values = c(1, 1.5, 1))
-      return(p1)
-    },
     mapes=function(n.ahead,Y){
       "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
       for forecasts against a holdout sample. For more details, please refer to 
@@ -1037,43 +537,47 @@ FilterResults <- setRefClass(
           stop("xpred.new cannot be NULL.")
         } 
       }
-        p <- attr(modelKFS(output), 'p')
-        if(p!=1) { stop('NotImplementedError') }
-        
-        estimation.date.end <- tail(index, 1)
-        
-        y.eval.diff <-diff(Y[seq_dates(estimation.date.end, resolution, length.out=n.ahead+1)]) %>% na.omit
-        
-        y.hat.diff.final <- .self$predict_level(
-          n.ahead = n.ahead, confidence.level =0.68,
-          sea.on = TRUE
-        )
-        
-        # Extract the relevant columns
-        filtered_y_eval_diff <- y.eval.diff[index(y.eval.diff) > estimation.date.end]
-        forecast_column <- y.hat.diff.final[, 1]
-        
-        #Form dataframe
-        df_plot <- data.frame(
-          Actual = coredata(filtered_y_eval_diff),  # Extract data from zoo
-          Forecast = forecast_column,
-          row.names = index(filtered_y_eval_diff)  # Use index as row names
-        )
-        
-        d.eval <- na.omit(df_plot)
-        colnames(d.eval)<-c('Actual', 'Forecast')
-        
-        if (any(d.eval$Actual==0)){
-          warning("Validation data contains zeros. MAPE is not a reliable measure.")
-        }
-        
-        mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
-        smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast)))
-        mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean
-        rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2))
-        coverage<-100*sum(and(y.hat.diff.final[,2]<=y.eval.diff, y.hat.diff.final[,3]>=y.eval.diff))/n.ahead
-        
-        return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
+      p <- attr(modelKFS(output), 'p')
+      if(p!=1) { stop('NotImplementedError') }
+      
+      estimation.end <- tail(index, 1)
+      
+      eval.window <- get_timeframe(Y, estimation.end, estimation.end + n.ahead)
+      y.eval.diff <- idx_diff(eval.window, 1L)
+      
+      y.hat.diff.final <- .self$predict_level(
+        n.ahead = n.ahead, confidence.level =0.68,
+        sea.on = TRUE
+      )
+      
+      # Extract the relevant, overlapping positions
+      eval_pos <- idx_positions(y.eval.diff)
+      eval_pos <- eval_pos[eval_pos > estimation.end]
+      filtered_y_eval_diff <- y.eval.diff[eval_pos]
+      forecast_mat <- idx_values(y.hat.diff.final)
+      forecast_pos <- idx_positions(y.hat.diff.final)
+      common_pos <- intersect(eval_pos, forecast_pos)
+      
+      d.eval <- data.frame(
+        pos = common_pos,
+        Actual = idx_values(filtered_y_eval_diff[common_pos]),
+        Forecast = forecast_mat[match(common_pos, forecast_pos), 1],
+        lwr = forecast_mat[match(common_pos, forecast_pos), 2],
+        upr = forecast_mat[match(common_pos, forecast_pos), 3]
+      )
+      d.eval <- na.omit(d.eval)
+      
+      if (any(d.eval$Actual==0)){
+        warning("Validation data contains zeros. MAPE is not a reliable measure.")
       }
+      
+      mape.sea <- mean(100*(abs(d.eval$Actual - d.eval$Forecast)/d.eval$Actual))
+      smape<-mean(100*(abs(d.eval$Actual - d.eval$Forecast)/(d.eval$Actual+d.eval$Forecast)))
+      mae<-abs(d.eval$Actual - d.eval$Forecast) %>% mean
+      rmse<-sqrt(mean((d.eval$Actual - d.eval$Forecast)^2))
+      coverage<-100*sum(d.eval$lwr<=d.eval$Actual & d.eval$upr>=d.eval$Actual)/n.ahead
+      
+      return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
+    }
   )
 )
