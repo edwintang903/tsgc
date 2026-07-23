@@ -273,7 +273,7 @@ FilterResultsLI <- setRefClass(
         if (xpred_logical[1]){
           if (is_idx_series(xpred_lead.new)){
             xpred_lead.new.subset<-as.matrix(idx_values(get_timeframe(
-              idx_lag(xpred_lead.new,n.lag), end + 1L, end + n.ahead)))
+              xpred_lead.new, end + 1L, end + n.ahead)))
             d1<-ncol(xpred_lead.new.subset)
             newZ[1,1:d1,]<-t(xpred_lead.new.subset)
           } else {
