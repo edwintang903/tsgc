@@ -312,7 +312,7 @@ tryCatch({
   res_xpred <- model_xpred$estimate()
   cat("res_xpred class:", class(res_xpred), "\n")
   res_xpred$print()
-
+  
   res_xpred$xpred_targ.new <- get_timeframe(xpred_targ_full, 101, 150)
   pl_xpred <- res_xpred$predict_level(n.ahead = 10, sea.on = FALSE)
   cat("\npredict_level with xpred_targ:\n")
@@ -336,7 +336,7 @@ tryCatch({
   res_xpred_lead <- model_xpred_lead$estimate()
   cat("res_xpred_lead class:", class(res_xpred_lead), "\n")
   res_xpred_lead$print()
-
+  
   res_xpred_lead$xpred_lead.new <- get_timeframe(xpred_lead_full, 101, 150)
   pl_xpred_lead <- res_xpred_lead$predict_level(n.ahead = 10, sea.on = FALSE)
   cat("\npredict_level with xpred_lead:\n")

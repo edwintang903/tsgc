@@ -187,8 +187,8 @@ SSModelLeadingIndicator <- setRefClass(
       if (!is.null(xpred_targ)){
         xpred_targ<<-get_timeframe(xpred_targ, est_pos[1], tail(est_pos,1))
       }
-      xreg_lead <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
-      xreg_targ <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL
+      xpred_lead_mat <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
+      xpred_targ_mat <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL
       
       # Standard update function - edited to allow the targeting of the signal-to-noise ratio
       # Signal-to-noise ratio is defined as the variance of the trend component of order 'order'
@@ -225,35 +225,35 @@ SSModelLeadingIndicator <- setRefClass(
       # and a trigonometric seasonal (period = sea.period, if > 1).
       
       if (sea.period<2){
-        if (is.null(xreg_lead)){
-          if (is.null(xreg_targ)){
+        if (is.null(xpred_lead_mat)){
+          if (is.null(xpred_targ_mat)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_targ, type="distinct", index=2),
+                             SSMregression(~xpred_targ_mat, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         } else {
-          if (is.null(xreg_targ)){
+          if (is.null(xpred_targ_mat)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_lead, type="distinct", index=1),
+                             SSMregression(~xpred_lead_mat, type="distinct", index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_lead, type="distinct", index=1)+
-                             SSMregression(~xreg_targ, type="distinct", index=2),
+                             SSMregression(~xpred_lead_mat, type="distinct", index=1)+
+                             SSMregression(~xpred_targ_mat, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         }
       }
       else {
-        if (is.null(xreg_lead)){
-          if (is.null(xreg_targ)){
+        if (is.null(xpred_lead_mat)){
+          if (is.null(xpred_targ_mat)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1),
@@ -262,22 +262,22 @@ SSModelLeadingIndicator <- setRefClass(
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_targ, type="distinct", index=2),
+                             SSMregression(~xpred_targ_mat, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         } else {
-          if (is.null(xreg_targ)){
+          if (is.null(xpred_targ_mat)){
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_lead, type="distinct", index=1),
+                             SSMregression(~xpred_lead_mat, type="distinct", index=1),
                            H = matrix(c(NA,0,0,NA),2,2))
           } else {
             mod <- SSModel(data_mat ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,NA),2,2),type = 'common')+
                              SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), sea.type='trigonometric', type='distinct')+
                              SSMtrend(degree = 1, Q = matrix(NA),index=1)+
-                             SSMregression(~xreg_lead, type="distinct", index=1)+
-                             SSMregression(~xreg_targ, type="distinct", index=2),
+                             SSMregression(~xpred_lead_mat, type="distinct", index=1)+
+                             SSMregression(~xpred_targ_mat, type="distinct", index=2),
                            H = matrix(c(NA,0,0,NA),2,2))
           }
         }

@@ -72,7 +72,7 @@ library(magrittr)
 library(methods)
 library(abind)
 
-src_dir <- "./R"  # adjust if needed
+src_dir <- "."  # adjust if needed
 src_files <- c("idx_series.R", "utils.R", "SSModelDynGompertz.R", "filterResults.R", "accessorFns.R")
 for (f in src_files) {
   cat("Sourcing", f, "...\n")
