@@ -91,6 +91,13 @@ setOldClass("idx_series")
 #' included in the model. Default is \code{FALSE}.
 #' @field start Integer position marking the start of the estimation period.
 #' @field end Integer position marking the end of the estimation period.
+#' @field calendar An optional \code{idx_calendar} object describing how the
+#' integer positions used by \code{Y} (and the rest of this model's
+#' \code{idx_series} fields) map back to calendar time. Purely cosmetic:
+#' never consulted by estimation/filtering, only carried along so that
+#' plotting can later translate positions to dates. Defaults to
+#' \code{NULL}, in which case plots will be labelled with raw integer
+#' positions instead of dates.
 #' 
 #' @importFrom methods new setRefClass setOldClass
 #' @importFrom KFAS SSModel fitSSM KFS SSMtrend SSMseasonal SSMregression SSMcustom
@@ -128,13 +135,14 @@ SSModelDynamicGompertz <- setRefClass(
     xpred="ANY",
     ar1="logical",
     start="ANY",
-    end="ANY"),
+    end="ANY",
+    calendar="ANY"),
   methods = list(initialize = function(Y, q = NULL, 
                                        sea.period = 7,reinit.idx=NULL, 
                                        original.results=NULL,
                                        use.presample.info=TRUE, xpred=NULL, 
                                        ar1=FALSE, start=idx_range(Y)[1], 
-                                       end=idx_range(Y)[2])
+                                       end=idx_range(Y)[2], calendar=NULL)
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
@@ -151,6 +159,9 @@ SSModelDynamicGompertz <- setRefClass(
     if (!is.null(xpred) && !is_idx_series(xpred)){
       stop("xpred must be NULL or an idx_series object.")
     } 
+    if (!is.null(calendar) && !is_idx_calendar(calendar)){
+      stop("calendar must be NULL or an idx_calendar object.")
+    }
     Y <<- get_timeframe(Y,start,end)
     q <<- q
     sea.period <<- sea.period
@@ -161,6 +172,7 @@ SSModelDynamicGompertz <- setRefClass(
     ar1<<-ar1
     start<<-start
     end<<-end
+    calendar<<-calendar
   },
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
@@ -584,15 +596,32 @@ SSModelDynamicGompertz <- setRefClass(
         
         # 4.1. Position for reinitialisation, t_0
         stopifnot(reinit.idx %in% idx_positions(Y))
-        Y.t.r_0 <- idx_values(Y[reinit.idx - 1])
+        # as.numeric() strips any dim attribute: Y[reinit.idx - 1] is a
+        # single-row idx_series, so idx_values() on it can come back as a
+        # 1x1 matrix (whenever Y$data is matrix-valued, e.g. because it was
+        # built via zoo::coredata() on a single-column xts). R's arithmetic
+        # operators require matching dimensions - not just recyclable
+        # length - whenever *both* operands carry a dim attribute, so a 1x1
+        # matrix will not broadcast against the n x 1 matrix
+        # idx_values(lag.Y) below the way a plain scalar would; it throws
+        # "non-conformable arrays" instead. Coercing to a plain numeric
+        # scalar here avoids that.
+        Y.t.r_0 <- as.numeric(idx_values(Y[reinit.idx - 1]))
         
         # 4.2 Reinitialisation:
         #   ln g_t^r = ln g_t + ln (Y_{t-1}/Y_{t-1}^r), where Y_t^r=Y_t-Y_{r_0}.
         y_pos <- idx_positions(y)
         reinit_pos <- y_pos[y_pos > reinit.idx]
         lag.Y <- idx_lag(Y, 1L)[reinit_pos]
+        # Coerce to plain numeric vectors before arithmetic: y$data and
+        # Y$data may differ in shape (plain vector vs matrix), and R's
+        # arithmetic operators require matching dimensions - not just
+        # recyclable length - whenever both operands carry a dim
+        # attribute, which otherwise throws "non-conformable arrays".
+        y.vals <- as.numeric(idx_values(y[reinit_pos]))
+        lag.Y.vals <- as.numeric(idx_values(lag.Y))
         y.reinit <- idx_series(
-          idx_values(y[reinit_pos]) + log(idx_values(lag.Y) / (idx_values(lag.Y) - Y.t.r_0)),
+          y.vals + log(lag.Y.vals / (lag.Y.vals - Y.t.r_0)),
           start = reinit_pos[1]
         )
         
@@ -605,7 +634,8 @@ SSModelDynamicGompertz <- setRefClass(
                                                 sea.period=sea.period, 
                                                 xpred=xpred1, q = q, ar1=ar1,
                                                 start=start,
-                                                end=reinit.idx)
+                                                end=reinit.idx,
+                                                calendar=calendar)
             res.original <- model$estimate()
             model_output <- output(res.original)
           } else {
@@ -671,7 +701,8 @@ SSModelDynamicGompertz <- setRefClass(
       reinit.idx =reinit.idx,
       ar1=ar1,
       sea.period=sea.period,
-      output = model_output
+      output = model_output,
+      calendar = calendar
     )
     return(results)
   },

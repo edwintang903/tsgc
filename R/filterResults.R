@@ -45,6 +45,11 @@ setOldClass("idx_series")
 #' @field sea.period The period of seasonality, inherited from the estimated 
 #' \code{SSModelDynamicGompertz} model. For a day-of-the-week
 #'   effect with daily data, this would be 7. 
+#' @field calendar An optional \code{idx_calendar} object, inherited
+#' unchanged from the \code{SSModelDynamicGompertz} model this was
+#' estimated from. Purely cosmetic: describes how the integer positions in
+#' \code{data} map back to calendar time, for use by plotting only.
+#' Defaults to \code{NULL}.
 #' 
 #' @references Harvey, A. C. and Kattuman, P. (2021). A Farewell to R:
 #' Time Series Models for Tracking and
@@ -105,13 +110,17 @@ FilterResults <- setRefClass(
     reinit.idx= "ANY",
     ar1 = "logical",
     output = "KFS",
-    sea.period="numeric"),
+    sea.period="numeric",
+    calendar="ANY"),
   methods = list(
     initialize = function(data,xpred_logical,index,reinit.idx, ar1, 
-                          output, sea.period, xpred.new=NULL)
+                          output, sea.period, xpred.new=NULL, calendar=NULL)
     {
       "Create an instance of the \\code{FilterResults} class with fields defined
       earlier in the fields section."
+      if (!is.null(calendar) && !is_idx_calendar(calendar)){
+        stop("calendar must be NULL or an idx_calendar object.")
+      }
       data<<-data
       index <<- index
       xpred_logical<<-xpred_logical
@@ -120,6 +129,7 @@ FilterResults <- setRefClass(
       ar1<<-ar1
       output <<- output
       sea.period<<-sea.period
+      calendar<<-calendar
     },
     predict_level = function(
     n.ahead,
@@ -193,7 +203,7 @@ FilterResults <- setRefClass(
       }
       
       ci_bounds <- if (return.diff) {
-        base_mat <- y.hat$data[-1, 2:3, drop = FALSE] - y.hat$data[-nrow(y.hat$data), 1]
+        base_mat <- y.hat$data[-1, 2:3, drop = FALSE] - y.hat$data[-1, 1]
         base_mat + idx_values(d)
       } else {
         y.hat$data[-1, 2:3, drop = FALSE]

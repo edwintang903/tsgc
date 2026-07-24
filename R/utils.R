@@ -232,6 +232,64 @@ mapes <- function(res, n.ahead, Y) {
   res$mapes(n.ahead, Y)
 }
 
+#' @title Estimate the reproduction number from a fitted model
+#'
+#' @description Computes the (instantaneous) reproduction number
+#' \eqn{R_t = \exp\{g_t \times \code{gen_int}\}}, where \eqn{g_t} is the
+#' filtered or smoothed growth rate of the incidence variable \eqn{y}
+#' returned by \code{res$get_gy_ci()}, and \code{gen_int} is the mean
+#' generation interval of the disease/process being modelled (in the same
+#' integer-position units as \code{res}). This estimate, and its confidence
+#' interval, is a deterministic transformation of \code{get_gy_ci()}'s
+#' output; \code{res} must already have been produced by \code{estimate()}
+#' (i.e. estimation of any hyperparameters, including a \code{NULL}
+#' signal-to-noise ratio \code{q}, has already taken place via this
+#' package's own \code{update()} method - not a generic/default KFAS
+#' updating function - as part of \code{estimate()}). This function does no
+#' further estimation itself; it purely transforms already-filtered/
+#' smoothed output.
+#'
+#' @param res A \code{FilterResults} or \code{FilterResultsLI} object,
+#' obtained from the \code{estimate()} method.
+#' @param gen_int The mean generation interval, in the same integer-position
+#' units as \code{res} (e.g. if positions are days, this is the mean
+#' generation interval in days).
+#' @param n.ahead Number of most recent integer positions to return, taken
+#' from the end of \code{res}'s filtered/smoothed range. Default is
+#' \code{7}.
+#' @param smoothed Logical value indicating whether to use the smoothed
+#' (\code{TRUE}) or filtered (\code{FALSE}, default) growth rate estimates
+#' underlying \eqn{R_t}. Passed through to \code{res$get_gy_ci()}.
+#' @param confidence.level Confidence level for the confidence interval
+#' around \eqn{R_t}. Default is \code{0.68}, one standard deviation for a
+#' normally distributed random variable. Passed through to
+#' \code{res$get_gy_ci()}.
+#'
+#' @returns An \code{idx_series} with columns \code{fit}, \code{lower} and
+#' \code{upper}, giving the estimated reproduction number and its
+#' confidence interval over the last \code{n.ahead} integer positions.
+#'
+#' @examples
+#' library(tsgc)
+#' set.seed(1)
+#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+#' res <- estimate(model)
+#' estimate_r0(res, gen_int = 5, ndays = 7)
+#'
+#' @export
+estimate_r0 <- function(res, gen_int, ndays = 7, smoothed = FALSE,
+                        confidence.level = 0.68) {
+  if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
+    stop("res must be a FilterResults or FilterResultsLI object.")
+  }
+  gy.ci <- res$get_gy_ci(smoothed = smoothed, confidence.level = confidence.level)
+  rt_mat <- exp(idx_values(gy.ci) * gen_int)
+  n <- nrow(rt_mat)
+  keep <- seq.int(max(1L, n - ndays + 1L), n)
+  idx_series(rt_mat[keep, , drop = FALSE], start = gy.ci$start + keep[1] - 1L)
+}
+
 #' @title Walk-Forward Validation for Model Comparison Using Mean Absolute
 #' Percentage Error (MAPE)
 #'

@@ -52,6 +52,18 @@ setOldClass("idx_series")
 #' Defaults to 1.
 #' @field start Integer position marking the start of the estimation period.
 #' @field end Integer position marking the end of the estimation period.
+#' @field calendar An optional \code{idx_calendar} object describing how the
+#' integer positions used by \code{Y} map back to calendar time. Since the
+#' leading indicator and target series in \code{Y} are already combined
+#' onto one shared position axis (see \code{Y}), a single calendar
+#' correctly applies to both. Purely cosmetic: never consulted by
+#' estimation/filtering, only carried along so that plotting can later
+#' translate positions to dates. Defaults to \code{NULL}, in which case
+#' plots will be labelled with raw integer positions instead of dates. It
+#' is the user's responsibility to ensure the leading indicator and target
+#' series were aligned onto a shared, consistent calendar before being
+#' combined into \code{Y}; this class does not attempt to reconcile two
+#' different calendars.
 #'
 #' @importFrom methods new setRefClass setOldClass
 #' @importFrom KFAS SSMtrend SSMseasonal SSModel SSMregression KFS fitSSM
@@ -91,11 +103,13 @@ SSModelLeadingIndicator <- setRefClass(
     xpred_lead = "ANY",  
     xpred_targ = "ANY",
     start = "ANY",
-    end = "ANY"),
+    end = "ANY",
+    calendar = "ANY"),
   methods = list(
     initialize = function(Y, n.lag, sea.period=7, q = NULL,
                           LeadIndCol=1, xpred_lead=NULL, xpred_targ=NULL,
-                          start=idx_range(Y)[1], end=idx_range(Y)[2])
+                          start=idx_range(Y)[1], end=idx_range(Y)[2],
+                          calendar=NULL)
     {"Create an instance of the \\code{SSModelLeadingIndicator} class with the 
       fields laid out at the beginning of the documentation."
       if (length(sea.period) != 1 || 
@@ -112,6 +126,9 @@ SSModelLeadingIndicator <- setRefClass(
       if (length(LeadIndCol) != 1 || !(LeadIndCol %in% c(1, 2))){
         stop("LeadIndCol must take values 1 or 2.")
       }
+      if (!is.null(calendar) && !is_idx_calendar(calendar)){
+        stop("calendar must be NULL or an idx_calendar object.")
+      }
       Y <<- Y
       q <<- q
       sea.period<<-sea.period
@@ -121,6 +138,7 @@ SSModelLeadingIndicator <- setRefClass(
       xpred_targ<<-xpred_targ
       start<<-start
       end<<-end
+      calendar<<-calendar
     },
     estimate = function()
     {
@@ -311,7 +329,8 @@ SSModelLeadingIndicator <- setRefClass(
         LeadIndCol=LeadIndCol,
         xpred_logical=c(!is.null(xpred_lead),!is.null(xpred_targ)),
         start=est_pos[1],
-        end=tail(est_pos,1))
+        end=tail(est_pos,1),
+        calendar=calendar)
       return(results)},
     summary = function() {
       "Supplies details of the SSModelLeadingIndicator object, such as estimated 

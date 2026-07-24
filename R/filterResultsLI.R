@@ -46,6 +46,11 @@ setOldClass("idx_series")
 #' variables for the target variable over the prediction time frame.
 #' @field start Integer position marking the start of the estimation period.
 #' @field end Integer position marking the end of the estimation period.
+#' @field calendar An optional \code{idx_calendar} object, inherited
+#' unchanged from the \code{SSModelLeadingIndicator} model this was
+#' estimated from. Purely cosmetic: describes how the integer positions in
+#' \code{data} map back to calendar time, for use by plotting only.
+#' Defaults to \code{NULL}.
 #'
 #' @references Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS:
 #' LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT.
@@ -101,14 +106,19 @@ FilterResultsLI <- setRefClass(
     xpred_targ.new="ANY",
     xpred_logical="logical",
     start="ANY",
-    end="ANY"),
+    end="ANY",
+    calendar="ANY"),
   methods = list(
     initialize = function(data, output,n.lag,sea.period,LeadIndCol,
                           xpred_logical, start, end, 
-                          xpred_lead.new=NULL, xpred_targ.new=NULL)
+                          xpred_lead.new=NULL, xpred_targ.new=NULL,
+                          calendar=NULL)
     {
       "Create an instance of the \\code{FilterResultsLI} class with fields defined
       earlier in the fields section."
+      if (!is.null(calendar) && !is_idx_calendar(calendar)){
+        stop("calendar must be NULL or an idx_calendar object.")
+      }
       data <<- data
       output <<- output
       n.lag <<- n.lag
@@ -119,6 +129,7 @@ FilterResultsLI <- setRefClass(
       xpred_lead.new<<-xpred_lead.new
       xpred_targ.new<<-xpred_targ.new
       xpred_logical<<-xpred_logical
+      calendar<<-calendar
     },
     predict_level = function(n.ahead=n.lag, 
                              confidence.level=0.68,
