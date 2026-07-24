@@ -175,9 +175,9 @@ reinitialise_dataframe <- function(dt, reinit.idx) {
   if (reinit.idx < rng[1] + 1 || reinit.idx > rng[2]) {
     stop("reinit.idx is not present in dt (or has no preceding value).")
   }
-  base <- idx_values(dt[reinit.idx - 1])
+  base <- as.numeric(idx_values(dt[reinit.idx - 1]))
   sub <- dt[reinit.idx:rng[2]]
-  idx_series(idx_values(sub) - base, start = reinit.idx)
+  idx_series(as.numeric(idx_values(sub)) - base, start = reinit.idx)
 }
 
 #' @title Return index and value of maximum

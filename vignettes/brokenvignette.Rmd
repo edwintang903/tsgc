@@ -1,0 +1,676 @@
+---
+title: "Forecasting epidemic trajectories: Time Series Growth Curves package `tsgc`"
+author: "Michael Ashby, Andrew Harvey, Paul Kattuman, Edwin Tang, Craig Thamotheram"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteEncoding{UTF-8}
+  %\VignetteIndexEntry{Forecasting epidemic trajectories: Time Series Growth Curves package `tsgc`}
+  %\VignetteEngine{knitr::rmarkdown}
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 7,
+                      fig.height = 7)
+
+library(tsgc)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+library(zoo)
+theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
+```
+
+# Converting `xts`/`Date`-indexed data to `idx_series`/`idx_calendar`
+
+The package's example datasets (`gauteng`, `england`, `ukitaly`,
+`nintendo_sales`, `etrading_apps`, and the weather datasets) still ship
+as `xts` objects with a `Date`/`yearqtr`/`yearmon` index, since that is
+how they were originally collected. The modelling code in this version
+of the package, however, works with `idx_series` (integer-position data)
+and an optional `idx_calendar` (the translation layer back to real
+calendar time, used only for plotting). This section shows the one-off
+conversion step; the same pattern applies to any user's own `xts`,
+`zoo`, or `data.frame` data.
+
+A small helper wraps the conversion for the common case of a daily
+series with no gaps (every calendar day present, i.e. `pattern = 1`):
+
+```{r xts-to-idx-helper}
+xts_to_idx <- function(x, start.pos = 1L) {
+  list(
+    series = idx_series(zoo::coredata(x), start = start.pos),
+    calendar = idx_calendar(
+      anchor = zoo::index(x)[1],
+      anchor_pos = start.pos,
+      amount = 1, unit = "days",
+      posixct = TRUE
+    )
+  )
+}
+
+idx_to_pos <- function(cal, date) {
+  as.integer(cal$anchor_pos + as.numeric(as.Date(date) - cal$anchor))
+}
+```
+
+## Gauteng daily cases
+
+```{r convert-gauteng}
+data(gauteng, package = "tsgc")
+
+conv <- xts_to_idx(gauteng)
+gauteng_idx <- conv$series
+gauteng_cal <- conv$calendar
+```
+
+## England daily cases/hospitalisations and weather
+
+```{r convert-england}
+data(england, package = "tsgc")
+data(england_weather_2021, package = "tsgc")
+
+conv <- xts_to_idx(england[, 1:2])
+england_idx <- conv$series
+england_cal <- conv$calendar
+
+conv <- xts_to_idx(england_weather_2021[, 1:4],
+                    start.pos = idx_to_pos(england_cal, zoo::index(england_weather_2021)[1]))
+england_weather_idx <- conv$series
+```
+
+## UK/Italy daily cases
+
+```{r convert-ukitaly}
+data(ukitaly, package = "tsgc")
+
+conv <- xts_to_idx(ukitaly)
+ukitaly_idx <- conv$series
+ukitaly_cal <- conv$calendar
+```
+
+## Quarterly Nintendo console sales
+
+Quarterly data is not daily, so the calendar here uses `unit =
+"quarters"` and an anchor built from the first `yearqtr` in the series.
+`amount = 1` since every quarter is present (`pattern = 1`).
+
+```{r convert-nintendo}
+data(nintendo_sales, package = "tsgc")
+
+y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
+
+nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
+nintendo_cal <- idx_calendar(
+  anchor = zoo::index(y_q_xts)[1],
+  anchor_pos = 1L,
+  amount = 1, unit = "quarters",
+  posixct = FALSE
+)
+# position <-> yearqtr lookup, since idx_to_date() does plain numeric
+# arithmetic and does not know about zoo::yearqtr arithmetic directly.
+nintendo_pos_to_yq <- function(pos) {
+  zoo::as.yearqtr(nintendo_cal$anchor) + (pos - nintendo_cal$anchor_pos) / 4
+}
+nintendo_yq_to_pos <- function(yq) {
+  as.integer(round(nintendo_cal$anchor_pos +
+                     (zoo::as.yearqtr(yq) - zoo::as.yearqtr(nintendo_cal$anchor)) * 4))
+}
+```
+
+## Monthly e-trading app downloads
+
+```{r convert-etrading}
+data(etrading_apps, package = "tsgc")
+
+y_m_xts <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+
+etrading_idx <- idx_series(zoo::coredata(y_m_xts), start = 1L)
+etrading_cal <- idx_calendar(
+  anchor = zoo::index(y_m_xts)[1],
+  anchor_pos = 1L,
+  amount = 1, unit = "months",
+  posixct = FALSE
+)
+etrading_pos_to_ym <- function(pos) {
+  zoo::as.yearmon(etrading_cal$anchor) + (pos - etrading_cal$anchor_pos) / 12
+}
+etrading_ym_to_pos <- function(ym) {
+  as.integer(round(etrading_cal$anchor_pos +
+                     (zoo::as.yearmon(ym) - zoo::as.yearmon(etrading_cal$anchor)) * 12))
+}
+```
+
+# Illustration of the `tsgc` package
+
+## New cases and their moving average (Figure 1)
+
+```{r make-fig-1, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
+mod_all <- SSModelDynamicGompertz(Y = gauteng_idx, calendar = gauteng_cal)
+plot(mod_all, series.name = "daily cases", MA_period = 7)
+```
+
+## Setting up the forecasting exercise
+
+`start`/`end` are now integer positions (in the same units as
+`gauteng_idx$start`), not dates. We convert the estimation window's
+calendar dates to positions using the calendar built above.
+
+```{r set_options}
+Y <- gauteng_idx
+cal <- gauteng_cal
+
+estimation.pos.start <- idx_to_pos(cal, "2021-02-01")
+estimation.pos.end   <- idx_to_pos(cal, "2021-05-03")
+n.forecasts <- 14
+q <- 0.005
+confidence.level <- 0.68
+plt.length <- 30
+```
+
+## Estimation
+
+```{r model_est_free_q}
+model_q <- SSModelDynamicGompertz(Y = Y, sea.period = 7,
+                                  start = estimation.pos.start,
+                                  end = estimation.pos.end,
+                                  calendar = cal)
+res_q <- estimate(model_q)
+```
+
+```{r model_est_fix_q}
+model <- SSModelDynamicGompertz(Y = Y, q = q, sea.period = 7,
+                                start = estimation.pos.start,
+                                end = estimation.pos.end,
+                                calendar = cal)
+res <- estimate(model)
+```
+
+## Results
+
+
+
+```{r fig-2, fig.cap="Figure 2: Fourteen-day forecast of $ln(g_t)$ from 4 May 2021, for Gauteng province in South Africa."}
+
+tsgc::plot_log_forecast(
+  res = res,
+  Y = Y,
+  n.ahead = n.forecasts,
+  plt.start = tail(res$index, 1) - plt.length
+)
+```
+
+```{r fig-3, fig.cap = "Figure 3: Fourteen-day forecast of new cases from 4 May 2021 for Gauteng province in South Africa. The shaded region is a state-implied forecast band obtained by propagating uncertainty in the latent log growth rate."}
+tsgc::plot_forecast(
+  res = res,
+  n.ahead = n.forecasts,
+  confidence.level = confidence.level,
+  plt.start = tail(res$index, 1) - plt.length,
+  series.name = "cases"
+)
+```
+
+```{r fig-4, fig.cap = "Figure 4: Accuracy of the fourteen-day forecast of new cases from 20 April 2021 for Gauteng province in South Africa."}
+# Update estimation end position
+estimation.pos.end <- idx_to_pos(cal, "2021-04-19")
+
+# Reestimate the model
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
+                                    start = estimation.pos.start,
+                                    end = estimation.pos.end,
+                                    calendar = cal)
+res_eval <- estimate(model)
+
+tsgc::plot_holdout(
+  res = res_eval,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
+```
+
+## Reproduction number $R_t$ (Figure 5)
+
+```{r calc_rt}
+gen_int <- 4
+r.t <- estimate_r0(res, gen_int, ndays = 7)
+```
+
+```{r fig-5, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
+r.t.mat <- as.matrix(idx_values(r.t))
+r.t.df <- data.frame(
+  x = idx_to_date(cal, idx_positions(r.t)),
+  fit = r.t.mat[, "fit"],
+  lower = r.t.mat[, "lower"],
+  upper = r.t.mat[, "upper"]
+)
+
+fit <- lower <- upper <- NULL
+ggplot(r.t.df, aes(x = x)) +
+  geom_line(aes(y = fit, color = "Rt")) +
+  geom_point(aes(y = fit), color = "red", size = 3) +
+  geom_segment(aes(xend = x, yend = lower, y = fit), color = "blue") +
+  geom_segment(aes(xend = x, yend = upper, y = fit), color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
+  geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
+  scale_x_date(date_breaks = "1 day", labels = scales::date_format("%d %b %y")) +
+  labs(title = "Reproduction numbers for the 7-day period to 3 May 2021",
+      x = "Date", y = expression(R[t])) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_light(base_size = 12) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.85, 0.2),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    plot.title = element_text(face = "bold")
+  )
+```
+
+# Reinitialization
+
+```{r change-est-date-end}
+estimation.pos.end <- idx_to_pos(cal, "2021-06-25")
+```
+
+## Triggering reinitialization (Figure 6)
+
+```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
+# Re-estimate model
+model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
+                                    start = estimation.pos.start,
+                                    end = estimation.pos.end,
+                                    calendar = cal)
+res <- estimate(model)
+
+# Extract the smoothed slope and its standard deviation as idx_series,
+# then convert to a data.frame with real dates for plotting.
+smoothed.slope.full <- idx_series(res$output$alphahat[, "slope"], start = res$index[1])
+smoothed.P.slope <- idx_series(res$output$P[2, 2, -1], start = res$index[1])
+
+common_pos <- idx_positions(smoothed.slope.full)
+d2 <- idx_series(
+  cbind(
+    smoothed.slope = idx_values(smoothed.slope.full),
+    sd.smoothed.slope = sqrt(idx_values(smoothed.P.slope)),
+    sd.smoothed.slope.1.5 = 1.5 * sqrt(idx_values(smoothed.P.slope)),
+    sd.smoothed.slope.2 = 2 * sqrt(idx_values(smoothed.P.slope))
+  ),
+  start = common_pos[1]
+)
+
+d2.mat <- as.matrix(idx_values(d2))
+d2.df <- data.frame(
+  Date = idx_to_date(cal, idx_positions(d2)),
+  smoothed.slope = d2.mat[, "smoothed.slope"],
+  sd.smoothed.slope = d2.mat[, "sd.smoothed.slope"],
+  sd.smoothed.slope.1.5 = d2.mat[, "sd.smoothed.slope.1.5"],
+  sd.smoothed.slope.2 = d2.mat[, "sd.smoothed.slope.2"]
+)
+
+d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
+
+trigger.df <- d2.df %>%
+  mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
+  filter((smoothed.slope > sd.smoothed.slope.2 &
+            prev_smoothed.slope < sd.smoothed.slope.2))
+# Triggered on May 01 when smoothed slope > 2* sd(smoothed slope)
+
+reinit_zero.df <- d2.df %>%
+  mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
+  filter(Date < min(trigger.df$Date) &
+           (smoothed.slope > 0 & prev_smoothed.slope < 0)) %>%
+  arrange(desc(Date)) %>%
+  slice(1)
+# Reinitialisation on April 21
+
+# Create plot
+ggplot(data = d2.df,
+      aes(x = Date)) +
+  geom_line(aes(y = smoothed.slope,
+                color = "smoothed.slope"), linewidth=.5) +
+  geom_line(aes(y = sd.smoothed.slope,
+                color = "sd.smoothed.slope"),
+            linetype = "solid",
+            linewidth=.25) +
+  geom_line(aes(y = sd.smoothed.slope.1.5,
+                color = "sd.smoothed.slope.1.5"),
+            linetype = "solid",
+            linewidth=.25) +
+  geom_line(aes(y = sd.smoothed.slope.2,
+                color = "sd.smoothed.slope.2"),
+            linetype = "solid",
+            linewidth=.5) +
+  scale_y_continuous(n.breaks = 10) +
+  geom_hline(yintercept = 0,
+             linetype = "solid",
+             color = "black",linewidth = 1)+
+  geom_vline(data = trigger.df,
+             aes(xintercept = Date),
+             linetype = "solid", size = .5,
+             color = "black")+
+  ylab("Slope") +
+  scale_x_date(date_breaks = "10 days") +
+  scale_color_manual(name='',
+                     values=c('smoothed.slope'='red',
+                              'sd.smoothed.slope'='blue',
+                              'sd.smoothed.slope.1.5'='green',
+                              'sd.smoothed.slope.2'='black'))+
+  theme_light(base_size = 11)+
+  theme(legend.title=element_text(size=2),
+        legend.text=element_text(size=6))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, size = 8),
+        plot.title = element_text(face = "bold"))
+```
+
+```{r set_reinit_date}
+reinit.pos <- idx_to_pos(cal, "2021-04-21")
+```
+
+## Estimating the reinitialized model
+
+`reinit.date` becomes `reinit.idx`, an integer position rather than a
+`Date`.
+
+```{r reinit_estim}
+model <- SSModelDynamicGompertz$new(
+  Y = Y, q = q, sea.period = 7,
+  start = estimation.pos.start,
+  end = estimation.pos.end,
+  reinit.idx = reinit.pos,
+  calendar = cal
+)
+res.reinit <- estimate(model)
+```
+
+```{r fig-7, fig.cap = "Figure 7: Forecast of $ln(g_t)$ after reinitialization."}
+tsgc::plot_log_forecast(
+    res = res.reinit,
+    Y = Y,
+    n.ahead = n.forecasts,
+    plt.start = tail(res.reinit$index, 1) - plt.length,
+    title='Forecast of log growth rate after reinitialization.'
+)
+```
+
+```{r fig-8, fig.cap = "Figure 8: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+tsgc::plot_holdout(
+  res = res,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
+```
+
+```{r fig-9, fig.cap = "Figure 9: Forecast accuracy of the model with reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+tsgc::plot_holdout(
+  res = res.reinit,
+  Y = Y,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  series.name = "cases"
+)
+```
+
+```{r fig-10, fig.cap = "Figure 10: Comparison of standard (green) and reinitialized (blue) forecasts"}
+tsgc::plot_compare_forecast(
+  results = list(res.reinit, res),
+  n.ahead = 14,
+  actual = Y
+)
+```
+
+# Leading indicator model: England cases and hospitalisations
+
+```{r li-setup}
+eng <- england_idx
+eng_cal <- england_cal
+
+est.start.eng <- idx_to_pos(eng_cal, "2021-04-30")
+est.end.eng   <- idx_to_pos(eng_cal, "2021-07-24")
+n.lag.eng     <- 4
+n.forecasts.eng <- 7
+plt.length.eng  <- 14
+```
+
+```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
+mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng, calendar = eng_cal)
+plot(
+  mod.eng.plot,
+  title = "Daily COVID cases and hospitalisations (England)",
+  series.name.lead = "Cases",
+  series.name.target = "Hospitalisations",
+  take.log = TRUE
+)
+```
+
+```{r li-estimate}
+mod.eng <- SSModelLeadingIndicator$new(
+  Y = eng,
+  n.lag = n.lag.eng,
+  LeadIndCol = 1,
+  sea.period = 7,
+  start = est.start.eng,
+  end = est.end.eng,
+  calendar = eng_cal
+)
+res.eng <- estimate(mod.eng)
+```
+
+```{r fig-li-log, fig.cap = "Figure 12: Forecast of log growth rate of hospitalisations, England."}
+tsgc::plot_log_forecast(
+  res.eng,
+  Y = eng,
+  n.ahead = n.forecasts.eng,
+  plt.start = est.end.eng - plt.length.eng,
+  title = "Forecast of log growth rate of hospitalisations (England)"
+)
+```
+
+```{r fig-li-forecast, fig.cap = "Figure 13: Forecast of hospitalisations, England."}
+tsgc::plot_forecast(
+  res.eng,
+  n.ahead = n.forecasts.eng,
+  plt.start = est.end.eng - plt.length.eng,
+  series.name = "Hospitalisations",
+  title = "Forecast of hospitalisations (England)"
+)
+```
+
+```{r fig-li-holdout, fig.cap = "Figure 14: Accuracy of the seven-day forecast of hospitalisations, England."}
+tsgc::plot_holdout(
+  res.eng,
+  Y = eng,
+  n.ahead = n.forecasts.eng,
+  series.name = "Hospitalisations",
+  title = "Accuracy: forecast of hospitalisations (England)"
+)
+```
+
+## Adding regressors and future covariate paths
+
+`supply_xpred.new()` was an internal-only helper in the old package
+(setting `xpred.new`/`xpred_lead.new`/`xpred_targ.new`); the fields areset directly on the `FilterResultsLI` object instead.
+
+```{r li-xpred}
+xpred_lead <- xpred_targ <- england_weather_idx
+
+mod.eng.x <- SSModelLeadingIndicator$new(
+  eng,
+  n.lag = n.lag.eng,
+  xpred_lead = xpred_lead,
+  xpred_targ = xpred_targ,
+  sea.period = 7,
+  start = est.start.eng,
+  end = est.end.eng,
+  calendar = eng_cal
+)
+res.eng.x <- estimate(mod.eng.x)
+
+res.eng.x$xpred_lead.new <- england_weather_idx
+res.eng.x$xpred_targ.new <- england_weather_idx
+```
+
+```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
+tsgc::plot_forecast(
+  res.eng.x,
+  n.ahead = n.forecasts.eng,
+  plt.start = est.end.eng - plt.length.eng,
+  title = "Forecast of hospitalisations with regressors",
+  series.name = "Hospitalisations"
+)
+```
+
+# Comparing the dynamic Gompertz and leading-indicator models
+
+```{r cv-setup}
+n.forecasts.uk <- 14
+plt.length.uk  <- 30
+q.uk   <- 0.005
+
+est.start.uk <- idx_to_pos(ukitaly_cal, "2020-02-25")
+est.end.uk   <- idx_to_pos(ukitaly_cal, "2020-04-01")
+Yuk          <- idx_series(idx_values(ukitaly_idx)[, "UK"], start = ukitaly_idx$start)
+```
+
+```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
+mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly_idx, n.lag = 4, calendar = ukitaly_cal)
+plot(
+  mod.ukit.plot,
+  title = "Daily COVID cases in UK and Italy",
+  series.name.lead = "Italy",
+  series.name.target = "UK",
+  take.log = FALSE
+)
+```
+
+```{r uk-gompertz}
+mod.uk.gomp <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.uk, sea.period = 7,
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
+)
+res.uk.gomp <- estimate(mod.uk.gomp)
+```
+
+```{r uk-lead}
+n.lag.uk <- 14
+mod.uk.lead <- SSModelLeadingIndicator$new(
+  Y = ukitaly_idx, n.lag = n.lag.uk, sea.period = 7,
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
+)
+res.uk.lead <- estimate(mod.uk.lead)
+```
+
+```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
+tsgc::plot_compare_forecast(
+  list(res.uk.gomp, res.uk.lead),
+  actual = Yuk,
+  n.ahead = n.forecasts.uk
+)
+```
+
+```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
+tsgc::plot_holdout(
+  res.uk.lead, Y = ukitaly_idx, n.ahead = n.forecasts.uk,
+  title = "Accuracy: leading-indicator forecast of UK cases",
+  series.name = "UK cases"
+)
+```
+
+## Selecting the lag by rolling cross-validation
+
+```{r cv-models}
+cv_models <- list()
+
+cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.uk, sea.period = 7,
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
+)
+
+cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, sea.period = 7,
+  start = est.start.uk, end = est.end.uk, ar1 = TRUE,
+  calendar = ukitaly_cal
+)
+
+for (i in c(7, 10, 14, 16, 18, 21)) {
+  cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
+    Y = ukitaly_idx, sea.period = 7,
+    start = est.start.uk, end = est.end.uk, n.lag = i,
+    calendar = ukitaly_cal
+  )
+}
+```
+
+```{r cv-run}
+cross_val(
+  Y = ukitaly_idx,
+  model_list = cv_models,
+  est.end = est.end.uk,
+  criterion = "smape",
+  n.ahead = 14,
+  n.estimate = 5,
+  gap = 2
+)
+```
+
+# Extensions: non-epidemiological applications and alternative data frequencies
+
+## Quarterly data (Figure 19)
+
+Quarterly positions were converted using `nintendo_yq_to_pos()` defined
+in the data-conversion section above.
+
+```{r freq-quarterly}
+n.lag.q <- nintendo_yq_to_pos("2017 Q1") - nintendo_yq_to_pos("2006 Q4")
+
+mod.q <- SSModelLeadingIndicator$new(
+  Y = nintendo_idx,
+  sea.period = 4,
+  n.lag = n.lag.q,
+  start = nintendo_yq_to_pos("2017 Q1"),
+  end = nintendo_yq_to_pos("2019 Q4"),
+  calendar = nintendo_cal
+)
+res.q <- estimate(mod.q)
+```
+
+```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
+tsgc::plot_log_forecast(
+  res.q, Y = nintendo_idx, n.ahead = 8,
+  title = "Log forecasts of Switch sales"
+)
+```
+
+## Monthly data (Figure 20)
+
+```{r freq-monthly}
+n.lag.m <- etrading_ym_to_pos(2017.5) - etrading_ym_to_pos(2017)
+
+mod.m <- SSModelLeadingIndicator$new(
+  Y = etrading_idx,
+  sea.period = 12,
+  n.lag = n.lag.m,
+  start = etrading_ym_to_pos(2017.5),
+  end = etrading_ym_to_pos(2021 + 1 / 12),
+  calendar = etrading_cal
+)
+res.m <- estimate(mod.m)
+```
+
+```{r fig-freq-m, fig.cap = "Figure 20: Forecasts of monthly AvaTrade downloads, using DEGIRO downloads as a leading indicator."}
+tsgc::plot_forecast(
+  res.m, n.ahead = 4,
+  title = "AvaTrade monthly downloads",
+  series.name = "Downloads"
+)
+```

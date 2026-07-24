@@ -196,14 +196,32 @@ SSModelLeadingIndicator <- setRefClass(
            eliminate flat segments and allow model estimation. This can be done 
            by ensuring the non-cumulated series is strictly positive.")}
       
-      data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg")]
       est_pos <- idx_positions(y.estimate)
       
       if (!is.null(xpred_lead)){
-        xpred_lead<<-get_timeframe(idx_lag(xpred_lead,n.lag), est_pos[1], tail(est_pos,1))
+        xpred_lead <<- idx_lag(xpred_lead, n.lag)
+        est_pos <- intersect(est_pos, idx_positions(xpred_lead))
+        if (length(est_pos) == 0){
+          stop("xpred_lead (after lagging by n.lag) does not overlap with the estimation timeframe.")
+        }
       }
       if (!is.null(xpred_targ)){
-        xpred_targ<<-get_timeframe(xpred_targ, est_pos[1], tail(est_pos,1))
+        est_pos <- intersect(est_pos, idx_positions(xpred_targ))
+        if (length(est_pos) == 0){
+          stop("xpred_targ does not overlap with the estimation timeframe.")
+        }
+      }
+      if (!identical(est_pos, seq.int(est_pos[1], est_pos[length(est_pos)]))){
+        stop("Restricting the estimation timeframe to the available xpred_lead/xpred_targ data leaves gaps, which idx_series cannot represent.")
+      }
+      y.estimate <- get_timeframe(y.estimate, est_pos[1], tail(est_pos,1))
+      data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg")]
+      
+      if (!is.null(xpred_lead)){
+        xpred_lead <<- get_timeframe(xpred_lead, est_pos[1], tail(est_pos,1))
+      }
+      if (!is.null(xpred_targ)){
+        xpred_targ <<- get_timeframe(xpred_targ, est_pos[1], tail(est_pos,1))
       }
       xreg_lead <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
       xreg_targ <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL

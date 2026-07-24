@@ -499,7 +499,16 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
   
   if (!any(res$xpred_logical)) {
     forcout <- res$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
-    smldlh <- as.numeric(stats::predict(modelKFS(res$output), states = "trend")[, "LDLtarg"])
+    smldl_pred <- stats::predict(modelKFS(res$output), states = "trend")
+    smldlh <- as.numeric(
+      if (is.list(smldl_pred) && !is.data.frame(smldl_pred)) {
+        smldl_pred[["LDLtarg"]]
+      } else if (is.matrix(smldl_pred)) {
+        smldl_pred[, "LDLtarg"]
+      } else {
+        smldl_pred
+      }
+    )
     filtered <- idx_series(smldlh, start = res$start)
     
     fc_series <- idx_series(as.matrix(idx_values(forcout))[, 1], start = forcout$start)
