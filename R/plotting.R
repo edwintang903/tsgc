@@ -142,10 +142,15 @@ idx_series_df <- function(x, calendar = NULL, axis = NULL) {
 idx_x_scale <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
+    # scales::breaks_pretty(n) targets ~n breaks regardless of the span of
+    # the series, so a two-year daily series and a two-week daily series
+    # both get a readable, non-overlapping number of x-axis labels.
     if (inherits(calendar$anchor, "POSIXct")) {
-      ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"))
+      ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"),
+                                breaks = scales::breaks_pretty(n = 8))
     } else {
-      ggplot2::scale_x_date(labels = scales::date_format("%d %b %y"))
+      ggplot2::scale_x_date(labels = scales::date_format("%d %b %y"),
+                            breaks = scales::breaks_pretty(n = 8))
     }
   } else {
     ggplot2::scale_x_continuous()
@@ -255,22 +260,24 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
     names(df)[1] <- "New.Cases"
   }
   
-  p <- ggplot2::ggplot(data = df, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = New.Cases, color = "New Cases"), linewidth = 0.1) +
-    ggplot2::scale_y_continuous(n.breaks = 10) +
-    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
+  p <- ggplot(data = df, aes(x = x)) +
+    geom_line(aes(y = New.Cases), colour = "grey50", linewidth = 0.2) +
+    scale_y_continuous(n.breaks = 10) +
+    labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
     idx_x_scale(calendar, axis) +
-    ggplot2::theme(
-      legend.title = ggplot2::element_text(size = 5),
-      legend.text = ggplot2::element_text(size = 10),
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 10),
-      plot.title = ggplot2::element_text(face = "bold")
+    theme_bw() +
+    theme(
+      legend.position = "right",
+      legend.title = element_blank(),
+      axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+      axis.title.x = element_text(margin = margin(t = 10)),
+      axis.title.y = element_text(margin = margin(r = 20)),
+      plot.title = element_text(face = "bold"),
+      plot.margin = margin(t = 5, l = 5)
     )
-  
   if (MA_period > 1) {
-    p <- p +
-      ggplot2::geom_line(ggplot2::aes(y = Centered.MA, color = "Centered MA"), linewidth = 1) +
-      ggplot2::scale_color_manual(name = '', values = c('Centered MA' = 'red'))
+    p <- p + geom_line(aes(y = Centered.MA, colour = "Centered MA"), linewidth = 1) + 
+      scale_colour_manual(values = c("Centered MA" = "red"))
   }
   idx_add_info_box(p, calendar, axis)
 }
@@ -328,17 +335,20 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
   names(df)[1] <- "newLead"
   df$newTarg <- idx_values(newTarg)
   
-  p <- ggplot2::ggplot(data = df, ggplot2::aes(x = x)) +
-    ggplot2::labs(title = title, x = idx_x_lab(calendar, axis), y = y.lab, color = "Legend") +
-    ggplot2::geom_line(ggplot2::aes(y = newLead, color = series.name.lead), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = newTarg, color = series.name.target), linewidth = 0.85) +
-    ggplot2::scale_color_manual(values = c("red", "blue")) +
+  p <- ggplot(data = df, aes(x = x)) +
+    labs(title = title, x = idx_x_lab(calendar, axis), y = y.lab, color = "Legend") +
+    geom_line(aes(y = newLead, color = series.name.lead), linewidth = 0.85) +
+    geom_line(aes(y = newTarg, color = series.name.target), linewidth = 0.85) +
+    scale_color_manual(values = c("red", "blue")) +
     idx_x_scale(calendar, axis) +
-    ggplot2::theme(
-      legend.title = ggplot2::element_text(size = 10),
-      legend.text = ggplot2::element_text(size = 10),
-      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 10),
-      plot.title = ggplot2::element_text(face = "bold")
+    theme(
+      legend.title = element_text(size = 10),
+      legend.text = element_text(size = 10),
+      axis.text.x = element_text(angle = 45, hjust = 0, size = 10),
+      axis.title.x = element_text(margin = margin(t = 20)),
+      axis.title.y = element_text(margin = margin(r = 20)),
+      plot.title = element_text(face = "bold"),
+      plot.margin = margin(t = 5, r = 25, l = 5, b = 15)
     )
   idx_add_info_box(p, calendar, axis)
 }
