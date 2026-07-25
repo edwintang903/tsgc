@@ -1067,6 +1067,13 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 #' function automatically extracts the observations corresponding to the
 #' prediction period, so the complete series may be provided.
 #' @param title Title for the plot. Defaults to \code{"Comparison of forecasts"}.
+#' @param labels Character vector of legend labels, one per element of
+#' \code{results}, or \code{NULL} (default). If \code{NULL}, labels are
+#' taken from \code{names(results)} if set (e.g.
+#' \code{list(a = res1, b = res2)}), and otherwise default to the
+#' deparsed expression used for each element in the \code{results} list
+#' call (e.g. \code{plot_compare_forecast(list(res, res.reinit))} labels
+#' the two lines \code{"res"} and \code{"res.reinit"}).
 #' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
 #' mode and info box, or \code{NULL} (default) for the previous default
 #' behaviour. Uses the calendar of \code{results[[1]]}.
@@ -1079,15 +1086,41 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 #' @export
 plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
                                   actual = NULL, title = "Comparison of forecasts",
-                                  axis = NULL) {
+                                  labels = NULL, axis = NULL) {
   for (r in results) {
     if (!inherits(r, "FilterResults") && !inherits(r, "FilterResultsLI")) {
       stop("All elements in results list must be of the class FilterResults or FilterResultsLI.")
     }
   }
   
-  labels <- names(results)
-  if (is.null(labels)) labels <- paste0("model", seq_along(results))
+  if (!is.null(labels)) {
+    if (length(labels) != length(results)) {
+      stop("labels must have the same length as results.")
+    }
+  } else {
+    labels <- names(results)
+    if (is.null(labels)) {
+      # Fall back to the deparsed expression for each element of the
+      # results list, e.g. plot_compare_forecast(list(res, res.reinit))
+      # labels the lines "res" and "res.reinit". This inspects the call
+      # used to build `results` (typically a literal list(...) call), so
+      # it only works when that structure is visible to match.call(); if
+      # results was itself passed through as an opaque variable, this
+      # falls back to positional "model" labels below.
+      results_expr <- match.call()$results
+      call_args <- if (is.call(results_expr)) as.list(results_expr)[-1] else NULL
+      if (!is.null(call_args) && length(call_args) == length(results)) {
+        arg_names <- names(call_args)
+        labels <- vapply(seq_along(call_args), function(i) {
+          nm <- arg_names[i]
+          if (!is.null(nm) && nzchar(nm)) nm else deparse(call_args[[i]])
+        }, character(1))
+      }
+    }
+    if (is.null(labels) || any(!nzchar(labels))) {
+      labels <- paste0("model", seq_along(results))
+    }
+  }
   
   calendar <- results[[1]]$calendar
   

@@ -573,3 +573,100 @@ cross_val <- function(Y, model_list, est.end, n.ahead = 7, n.estimate = 1, gap =
   colnames(results) <- c("Model", all_ends)
   return(results)
 }
+#' @title Write a selection of relevant results to disk
+#'
+#' @description Function writes the following results to csv files which get
+#' saved in the location specified in \code{res.dir}: forecast new cases or
+#' incidence variable, \eqn{y}; the filtered level and slope of \eqn{\ln g},
+#' \eqn{\delta} and \eqn{\gamma}; filtered estimates of \eqn{g_y} and the
+#' confidence intervals for these estimates.
+#'
+#' @param res Results object of class \code{FilterResults} or \code{FilterResultsLI},
+#' obtained from \samp{estimate()} method.
+#' @param res.dir File path to save the results to. A character string.
+#' @param n.ahead Number of periods ahead to forecast. A positive integer.
+#' @param prefix The prefix to be added to the file names generated. A character string.
+#' @param confidence.level Confidence level to use for the confidence interval
+#' on the forecasts \eqn{\ln(g_t)}.
+#'
+#' @importFrom utils write.csv
+#' @importFrom stats qnorm
+#'
+#' @returns A number of csv files saved in the directory specified in
+#' \code{res.dir}.
+#' @examples
+#' # Not run as do not wish to save to local disk when compiling documentation.
+#' # Below will run if copied and pasted into console.
+#' library(tsgc)
+#' library(here)
+#'
+#' res.dir <- tempdir()
+#' data(gauteng,package="tsgc")
+#' res <- estimate(SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
+#' end.date=as.Date("2020-07-06")))
+#'
+#' tsgc::write_results(
+#' res=res, res.dir = res.dir, prefix="dyn_gompertz",n.ahead = 14,
+#' confidence.level = 0.68)
+#'
+#' @export
+write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.68) {
+  if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")){
+    stop("res must be a FilterResults or FilterResultsLI object.")
+  }
+  # 1. New Cases - Delta Y
+  y.hat.diff <- res$predict_level(
+    n.ahead = n.ahead,
+    confidence.level = confidence.level,
+    sea.on = TRUE)
+  
+  write.csv(
+    as.matrix(y.hat.diff),
+    row.names = idx_positions(y.hat.diff),
+    file = file.path(res.dir, paste(prefix, "cases_fcst.csv", sep="")))
+  
+  # 2. Filtered slope / level
+  y.hat.all <- res$predict_all(n.ahead, return.all = TRUE)
+  filtered.level <- y.hat.all$level.t.t
+  filtered.slope <- y.hat.all$slope.t.t
+  a.t.t <- y.hat.all$a.t.t
+  P.t.t <- y.hat.all$P.t.t
+  idx.slope <- grep("slope", colnames(a.t.t))
+  idx.level <- grep("level", colnames(a.t.t))[1]
+  gamma.std.err <- sqrt(P.t.t[idx.slope, idx.slope,])
+  delta.std.err <- sqrt(P.t.t[idx.level, idx.level,])
+  
+  gamma <- idx_cbind(filtered.slope, idx_series(gamma.std.err, start = filtered.slope$start))
+  delta <- idx_cbind(filtered.level, idx_series(delta.std.err, start = filtered.level$start))
+  gamma.mat <- as.matrix(gamma)
+  delta.mat <- as.matrix(delta)
+  colnames(gamma.mat) <- c("gamma", "std.err")
+  colnames(delta.mat) <- c("delta", "std.err")
+  
+  write.csv(
+    gamma.mat,
+    row.names = idx_positions(filtered.slope),
+    file = file.path(res.dir, paste(prefix, "trend_slope_filt.csv", sep=""))
+  )
+  write.csv(
+    delta.mat,
+    row.names = idx_positions(filtered.level),
+    file = file.path(res.dir, paste(prefix, "log_gr_level_filt.csv", sep=""))
+  )
+  
+  # 3. Filtered growth rate of new cases (g_{y}) - CI from standard error on
+  # slope component of state covariance matrix.
+  g.y.t.t <- exp(idx_values(filtered.level)) + idx_values(filtered.slope)
+  ci <- qnorm((1 - confidence.level) / 2) * gamma.std.err %o% c(1, -1)
+  ci_bounds <- as.vector(g.y.t.t) + ci
+  gy.ci.mat <- cbind(fit = g.y.t.t, prediction = ci_bounds)
+  colnames(gy.ci.mat) <- c("fit", "lower", "upper")
+  
+  write.csv(
+    gy.ci.mat,
+    row.names = idx_positions(filtered.level),
+    file = file.path(res.dir, paste(prefix, "cases_gr.csv", sep="")))
+  
+  message("Saved results for: ", substitute(res))
+  
+}
