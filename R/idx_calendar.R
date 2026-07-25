@@ -101,9 +101,20 @@
 #'                         amount = 2.5, unit = "picoseconds")
 #' idx_to_date(cal_ps, 1:5)
 #'
+#' @param anchor_name An optional single string giving a human-readable
+#' name for \code{anchor} (e.g. \code{"outbreak start"}, \code{"launch"}).
+#' When supplied, the plotting layer can use it to label axes/info boxes
+#' as e.g. "steps from launch" or "time since launch" instead of the
+#' generic "steps from anchor". Defaults to \code{NULL} (no name; generic
+#' wording is used).
+#'
 #' @export
 idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
-                         pattern = 1, pattern_start = 1L, posixct = FALSE) {
+                         pattern = 1, pattern_start = 1L, posixct = FALSE,
+                         anchor_name = NULL) {
+  if (!is.null(anchor_name) && (length(anchor_name) != 1 || !is.character(anchor_name))) {
+    stop("anchor_name must be NULL or a single string.")
+  }
   if (length(anchor_pos) != 1 || !isTRUE(all.equal(anchor_pos, as.integer(anchor_pos)))) {
     stop("anchor_pos must be a single integer.")
   }
@@ -131,7 +142,8 @@ idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
       unit = unit,
       pattern = as.numeric(pattern),
       pattern_start = as.integer(pattern_start),
-      posixct = posixct
+      posixct = posixct,
+      anchor_name = anchor_name
     ),
     class = "idx_calendar"
   )
@@ -153,6 +165,7 @@ is_idx_calendar <- function(x) {
 #' @export
 print.idx_calendar <- function(x, ...) {
   cat("<idx_calendar>\n")
+  if (!is.null(x$anchor_name)) cat("  anchor_name:   ", x$anchor_name, "\n")
   cat("  anchor:        ", format(x$anchor), "\n")
   cat("  anchor_pos:    ", x$anchor_pos, "\n")
   cat("  step:          ", x$amount, x$unit, "\n")
@@ -245,29 +258,86 @@ idx_calendar_offset <- function(cal, pos) {
 #' @title Translate \code{idx_series} positions to calendar time
 #'
 #' @description Converts one or more integer \code{idx_series} positions
-#' into calendar time using an \code{idx_calendar}. The conversion is
-#' purely numeric: it multiplies the pattern-weighted step offset (see
+#' into calendar time using an \code{idx_calendar}.
+#'
+#' When \code{cal$posixct} is \code{TRUE} and \code{cal$anchor} is a
+#' \code{Date}/\code{POSIXct}, and \code{cal$unit} is one of the standard
+#' calendar units - \code{"seconds"}, \code{"minutes"}, \code{"hours"},
+#' \code{"days"}, \code{"weeks"}, \code{"months"}, \code{"quarters"},
+#' \code{"years"} (singular or plural) - calendar-aware stepping is used via
+#' \code{\link{seq.Date}}/\code{\link{seq.POSIXt}}'s \code{by} argument.
+#' This is exact for every one of these units: seconds through weeks are
+#' fixed-duration and so plain offset arithmetic would already agree with
+#' it, but months/quarters/years are calendar-relative (variable length -
+#' e.g. not every month has the same number of days) and genuinely require
+#' this calendar-aware stepping to land on the correct date (respecting
+#' month-end/DST rules) rather than a fixed number of days.
+#'
+#' Otherwise (\code{posixct = FALSE}, a non-Date/POSIXct anchor, or a unit
+#' outside the standard eight) the conversion falls back to plain numeric
+#' offset arithmetic: it multiplies the pattern-weighted step offset (see
 #' \code{\link{idx_calendar_offset}}) by \code{cal$amount} and adds the
-#' result to \code{cal$anchor}. No POSIXct-specific arithmetic (DST,
-#' variable month/quarter lengths, etc.) is performed here even when
-#' \code{cal$posixct} is \code{TRUE}; that flag is a hint for the plotting/
-#' translation layer to consult when it renders these values, not an
-#' instruction acted on by this function. Kept this way so that this file
-#' has no POSIXct-specific logic and can support arbitrary, non-calendar
-#' units (e.g. picoseconds) uniformly.
+#' result to \code{cal$anchor}. This supports arbitrary non-calendar units
+#' (e.g. picoseconds) uniformly.
 #'
 #' @param cal An \code{idx_calendar} object.
 #' @param pos An integer vector of \code{idx_series} positions.
-#' @returns A numeric vector, the same length as \code{pos}, giving
-#' \code{cal$anchor + offset * cal$amount} for each position. If
-#' \code{cal$anchor} is a \code{Date}/\code{POSIXct}, ordinary R arithmetic
-#' on that class is used (e.g. adding a number of days to a \code{Date}),
-#' so the result stays in that class.
+#' @returns A vector, the same length as \code{pos}, giving the calendar
+#' time (or plain number, for non-calendar \code{cal$anchor}) for each
+#' position.
 #' @export
 idx_to_date <- function(cal, pos) {
   stopifnot(is_idx_calendar(cal))
   offset <- idx_calendar_offset(cal, pos)
-  cal$anchor + offset * cal$amount
+  
+  is_calendar_anchor <- inherits(cal$anchor, "Date") || inherits(cal$anchor, "POSIXct")
+  by_unit <- idx_calendar_by_unit(cal$unit)
+  
+  if (isTRUE(cal$posixct) && is_calendar_anchor && !is.null(by_unit)) {
+    step <- offset * cal$amount
+    if (!isTRUE(all.equal(step, round(step)))) {
+      stop("idx_to_date: non-integer number of ", cal$unit,
+           " steps is not supported for calendar-aware (posixct) offsets.")
+    }
+    step <- as.integer(round(step))
+    vapply(step, function(s) {
+      seq(cal$anchor, by = paste(s, by_unit), length.out = 2)[2]
+    }, FUN.VALUE = cal$anchor[1])
+  } else {
+    cal$anchor + offset * cal$amount
+  }
+}
+
+#' @title Map an \code{idx_calendar} unit string to a \code{seq.Date}/
+#' \code{seq.POSIXt} \code{by} unit
+#'
+#' @description Internal helper. Recognises the eight standard calendar
+#' units that \code{POSIXct}/\code{Date} arithmetic can represent exactly -
+#' seconds, minutes, hours, days, weeks, months, quarters, years (singular
+#' or plural, case-insensitive) - and maps each to the singular form
+#' expected by \code{seq.Date}/\code{seq.POSIXt}'s \code{by} argument.
+#' Returns \code{NULL} for any other unit string, signalling that
+#' calendar-aware stepping is not applicable and the caller should fall
+#' back to plain numeric offset arithmetic.
+#'
+#' @param unit A single string (\code{cal$unit}).
+#' @returns A single string suitable for \code{seq.Date(by = ...)}, or
+#' \code{NULL} if \code{unit} is not one of the eight standard units.
+#' @keywords internal
+#' @noRd
+idx_calendar_by_unit <- function(unit) {
+  u <- tolower(unit)
+  switch(u,
+         second = , seconds = "sec",
+         minute = , minutes = "min",
+         hour = , hours = "hour",
+         day = , days = "day",
+         week = , weeks = "week",
+         month = , months = "month",
+         quarter = , quarters = "quarter",
+         year = , years = "year",
+         NULL
+  )
 }
 
 registerS3method("print", "idx_calendar", print.idx_calendar)

@@ -30,25 +30,123 @@
 ## and an x-axis label/scale chosen to match.
 ## ----------------------------------------------------------------------
 
+#' @title Options controlling how the x-axis of \code{idx_series} plots is
+#' displayed
+#'
+#' @description Bundles the small set of cosmetic choices that decide how
+#' plotting functions in this file turn integer \code{idx_series} positions
+#' (and an optional \code{idx_calendar}) into an x-axis, and whether to
+#' attach a small info box summarising the calendar. Pass an
+#' \code{idx_axis_opts} object via the \code{axis} argument of the various
+#' \code{plot.*}/\code{plot_*} functions; \code{NULL} (the default
+#' everywhere) reproduces the previous behaviour exactly.
+#'
+#' @param mode One of:
+#' \itemize{
+#'   \item \code{"auto"} (default): \code{"date"} if a calendar with
+#'   \code{posixct = TRUE} is supplied, else \code{"position"}.
+#'   \item \code{"position"}: plain integer \code{idx_series} positions.
+#'   \item \code{"steps"}: steps from the calendar's anchor position, i.e.
+#'   \code{position - anchor_pos}. Labelled "Steps from [anchor_name]" if
+#'   the calendar has an \code{anchor_name}, else "Steps from anchor".
+#'   \item \code{"time_since"}: the pattern-weighted calendar offset from
+#'   the anchor (via \code{idx_calendar_offset()}), expressed in
+#'   \code{calendar$unit}s. Labelled "Time since [anchor_name] (unit)" or
+#'   "Time since anchor (unit)". Also valid when \code{calendar$posixct}
+#'   is \code{TRUE}: this simply plots the numeric offset instead of a real
+#'   date, which can be more readable than dates for e.g. hourly/irregular
+#'   series.
+#'   \item \code{"date"}: real calendar dates via \code{idx_to_date()}
+#'   (the original behaviour). Requires a calendar.
+#' }
+#' \code{"steps"}, \code{"time_since"} and \code{"date"} require a
+#' calendar; they raise an error otherwise. \code{"position"} and
+#' \code{"auto"} work with or without one.
+#' @param info_box A single logical. If \code{TRUE}, adds a caption to the
+#' plot summarising the calendar: anchor (and its name, if set), step size/
+#' unit, and pattern. Defaults to \code{FALSE}. Ignored if no calendar is
+#' supplied.
+#' @param pattern_n \code{NULL} (default) to show the entire pattern in the
+#' info box, or a single positive integer to truncate the displayed
+#' pattern to its first \code{pattern_n} values (with a trailing "...").
+#'
+#' @returns An object of class \code{idx_axis_opts}.
+#'
+#' @examples
+#' idx_axis_opts(mode = "steps", info_box = TRUE)
+#' idx_axis_opts(mode = "time_since", info_box = TRUE, pattern_n = 5)
+#'
+#' @export
+idx_axis_opts <- function(mode = c("auto", "position", "steps", "time_since", "date"),
+                          info_box = FALSE, pattern_n = NULL) {
+  mode <- match.arg(mode)
+  if (length(info_box) != 1 || !is.logical(info_box) || is.na(info_box)) {
+    stop("info_box must be a single logical (TRUE/FALSE).")
+  }
+  if (!is.null(pattern_n) &&
+      (length(pattern_n) != 1 || !is.numeric(pattern_n) || pattern_n < 1)) {
+    stop("pattern_n must be NULL or a single positive integer.")
+  }
+  structure(
+    list(mode = mode, info_box = info_box,
+         pattern_n = if (!is.null(pattern_n)) as.integer(pattern_n) else NULL),
+    class = "idx_axis_opts"
+  )
+}
+
 #' @keywords internal
 #' @noRd
-idx_series_df <- function(x, calendar = NULL) {
+is_idx_axis_opts <- function(x) inherits(x, "idx_axis_opts")
+
+#' @keywords internal
+#' @noRd
+idx_anchor_label <- function(calendar) {
+  nm <- calendar$anchor_name
+  if (!is.null(nm) && length(nm) == 1 && !is.na(nm) && nzchar(nm)) nm else "anchor"
+}
+
+#' @keywords internal
+#' @noRd
+idx_resolve_axis <- function(axis, calendar) {
+  if (is.null(axis)) axis <- idx_axis_opts()
+  stopifnot(is_idx_axis_opts(axis))
+  mode <- axis$mode
+  if (mode == "auto") {
+    mode <- if (is_idx_calendar(calendar) && isTRUE(calendar$posixct)) "date" else "position"
+  }
+  if (mode %in% c("steps", "time_since", "date") && !is_idx_calendar(calendar)) {
+    stop("axis mode '", mode, "' requires a calendar; none was supplied.")
+  }
+  axis$mode <- mode
+  axis
+}
+
+#' @keywords internal
+#' @noRd
+idx_series_df <- function(x, calendar = NULL, axis = NULL) {
   stopifnot(is_idx_series(x))
   pos <- idx_positions(x)
   df <- as.data.frame(as.matrix(idx_values(x)))
-  if (is_idx_calendar(calendar)) {
-    df$x <- idx_to_date(calendar, pos)
-  } else {
-    df$x <- pos
-  }
+  axis <- idx_resolve_axis(axis, calendar)
+  df$x <- switch(axis$mode,
+                 date       = idx_to_date(calendar, pos),
+                 steps      = pos - calendar$anchor_pos,
+                 time_since = idx_calendar_offset(calendar, pos) * calendar$amount,
+                 position   = pos
+  )
   df
 }
 
 #' @keywords internal
 #' @noRd
-idx_x_scale <- function(calendar = NULL) {
-  if (is_idx_calendar(calendar) && isTRUE(calendar$posixct)) {
-    ggplot2::scale_x_date(labels = scales::date_format("%d %b %y"))
+idx_x_scale <- function(calendar = NULL, axis = NULL) {
+  axis <- idx_resolve_axis(axis, calendar)
+  if (axis$mode == "date") {
+    if (inherits(calendar$anchor, "POSIXct")) {
+      ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"))
+    } else {
+      ggplot2::scale_x_date(labels = scales::date_format("%d %b %y"))
+    }
   } else {
     ggplot2::scale_x_continuous()
   }
@@ -56,8 +154,50 @@ idx_x_scale <- function(calendar = NULL) {
 
 #' @keywords internal
 #' @noRd
-idx_x_lab <- function(calendar = NULL) {
-  if (is_idx_calendar(calendar) && isTRUE(calendar$posixct)) "Date" else "Position"
+idx_x_lab <- function(calendar = NULL, axis = NULL) {
+  axis <- idx_resolve_axis(axis, calendar)
+  switch(axis$mode,
+         date       = "Date",
+         position   = "Position",
+         steps      = paste0("Steps from ", idx_anchor_label(calendar)),
+         time_since = paste0("Time since ", idx_anchor_label(calendar), " (", calendar$unit, ")")
+  )
+}
+
+#' @keywords internal
+#' @noRd
+idx_info_box_caption <- function(calendar, axis) {
+  if (is.null(axis) || !isTRUE(axis$info_box) || !is_idx_calendar(calendar)) return(NULL)
+  pat <- calendar$pattern
+  pat_str <- if (!is.null(axis$pattern_n) && length(pat) > axis$pattern_n) {
+    paste0(paste(pat[seq_len(axis$pattern_n)], collapse = ", "), ", ...")
+  } else {
+    paste(pat, collapse = ", ")
+  }
+  anchor_line <- if (!is.null(calendar$anchor_name)) {
+    paste0("Anchor: ", calendar$anchor_name, " (", format(calendar$anchor), ")")
+  } else {
+    paste0("Anchor: ", format(calendar$anchor))
+  }
+  paste(
+    anchor_line,
+    paste0("Step: ", calendar$amount, " ", calendar$unit),
+    paste0("Pattern: ", pat_str),
+    sep = "\n"
+  )
+}
+
+#' @keywords internal
+#' @noRd
+idx_add_info_box <- function(p, calendar, axis) {
+  cap <- idx_info_box_caption(calendar, axis)
+  if (is.null(cap)) return(p)
+  # Append to (rather than overwrite) any caption already set by the plot,
+  # e.g. MAPE/RMSE captions on forecast-evaluation plots.
+  existing <- p$labels$caption
+  full_cap <- if (!is.null(existing) && nzchar(existing)) paste(existing, cap, sep = "\n\n") else cap
+  p + ggplot2::labs(caption = full_cap) +
+    ggplot2::theme(plot.caption = ggplot2::element_text(hjust = 0, size = 7, family = "mono"))
 }
 
 ## ----------------------------------------------------------------------
@@ -77,6 +217,9 @@ idx_x_lab <- function(calendar = NULL) {
 #' @param MA_period Number of positions in the centred moving average to
 #' overlay. \code{0} or \code{1} disables the moving average. Default
 #' \code{7}.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour (dates if a POSIXct calendar is present, else positions).
 #' @param ... Unused.
 #'
 #' @returns A \code{ggplot2} plot.
@@ -87,7 +230,7 @@ idx_x_lab <- function(calendar = NULL) {
 #' @export
 plot.SSModelDynamicGompertz <- function(x, title = NULL,
                                         series.name = "target variable",
-                                        MA_period = 7, ...) {
+                                        MA_period = 7, axis = NULL, ...) {
   model <- x
   Y <- model$Y
   calendar <- model$calendar
@@ -101,22 +244,22 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
     ma_pos <- idx_positions(d)[seq_along(ma) + (MA_period - 1) %/% 2]
     ma_series <- idx_series(ma, start = ma_pos[1])
     
-    df <- idx_series_df(d, calendar)
+    df <- idx_series_df(d, calendar, axis)
     names(df)[1] <- "New.Cases"
-    ma_df <- idx_series_df(ma_series, calendar)
+    ma_df <- idx_series_df(ma_series, calendar, axis)
     names(ma_df)[1] <- "Centered.MA"
     df$Centered.MA <- NA_real_
     df$Centered.MA[match(ma_df$x, df$x)] <- ma_df$Centered.MA
   } else {
-    df <- idx_series_df(d, calendar)
+    df <- idx_series_df(d, calendar, axis)
     names(df)[1] <- "New.Cases"
   }
   
   p <- ggplot2::ggplot(data = df, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = New.Cases, color = "New Cases"), linewidth = 0.1) +
     ggplot2::scale_y_continuous(n.breaks = 10) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = paste("New", series.name), title = title) +
-    idx_x_scale(calendar) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
+    idx_x_scale(calendar, axis) +
     ggplot2::theme(
       legend.title = ggplot2::element_text(size = 5),
       legend.text = ggplot2::element_text(size = 10),
@@ -129,7 +272,7 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
       ggplot2::geom_line(ggplot2::aes(y = Centered.MA, color = "Centered MA"), linewidth = 1) +
       ggplot2::scale_color_manual(name = '', values = c('Centered MA' = 'red'))
   }
-  p
+  idx_add_info_box(p, calendar, axis)
 }
 
 #' @title Plot the leading indicator and target variable underlying a fitted
@@ -147,6 +290,9 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
 #' the legend. Default \code{"Target Variable"}.
 #' @param take.log Logical value indicating whether to plot the log of the
 #' daily incidence. Default \code{TRUE}.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour.
 #' @param ... Unused.
 #'
 #' @returns A \code{ggplot2} plot.
@@ -158,7 +304,7 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
 plot.SSModelLeadingIndicator <- function(x, title = NULL,
                                          series.name.lead = "Leading Indicator",
                                          series.name.target = "Target Variable",
-                                         take.log = TRUE, ...) {
+                                         take.log = TRUE, axis = NULL, ...) {
   model <- x
   calendar <- model$calendar
   
@@ -178,22 +324,23 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
     y.lab <- "Number"
   }
   
-  df <- idx_series_df(newLead, calendar)
+  df <- idx_series_df(newLead, calendar, axis)
   names(df)[1] <- "newLead"
   df$newTarg <- idx_values(newTarg)
   
-  ggplot2::ggplot(data = df, ggplot2::aes(x = x)) +
-    ggplot2::labs(title = title, x = idx_x_lab(calendar), y = y.lab, color = "Legend") +
+  p <- ggplot2::ggplot(data = df, ggplot2::aes(x = x)) +
+    ggplot2::labs(title = title, x = idx_x_lab(calendar, axis), y = y.lab, color = "Legend") +
     ggplot2::geom_line(ggplot2::aes(y = newLead, color = series.name.lead), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = newTarg, color = series.name.target), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = c("red", "blue")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::theme(
       legend.title = ggplot2::element_text(size = 10),
       legend.text = ggplot2::element_text(size = 10),
       axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 10),
       plot.title = ggplot2::element_text(face = "bold")
     )
+  idx_add_info_box(p, calendar, axis)
 }
 
 ## ----------------------------------------------------------------------
@@ -222,6 +369,9 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
 #' estimation window.
 #' @param series.name Name of the series the growth rate is being computed
 #' for, e.g. \code{'cases'}. Default \code{"target variable"}.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
@@ -240,11 +390,11 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
 #' @export
 plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
                           title = NULL, plt.start = NULL,
-                          series.name = "target variable") {
+                          series.name = "target variable", axis = NULL) {
   if (inherits(res, "FilterResultsLI")) {
-    .plot_forecast_LI(res, n.ahead, confidence.level, title, plt.start, series.name)
+    .plot_forecast_LI(res, n.ahead, confidence.level, title, plt.start, series.name, axis)
   } else if (inherits(res, "FilterResults")) {
-    .plot_forecast_gompertz(res, n.ahead, confidence.level, title, plt.start, series.name)
+    .plot_forecast_gompertz(res, n.ahead, confidence.level, title, plt.start, series.name, axis)
   } else {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -253,7 +403,7 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
 #' @keywords internal
 #' @noRd
 .plot_forecast_gompertz <- function(res, n.ahead, confidence.level, title,
-                                    plt.start, series.name) {
+                                    plt.start, series.name, axis = NULL) {
   calendar <- res$calendar
   if (is.null(title)) title <- ""
   
@@ -270,10 +420,10 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   keep <- idx_positions(d)[idx_positions(d) >= plt.start]
   d <- d[keep]
   
-  df_plot <- idx_series_df(d, calendar)
+  df_plot <- idx_series_df(d, calendar, axis)
   names(df_plot)[1] <- "Data"
   df_plot$Forecast <- NA_real_
-  fc_df <- idx_series_df(idx_series(idx_values(y.hat.ci)[, 1], start = y.hat.ci$start), calendar)
+  fc_df <- idx_series_df(idx_series(idx_values(y.hat.ci)[, 1], start = y.hat.ci$start), calendar, axis)
   # Forecast positions may extend beyond the estimation data (they always
   # will, since this is a genuine out-of-sample forecast); assign forecast
   # values to matching existing rows, and append new rows for any forecast
@@ -286,17 +436,17 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
     df_plot <- rbind(df_plot, extra_rows[, names(df_plot)])
   }
   
-  ci <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 2:3, drop = FALSE], start = y.hat.ci$start), calendar)
+  ci <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 2:3, drop = FALSE], start = y.hat.ci$start), calendar, axis)
   names(ci)[1:2] <- c("lower", "upper")
   
   Data <- Forecast <- lower <- upper <- NULL
-  ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
+  p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = Data, color = "Data"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = paste("New", series.name), title = title) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1.1)),
@@ -306,14 +456,15 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1, 1))
+  idx_add_info_box(p, calendar, axis)
 }
 
 #' @keywords internal
 #' @noRd
 .plot_forecast_LI <- function(res, n.ahead, confidence.level, title,
-                              plt.start, series.name) {
+                              plt.start, series.name, axis = NULL) {
   calendar <- res$calendar
   if (is.null(plt.start)) plt.start <- res$start
   
@@ -324,10 +475,10 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   keep <- idx_positions(newTarg_series)[idx_positions(newTarg_series) >= plt.start]
   newTarg_series <- newTarg_series[keep]
   
-  df_plot <- idx_series_df(newTarg_series, calendar)
+  df_plot <- idx_series_df(newTarg_series, calendar, axis)
   names(df_plot)[1] <- "newTarg"
   df_plot$Forecast <- NA_real_
-  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 1], start = sea$start), calendar)
+  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 1], start = sea$start), calendar, axis)
   match_idx <- match(fc_df$x, df_plot$x)
   matched <- !is.na(match_idx)
   df_plot$Forecast[match_idx[matched]] <- fc_df[matched, 1]
@@ -336,17 +487,17 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
     df_plot <- rbind(df_plot, extra_rows[, names(df_plot)])
   }
   
-  ci_plot <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 2:3, drop = FALSE], start = sea$start), calendar)
+  ci_plot <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 2:3, drop = FALSE], start = sea$start), calendar, axis)
   names(ci_plot)[1:2] <- c("lwr", "upr")
   
   newTarg <- Forecast <- lwr <- upr <- NULL
-  ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
+  p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = newTarg, color = "Data"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci_plot, ggplot2::aes(x = x, ymin = lwr, ymax = upr),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = paste("New", series.name), title = title) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1.1)),
@@ -356,8 +507,9 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1, 1))
+  idx_add_info_box(p, calendar, axis)
 }
 
 #' @keywords internal
@@ -395,16 +547,20 @@ idx_cbind_union <- function(...) {
 #' start of the estimation sample.
 #' @param title Plot title.
 #' @param caption Plot caption.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour. If \code{info_box = TRUE}, the info box is appended below
+#' any \code{caption} already supplied.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
 #' @export
 plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
-                              title = "", caption = "") {
+                              title = "", caption = "", axis = NULL) {
   if (inherits(res, "FilterResultsLI")) {
-    .plot_log_forecast_LI(res, Y, n.ahead, plt.start, title, caption)
+    .plot_log_forecast_LI(res, Y, n.ahead, plt.start, title, caption, axis)
   } else if (inherits(res, "FilterResults")) {
-    .plot_log_forecast_gompertz(res, Y, n.ahead, plt.start, title, caption)
+    .plot_log_forecast_gompertz(res, Y, n.ahead, plt.start, title, caption, axis)
   } else {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -412,7 +568,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
 
 #' @keywords internal
 #' @noRd
-.plot_log_forecast_gompertz <- function(res, Y, n.ahead, plt.start, title, caption) {
+.plot_log_forecast_gompertz <- function(res, Y, n.ahead, plt.start, title, caption, axis = NULL) {
   calendar <- res$calendar
   model <- modelKFS(res$output)
   
@@ -455,7 +611,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     combined <- combined[keep]
   }
   
-  df_plot <- idx_series_df(combined, calendar)
+  df_plot <- idx_series_df(combined, calendar, axis)
   
   EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
   p1 <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
@@ -465,13 +621,13 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85)
   }
   
-  p1 +
+  p1 <- p1 +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
-    idx_x_scale(calendar) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = "Log Growth Rate", caption = caption, title = title) +
+    idx_x_scale(calendar, axis) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Log Growth Rate", caption = caption, title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1)),
@@ -481,11 +637,12 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
       plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
     )
+  idx_add_info_box(p1, calendar, axis)
 }
 
 #' @keywords internal
 #' @noRd
-.plot_log_forecast_LI <- function(res, Y, n.ahead, plt.start, title, caption) {
+.plot_log_forecast_LI <- function(res, Y, n.ahead, plt.start, title, caption, axis = NULL) {
   calendar <- res$calendar
   forcout_sea <- res$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat
   old <- idx_series(idx_values(get_timeframe(res$data, res$start, res$end))[, "LDLtarg"],
@@ -531,7 +688,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     keep <- idx_positions(combined)[idx_positions(combined) >= plt.start]
     combined <- combined[keep]
   }
-  df_plot <- idx_series_df(combined, calendar)
+  df_plot <- idx_series_df(combined, calendar, axis)
   
   EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
   p1 <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
@@ -541,13 +698,13 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85)
   }
   
-  p1 +
+  p1 <- p1 +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
-    idx_x_scale(calendar) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = "Log Growth Rate", caption = caption, title = title) +
+    idx_x_scale(calendar, axis) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Log Growth Rate", caption = caption, title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1)),
@@ -557,6 +714,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
       plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
     )
+  idx_add_info_box(p1, calendar, axis)
 }
 
 ## ----------------------------------------------------------------------
@@ -580,6 +738,9 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
 #' estimates of \eqn{\delta} and \eqn{\gamma}. Default \code{FALSE}
 #' (filtered estimates).
 #' @param title Title for the plot. \code{NULL} (default) for no title.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
@@ -588,7 +749,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
 #' @importFrom tidyr pivot_longer
 #'
 #' @export
-plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL) {
+plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL, axis = NULL) {
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -609,24 +770,25 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
   keep <- idx_positions(d)[idx_positions(d) >= plt.start]
   d <- d[keep]
   
-  df_plot <- idx_series_df(d, calendar)
+  df_plot <- idx_series_df(d, calendar, axis)
   
   Variable <- Value <- NULL
   df_long <- tidyr::pivot_longer(df_plot, cols = c("gy.t", "g.t", "gamma.t"),
                                  names_to = "Variable", values_to = "Value")
   
-  ggplot2::ggplot(df_long, ggplot2::aes(x = x, y = Value, color = Variable)) +
+  p <- ggplot2::ggplot(df_long, ggplot2::aes(x = x, y = Value, color = Variable)) +
     ggplot2::geom_line(linewidth = 0.85) +
     ggplot2::facet_wrap(~ factor(Variable, c("gy.t", "g.t", "gamma.t")), ncol = 1, scales = "free_y") +
-    ggplot2::labs(title = title, x = idx_x_lab(calendar), y = ggplot2::element_blank()) +
+    ggplot2::labs(title = title, x = idx_x_lab(calendar, axis), y = ggplot2::element_blank()) +
     ggplot2::scale_color_manual(values = c("#AA2045", "darkgrey", "black")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_y_continuous(breaks = ggplot2::waiver(), n.breaks = 4) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(b = 5)),
       axis.title.x = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(t = 10)),
       legend.position = "none"
     )
+  idx_add_info_box(p, calendar, axis)
 }
 
 ## ----------------------------------------------------------------------
@@ -651,6 +813,9 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
 #' for, e.g. \code{'New cases'}.
 #' @param pad.right Numerical value for the number of positions of blank
 #' space to leave on the right of the graph.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
@@ -659,7 +824,7 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
 #'
 #' @export
 plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
-                       series.name = NULL, pad.right = NULL) {
+                       series.name = NULL, pad.right = NULL, axis = NULL) {
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -670,7 +835,8 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
   
   y.lab <- if (is.null(series.name)) "Growth rate" else paste("Growth rate of ", series.name, sep = "")
   
-  df_plot <- idx_series_df(gy.ci, calendar)
+  resolved_axis <- idx_resolve_axis(axis, calendar)
+  df_plot <- idx_series_df(gy.ci, calendar, resolved_axis)
   keep <- idx_positions(gy.ci) >= plt.start
   df_plot <- df_plot[keep, , drop = FALSE]
   
@@ -681,7 +847,7 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
     ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.3) +
     ggplot2::scale_color_manual(values = c("black")) +
-    ggplot2::labs(title = title, x = idx_x_lab(calendar), y = y.lab) +
+    ggplot2::labs(title = title, x = idx_x_lab(calendar, resolved_axis), y = y.lab) +
     ggplot2::theme(
       legend.title = ggplot2::element_blank(),
       text = ggplot2::element_text(size = ggplot2::rel(1)),
@@ -692,18 +858,22 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
     ) +
     ggplot2::theme(panel.grid.major.x = ggplot2::element_line(color = "gray50", linewidth = 0.5)) +
     ggplot2::scale_linetype_manual(values = c("solid")) +
-    idx_x_scale(calendar)
+    idx_x_scale(calendar, resolved_axis)
   
   if (!is.null(pad.right)) {
-    if (is_idx_calendar(calendar) && isTRUE(calendar$posixct)) {
+    if (resolved_axis$mode == "date") {
       end.date <- tail(df_plot$x, 1)
-      p1 <- p1 + ggplot2::scale_x_date(limits = c(df_plot$x[1], end.date + pad.right))
+      if (inherits(calendar$anchor, "POSIXct")) {
+        p1 <- p1 + ggplot2::scale_x_datetime(limits = c(df_plot$x[1], end.date + pad.right))
+      } else {
+        p1 <- p1 + ggplot2::scale_x_date(limits = c(df_plot$x[1], end.date + pad.right))
+      }
     } else {
       end.pos <- tail(df_plot$x, 1)
       p1 <- p1 + ggplot2::scale_x_continuous(limits = c(df_plot$x[1], end.pos + pad.right))
     }
   }
-  p1
+  idx_add_info_box(p1, calendar, resolved_axis)
 }
 
 ## ----------------------------------------------------------------------
@@ -730,6 +900,9 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
 #' @param title Title for the plot. \code{NULL} (default) for no title.
 #' @param caption Caption for the plot. \code{NULL} (default) for no
 #' caption.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
@@ -739,11 +912,11 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
 #' @export
 plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
                          series.name = "target variable", title = NULL,
-                         caption = NULL) {
+                         caption = NULL, axis = NULL) {
   if (inherits(res, "FilterResultsLI")) {
-    .plot_holdout_LI(res, Y, n.ahead, confidence.level, series.name, title, caption)
+    .plot_holdout_LI(res, Y, n.ahead, confidence.level, series.name, title, caption, axis)
   } else if (inherits(res, "FilterResults")) {
-    .plot_holdout_gompertz(res, Y, n.ahead, confidence.level, series.name, title, caption)
+    .plot_holdout_gompertz(res, Y, n.ahead, confidence.level, series.name, title, caption, axis)
   } else {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -751,7 +924,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 
 #' @keywords internal
 #' @noRd
-.plot_holdout_gompertz <- function(res, Y, n.ahead, confidence.level, series.name, title, caption) {
+.plot_holdout_gompertz <- function(res, Y, n.ahead, confidence.level, series.name, title, caption, axis = NULL) {
   calendar <- res$calendar
   estimation.end <- tail(res$index, 1)
   if (idx_range(Y)[2] <= estimation.end) {
@@ -780,22 +953,22 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   mae <- signif(mean(abs(d.eval$Actual - d.eval$Forecast)), 4)
   rmse <- signif(sqrt(mean((d.eval$Actual - d.eval$Forecast)^2)), 4)
   
-  df_plot <- idx_series_df(y.eval.diff, calendar)
+  df_plot <- idx_series_df(y.eval.diff, calendar, axis)
   names(df_plot)[1] <- "Actual"
-  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 1], start = y.hat.ci$start), calendar)
+  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 1], start = y.hat.ci$start), calendar, axis)
   df_plot$Forecast <- fc_df[match(df_plot$x, fc_df$x), 1]
   
-  ci <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 2:3, drop = FALSE], start = y.hat.ci$start), calendar)
+  ci <- idx_series_df(idx_series(as.matrix(idx_values(y.hat.ci))[, 2:3, drop = FALSE], start = y.hat.ci$start), calendar, axis)
   names(ci)[1:2] <- c("lower", "upper")
   
   Actual <- Forecast <- lower <- upper <- NULL
-  ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
+  p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = paste("New", series.name), title = title,
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title,
                   subtitle = paste("MAPE: ", mape.sea, "%; SMAPE: ", smape, "%; MAE: ", mae, "; RMSE: ", rmse, ".", sep = "")) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -807,13 +980,14 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
       plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
+  idx_add_info_box(p, calendar, axis)
 }
 
 #' @keywords internal
 #' @noRd
-.plot_holdout_LI <- function(res, Y, n.ahead, confidence.level, series.name, title, caption) {
+.plot_holdout_LI <- function(res, Y, n.ahead, confidence.level, series.name, title, caption, axis = NULL) {
   calendar <- res$calendar
   if (idx_range(Y)[2] <= res$end) {
     stop("Y must extend beyond the estimation end position to provide a holdout sample analysis.")
@@ -843,22 +1017,22 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   mae <- signif(mean(abs(compare$Actual - compare$Forecast)), 3)
   rmse <- signif(sqrt(mean((compare$Actual - compare$Forecast)^2)), 3)
   
-  df_plot <- idx_series_df(actual, calendar)
+  df_plot <- idx_series_df(actual, calendar, axis)
   names(df_plot)[1] <- "Actual"
-  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 1], start = sea$start), calendar)
+  fc_df <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 1], start = sea$start), calendar, axis)
   df_plot$Forecast <- fc_df[match(df_plot$x, fc_df$x), 1]
   
-  ci_plot <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 2:3, drop = FALSE], start = sea$start), calendar)
+  ci_plot <- idx_series_df(idx_series(as.matrix(idx_values(sea))[, 2:3, drop = FALSE], start = sea$start), calendar, axis)
   names(ci_plot)[1:2] <- c("lower", "upper")
   
   Actual <- Forecast <- lower <- upper <- NULL
-  ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
+  p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85) +
     ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci_plot, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = paste("New", series.name), title = title,
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title,
                   subtitle = paste("MAPE: ", mape.sea, "%; SMAPE: ", smape, "%; MAE: ", mae, "; RMSE: ", rmse, ".", sep = "")) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -870,8 +1044,9 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
       plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
+  idx_add_info_box(p, calendar, axis)
 }
 
 ## ----------------------------------------------------------------------
@@ -892,6 +1067,9 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 #' function automatically extracts the observations corresponding to the
 #' prediction period, so the complete series may be provided.
 #' @param title Title for the plot. Defaults to \code{"Comparison of forecasts"}.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour. Uses the calendar of \code{results[[1]]}.
 #'
 #' @returns A \code{ggplot2} plot.
 #'
@@ -900,7 +1078,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 #'
 #' @export
 plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
-                                  actual = NULL, title = "Comparison of forecasts") {
+                                  actual = NULL, title = "Comparison of forecasts",
+                                  axis = NULL) {
   for (r in results) {
     if (!inherits(r, "FilterResults") && !inherits(r, "FilterResultsLI")) {
       stop("All elements in results list must be of the class FilterResults or FilterResultsLI.")
@@ -915,7 +1094,7 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   prediction_list <- lapply(seq_along(results), function(i) {
     pred <- results[[i]]$predict_level(n.ahead = n.ahead, sea.on = sea.on)
     fc <- idx_series(as.matrix(idx_values(pred))[, 1], start = pred$start)
-    df <- idx_series_df(fc, calendar)
+    df <- idx_series_df(fc, calendar, axis)
     names(df)[1] <- "forecast"
     df$model <- labels[i]
     df
@@ -928,16 +1107,16 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
     keep <- idx_positions(actual.diff)[idx_positions(actual.diff) > end.pos]
     keep <- keep[seq_len(min(n.ahead, length(keep)))]
     actual.diff <- actual.diff[keep]
-    actual_df <- idx_series_df(actual.diff, calendar)
+    actual_df <- idx_series_df(actual.diff, calendar, axis)
     names(actual_df)[1] <- "forecast"
     actual_df$model <- "Actual"
     df_forecasts <- rbind(df_forecasts, actual_df)
   }
   
   model <- forecast <- NULL
-  ggplot2::ggplot(data = df_forecasts, ggplot2::aes(x = x)) +
+  p <- ggplot2::ggplot(data = df_forecasts, ggplot2::aes(x = x)) +
     ggplot2::geom_line(ggplot2::aes(y = forecast, color = model), linewidth = 0.85) +
-    ggplot2::labs(x = idx_x_lab(calendar), y = "Forecast", title = title) +
+    ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Forecast", title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
       text = ggplot2::element_text(size = ggplot2::rel(1)),
@@ -947,6 +1126,7 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
       plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
     ) +
-    idx_x_scale(calendar) +
+    idx_x_scale(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
+  idx_add_info_box(p, calendar, axis)
 }

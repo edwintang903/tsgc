@@ -60,15 +60,36 @@ xts_to_idx <- function(x, start.pos = 1L) {
 
 #' @title Translate a calendar date to an \code{idx_series} integer position
 #'
-#' @description Inverse of \code{\link{idx_to_date}} for simple, evenly
-#' spaced daily calendars: converts a calendar date into the integer
-#' position (relative to \code{cal}) that corresponds to it. Intended for
-#' locating estimation start/end dates, or for aligning a second series to
-#' an already-converted \code{idx_series} (see \code{\link{xts_to_idx}}).
+#' @description Inverse of \code{\link{idx_to_date}}'s calendar-aware
+#' branch: converts a calendar date into the integer position (relative to
+#' \code{cal}) that corresponds to it. Intended for locating estimation
+#' start/end dates, or for aligning a second series to an already-converted
+#' \code{idx_series} (see \code{\link{xts_to_idx}}). Requires a
+#' calendar-anchored \code{cal} (\code{cal$posixct = TRUE} and a
+#' \code{Date}/\code{POSIXct} \code{cal$anchor}); use
+#' \code{\link{idx_offset_to_pos}} instead for non-calendar (e.g.
+#' sub-second/arbitrary numeric) calendars.
 #'
-#' @param cal An \code{idx_calendar} object.
-#' @param date A single date (or character string coercible via
-#' \code{as.Date}).
+#' For the calendar-relative units \code{"months"}, \code{"quarters"},
+#' \code{"years"}, the position is found by counting whole calendar steps
+#' between \code{cal$anchor} and \code{date} (the inverse of the
+#' calendar-aware stepping used by \code{\link{idx_to_date}}), rather than
+#' via a fixed-length difference - a quarter is not a fixed number of days.
+#' For the fixed-duration units \code{"seconds"}, \code{"minutes"},
+#' \code{"hours"}, \code{"days"}, \code{"weeks"}, positions are computed as
+#' a plain time difference scaled by \code{cal$amount}; this is exact for
+#' these units. Either way this ignores any \code{pattern} (i.e. exact only
+#' for \code{pattern = 1}; only appropriate for simple, evenly spaced
+#' calendars).
+#'
+#' @param cal An \code{idx_calendar} object with \code{posixct = TRUE} and a
+#' \code{Date}/\code{POSIXct} \code{anchor}.
+#' @param date A single date/time. For \code{cal$unit} of \code{"months"},
+#' \code{"quarters"}, or \code{"years"}, coerced via \code{as.Date}. For all
+#' other units, coerced via \code{as.POSIXct} if \code{cal$anchor} is
+#' \code{POSIXct}, or \code{as.Date} otherwise - so a character string with
+#' a time-of-day component (e.g. \code{"2024-01-01 13:30:00"}) is preserved
+#' where relevant (sub-day units).
 #'
 #' @returns A single integer: the \code{idx_series} position corresponding
 #' to \code{date}.
@@ -80,7 +101,90 @@ xts_to_idx <- function(x, start.pos = 1L) {
 #'
 #' @export
 idx_to_pos <- function(cal, date) {
-  as.integer(cal$anchor_pos + as.numeric(as.Date(date) - cal$anchor))
+  calendar_step_unit <- cal$unit %in% c("months", "quarters", "years")
+  is_calendar_anchor <- inherits(cal$anchor, "Date") || inherits(cal$anchor, "POSIXct")
+  
+  if (!isTRUE(cal$posixct) || !is_calendar_anchor) {
+    stop("idx_to_pos: cal is not a calendar-anchored (posixct) idx_calendar ",
+         "(cal$anchor is not a Date/POSIXct, or cal$posixct is FALSE). ",
+         "For non-calendar anchors, use idx_offset_to_pos() with a plain ",
+         "numeric offset instead of a date.")
+  }
+  
+  if (calendar_step_unit) {
+    date <- as.Date(date)
+    anchor_date <- as.Date(cal$anchor)
+    per_year <- switch(cal$unit, months = 12, quarters = 4, years = 1)
+    anchor_ym <- (as.integer(format(anchor_date, "%Y")) * 12 +
+                    (as.integer(format(anchor_date, "%m")) - 1))
+    date_ym <- (as.integer(format(date, "%Y")) * 12 +
+                  (as.integer(format(date, "%m")) - 1))
+    months_diff <- date_ym - anchor_ym
+    steps <- months_diff / (12 / per_year)
+    if (!isTRUE(all.equal(steps, round(steps)))) {
+      stop("idx_to_pos: date does not fall on a whole ", cal$unit,
+           " boundary relative to cal$anchor.")
+    }
+    as.integer(cal$anchor_pos + round(steps / cal$amount))
+  } else if (inherits(cal$anchor, "POSIXct")) {
+    date <- as.POSIXct(date, tz = format(cal$anchor, "%Z"))
+    diff_secs <- as.numeric(difftime(date, cal$anchor, units = "secs"))
+    by_unit <- idx_calendar_by_unit(cal$unit)
+    unit_secs <- switch(if (is.null(by_unit)) "" else by_unit,
+                        sec = 1, min = 60, hour = 3600, day = 86400, week = 86400 * 7,
+                        NA_real_
+    )
+    if (is.na(unit_secs)) {
+      stop("idx_to_pos: unit '", cal$unit, "' is not a recognised ",
+           "fixed-duration unit for a POSIXct anchor.")
+    }
+    as.integer(cal$anchor_pos + round(diff_secs / unit_secs / cal$amount))
+  } else {
+    date <- as.Date(date)
+    as.integer(cal$anchor_pos + as.numeric(date - cal$anchor) / cal$amount)
+  }
+}
+
+#' @title Translate a plain numeric offset to an \code{idx_series} integer
+#' position
+#'
+#' @description Inverse of \code{\link{idx_to_date}}'s plain-arithmetic
+#' branch (\code{posixct = FALSE}, or a non-Date/POSIXct \code{cal$anchor}):
+#' converts a value already expressed in \code{cal$anchor}'s own units/scale
+#' (e.g. a picosecond count) into the integer \code{idx_series} position
+#' that corresponds to it.
+#'
+#' Only relevant when you actually have an \code{idx_calendar} with a
+#' non-Date/POSIXct \code{anchor} (e.g. a numeric anchor for sub-second or
+#' otherwise non-calendar timesteps) and want to look up a position from a
+#' value in that anchor's scale. If your series has no calendar meaning at
+#' all - no dates, no anchor, nothing to translate - you don't need an
+#' \code{idx_calendar} or this function: \code{idx_series} positions
+#' (\code{start}/\code{end} arguments throughout this package) are already
+#' plain integers, so just use them directly (see \code{\link{idx_range}}).
+#'
+#' @param cal An \code{idx_calendar} object.
+#' @param value A single number, in the same units as \code{cal$anchor}
+#' (i.e. \code{cal$anchor + n * cal$amount} for some integer \code{n}), or
+#' a vector of such.
+#'
+#' @returns An integer (vector, matching \code{value}): the \code{idx_series}
+#' position(s) corresponding to \code{value}.
+#'
+#' @examples
+#' cal <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 2.5,
+#'                      unit = "picoseconds")
+#' idx_offset_to_pos(cal, 12.5)
+#'
+#' @export
+idx_offset_to_pos <- function(cal, value) {
+  stopifnot(is_idx_calendar(cal))
+  steps <- (value - cal$anchor) / cal$amount
+  if (!isTRUE(all.equal(steps, round(steps)))) {
+    stop("idx_offset_to_pos: value does not fall on a whole step boundary ",
+         "relative to cal$anchor.")
+  }
+  as.integer(cal$anchor_pos + round(steps))
 }
 
 #' @title Compute log growth rate of cumulated dataset

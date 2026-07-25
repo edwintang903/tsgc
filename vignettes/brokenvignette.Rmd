@@ -79,8 +79,11 @@ ukitaly_cal <- conv$calendar
 ## Quarterly Nintendo console sales
 
 Quarterly data is not daily, so the calendar here uses `unit =
-"quarters"` and an anchor built from the first `yearqtr` in the series.
-`amount = 1` since every quarter is present (`pattern = 1`).
+"quarters"` and an anchor built from the first date in the series
+(coerced to a `Date`). `amount = 1` since every quarter is present
+(`pattern = 1`). With `posixct = TRUE`, `idx_to_date()` steps by whole
+quarters using calendar-aware arithmetic, so no manual `yearqtr`
+lookup is needed.
 
 ```{r convert-nintendo}
 data(nintendo_sales, package = "tsgc")
@@ -89,20 +92,11 @@ y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
 
 nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
 nintendo_cal <- idx_calendar(
-  anchor = zoo::index(y_q_xts)[1],
+  anchor = as.Date(zoo::index(y_q_xts)[1]),
   anchor_pos = 1L,
   amount = 1, unit = "quarters",
-  posixct = FALSE
+  posixct = TRUE
 )
-# position <-> yearqtr lookup, since idx_to_date() does plain numeric
-# arithmetic and does not know about zoo::yearqtr arithmetic directly.
-nintendo_pos_to_yq <- function(pos) {
-  zoo::as.yearqtr(nintendo_cal$anchor) + (pos - nintendo_cal$anchor_pos) / 4
-}
-nintendo_yq_to_pos <- function(yq) {
-  as.integer(round(nintendo_cal$anchor_pos +
-                     (zoo::as.yearqtr(yq) - zoo::as.yearqtr(nintendo_cal$anchor)) * 4))
-}
 ```
 
 ## Monthly e-trading app downloads
@@ -114,18 +108,92 @@ y_m_xts <- etrading_apps[, c("DEGIRO", "AvaTrade")]
 
 etrading_idx <- idx_series(zoo::coredata(y_m_xts), start = 1L)
 etrading_cal <- idx_calendar(
-  anchor = zoo::index(y_m_xts)[1],
+  anchor = as.Date(zoo::index(y_m_xts)[1]),
   anchor_pos = 1L,
   amount = 1, unit = "months",
-  posixct = FALSE
+  posixct = TRUE
 )
-etrading_pos_to_ym <- function(pos) {
-  zoo::as.yearmon(etrading_cal$anchor) + (pos - etrading_cal$anchor_pos) / 12
-}
-etrading_ym_to_pos <- function(ym) {
-  as.integer(round(etrading_cal$anchor_pos +
-                     (zoo::as.yearmon(ym) - zoo::as.yearmon(etrading_cal$anchor)) * 12))
-}
+```
+
+## Working without any calendar dates
+
+Suppose the daily Gauteng series above had no dates attached at all -
+just an ordered vector of daily case counts, with day 1 being some
+arbitrary reference point (e.g. days since the first recorded case).
+`idx_series` positions are already plain integers, so no `idx_calendar`
+is required to run the model: `start`/`end` can be passed directly as
+integer positions.
+
+```{r no-dates-plain}
+gauteng_nodate_idx <- idx_series(zoo::coredata(gauteng), start = 1L)
+
+# start/end are just integer positions - day 45 to day 120 since day 1,
+# with no idx_calendar involved at all.
+mod_nodate <- SSModelDynamicGompertz(Y = gauteng_nodate_idx, start = 45, end = 120)
+res_nodate <- estimate(mod_nodate)
+```
+
+With no `calendar` supplied, the x-axis of every plot falls back to raw
+integer positions instead of dates - this is what `tsgc` plots look
+like for a series with no calendar meaning at all.
+
+```{r fig-nodate-log, fig.cap = "Log forecast with no calendar attached: the x-axis is a plain integer position."}
+tsgc::plot_log_forecast(
+  res = res_nodate,
+  Y = gauteng_nodate_idx,
+  n.ahead = 14,
+  plt.start = tail(res_nodate$index, 1) - 30
+)
+```
+
+```{r fig-nodate-level, fig.cap = "Forecast of new cases with no calendar attached."}
+tsgc::plot_forecast(
+  res = res_nodate,
+  n.ahead = 14,
+  confidence.level = 0.68,
+  plt.start = tail(res_nodate$index, 1) - 30,
+  series.name = "cases"
+)
+```
+
+If you *do* want a lightweight, non-calendar `idx_calendar` anyway - for
+example to anchor a "days since reference point" axis, or for a
+genuinely non-calendar frequency such as sub-second lab data - use a
+plain numeric `anchor` and `posixct = FALSE` (the default). Position
+lookups then go through `idx_offset_to_pos()` (the inverse of
+`idx_to_date()`'s plain-arithmetic branch) rather than `idx_to_pos()`,
+since there is no real date to parse:
+
+```{r no-dates-numeric-anchor}
+gauteng_daynum_cal <- idx_calendar(
+  anchor = 0, anchor_pos = 1L,
+  amount = 1, unit = "days since reference point"
+)
+
+# "day 44 since the reference point" -> idx_series position
+start.pos <- idx_offset_to_pos(gauteng_daynum_cal, 44)
+end.pos   <- idx_offset_to_pos(gauteng_daynum_cal, 119)
+
+mod_daynum <- SSModelDynamicGompertz(
+  Y = gauteng_nodate_idx, start = start.pos, end = end.pos,
+  calendar = gauteng_daynum_cal
+)
+res_daynum <- estimate(mod_daynum)
+```
+
+With a non-`posixct` `calendar` attached, the x-axis is still plain
+integer positions (since `idx_to_date()` only produces real dates when
+`calendar$posixct = TRUE`) - but the calendar is carried through to
+`idx_to_date()`/`idx_offset_to_pos()` so that estimation windows can be
+specified in "days since reference point" rather than raw positions:
+
+```{r fig-daynum-log, fig.cap = "Log forecast using a numeric-anchored (non-POSIXct) calendar: still a plain integer/offset x-axis."}
+tsgc::plot_log_forecast(
+  res = res_daynum,
+  Y = gauteng_nodate_idx,
+  n.ahead = 14,
+  plt.start = tail(res_daynum$index, 1) - 30
+)
 ```
 
 # Illustration of the `tsgc` package
@@ -610,18 +678,18 @@ cross_val(
 
 ## Quarterly data (Figure 19)
 
-Quarterly positions were converted using `nintendo_yq_to_pos()` defined
-in the data-conversion section above.
+Quarterly positions were converted using `idx_to_pos()`, with quarter
+start dates passed as plain `Date` strings.
 
 ```{r freq-quarterly}
-n.lag.q <- nintendo_yq_to_pos("2017 Q1") - nintendo_yq_to_pos("2006 Q4")
+n.lag.q <- idx_to_pos(nintendo_cal, "2017-01-01") - idx_to_pos(nintendo_cal, "2006-10-01")
 
 mod.q <- SSModelLeadingIndicator$new(
   Y = nintendo_idx,
   sea.period = 4,
   n.lag = n.lag.q,
-  start = nintendo_yq_to_pos("2017 Q1"),
-  end = nintendo_yq_to_pos("2019 Q4"),
+  start = idx_to_pos(nintendo_cal, "2017-01-01"),
+  end = idx_to_pos(nintendo_cal, "2019-10-01"),
   calendar = nintendo_cal
 )
 res.q <- estimate(mod.q)
@@ -637,14 +705,14 @@ tsgc::plot_log_forecast(
 ## Monthly data (Figure 20)
 
 ```{r freq-monthly}
-n.lag.m <- etrading_ym_to_pos(2017.5) - etrading_ym_to_pos(2017)
+n.lag.m <- idx_to_pos(etrading_cal, "2017-07-01") - idx_to_pos(etrading_cal, "2017-01-01")
 
 mod.m <- SSModelLeadingIndicator$new(
   Y = etrading_idx,
   sea.period = 12,
   n.lag = n.lag.m,
-  start = etrading_ym_to_pos(2017.5),
-  end = etrading_ym_to_pos(2021 + 1 / 12),
+  start = idx_to_pos(etrading_cal, "2017-07-01"),
+  end = idx_to_pos(etrading_cal, "2021-02-01"),
   calendar = etrading_cal
 )
 res.m <- estimate(mod.m)
