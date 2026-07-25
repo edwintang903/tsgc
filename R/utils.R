@@ -117,7 +117,14 @@ df2ldl <- function(dt) {
     stop("Dataset dt has nonpositive increments.")
   }
   lag.aligned <- lagged[idx_positions(d)]
-  idx_series(log(idx_values(d) / idx_values(lag.aligned)), start = d$start)
+  ldl <- log(idx_values(d) / idx_values(lag.aligned))
+  # Pad with a leading NA at dt's own start position, matching the old
+  # xts-based df2ldl() (log(diff(dt) / stats::lag(dt))), which naturally
+  # returns an NA for the first, undefined observation rather than
+  # silently starting one position later. Without this, idx_series-based
+  # series are one time-step shorter than their xts equivalents, which
+  # changes the effective sample size seen by SSModel()/KFS() downstream.
+  idx_series(c(NA_real_, ldl), start = dt$start)
 }
 
 #' @title Subsetting \code{idx_series} objects given start and end positions

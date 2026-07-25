@@ -498,9 +498,6 @@ mod.eng.x <- SSModelLeadingIndicator$new(
 res.eng.x <- estimate(mod.eng.x)
 res.eng.x$xpred_lead.new <- england_weather_idx
 res.eng.x$xpred_targ.new <- england_weather_idx
-
-print(idx_values(get_timeframe(res.eng.x$xpred_lead.new, est.end.eng+1, est.end.eng+7)))
-print(idx_values(get_timeframe(idx_lag(res.eng.x$xpred_lead.new, 4), est.end.eng+1, est.end.eng+7)))
 ```
 
 ```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
