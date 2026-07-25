@@ -18,6 +18,71 @@
 
 utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model"))
 
+#' @title Convert an \code{xts}/\code{zoo} object to an \code{idx_series}
+#'
+#' @description Converts a calendar-indexed \code{xts} or \code{zoo} object
+#' with a regular daily frequency (no gaps) into an \code{\link{idx_series}},
+#' together with an \code{\link{idx_calendar}} describing how to translate
+#' back to calendar time. This is the standard entry point for bringing
+#' calendar-indexed data (the user's own \code{xts}/\code{zoo}/data frame
+#' data, or one of the package's bundled datasets) into the
+#' \code{idx_series}-based analysis functions.
+#'
+#' @param x An \code{xts} or \code{zoo} object with a daily, gap-free index.
+#' @param start.pos Integer position that the first row of \code{x} should
+#' be assigned. Use this to align \code{x} with another, already-converted
+#' \code{idx_series} that starts at a different calendar date - e.g.
+#' \code{start.pos = idx_to_pos(other_cal, zoo::index(x)[1])}. Defaults to
+#' \code{1L}.
+#'
+#' @returns A list with two elements: \code{series}, an \code{idx_series}
+#' holding \code{x}'s values, and \code{calendar}, an \code{idx_calendar}
+#' anchoring \code{series}'s positions to \code{x}'s original dates.
+#'
+#' @examples
+#' x <- xts::xts(cumsum(rpois(30, 5)) + 1, order.by = Sys.Date() - 29:0)
+#' conv <- xts_to_idx(x)
+#' conv$series
+#' conv$calendar
+#'
+#' @export
+xts_to_idx <- function(x, start.pos = 1L) {
+  list(
+    series = idx_series(zoo::coredata(x), start = start.pos),
+    calendar = idx_calendar(
+      anchor = zoo::index(x)[1],
+      anchor_pos = start.pos,
+      amount = 1, unit = "days",
+      posixct = TRUE
+    )
+  )
+}
+
+#' @title Translate a calendar date to an \code{idx_series} integer position
+#'
+#' @description Inverse of \code{\link{idx_to_date}} for simple, evenly
+#' spaced daily calendars: converts a calendar date into the integer
+#' position (relative to \code{cal}) that corresponds to it. Intended for
+#' locating estimation start/end dates, or for aligning a second series to
+#' an already-converted \code{idx_series} (see \code{\link{xts_to_idx}}).
+#'
+#' @param cal An \code{idx_calendar} object.
+#' @param date A single date (or character string coercible via
+#' \code{as.Date}).
+#'
+#' @returns A single integer: the \code{idx_series} position corresponding
+#' to \code{date}.
+#'
+#' @examples
+#' cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+#'                      amount = 1, unit = "days", posixct = TRUE)
+#' idx_to_pos(cal, "2024-01-10")
+#'
+#' @export
+idx_to_pos <- function(cal, date) {
+  as.integer(cal$anchor_pos + as.numeric(as.Date(date) - cal$anchor))
+}
+
 #' @title Compute log growth rate of cumulated dataset
 #
 #' @description Helper method to compute the log growth rates of cumulated

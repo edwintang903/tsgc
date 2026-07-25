@@ -36,26 +36,10 @@ calendar time, used only for plotting). This section shows the one-off
 conversion step; the same pattern applies to any user's own `xts`,
 `zoo`, or `data.frame` data.
 
-A small helper wraps the conversion for the common case of a daily
-series with no gaps (every calendar day present, i.e. `pattern = 1`):
-
-```{r xts-to-idx-helper}
-xts_to_idx <- function(x, start.pos = 1L) {
-  list(
-    series = idx_series(zoo::coredata(x), start = start.pos),
-    calendar = idx_calendar(
-      anchor = zoo::index(x)[1],
-      anchor_pos = start.pos,
-      amount = 1, unit = "days",
-      posixct = TRUE
-    )
-  )
-}
-
-idx_to_pos <- function(cal, date) {
-  as.integer(cal$anchor_pos + as.numeric(as.Date(date) - cal$anchor))
-}
-```
+The package provides `xts_to_idx()` and `idx_to_pos()` for this: a small
+helper that wraps the conversion for the common case of a daily series
+with no gaps (every calendar day present, i.e. `pattern = 1`), and its
+inverse for translating a calendar date back to an integer position.
 
 ## Gauteng daily cases
 
@@ -512,9 +496,11 @@ mod.eng.x <- SSModelLeadingIndicator$new(
   calendar = eng_cal
 )
 res.eng.x <- estimate(mod.eng.x)
-
 res.eng.x$xpred_lead.new <- england_weather_idx
 res.eng.x$xpred_targ.new <- england_weather_idx
+
+print(idx_values(get_timeframe(res.eng.x$xpred_lead.new, est.end.eng+1, est.end.eng+7)))
+print(idx_values(get_timeframe(idx_lag(res.eng.x$xpred_lead.new, 4), est.end.eng+1, est.end.eng+7)))
 ```
 
 ```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
