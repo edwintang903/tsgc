@@ -1,27 +1,10 @@
-# Created by: Craig Thamotheram
-# Created on: 23/07/2026
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 #' @title Calendar translation layer for \code{idx_series}
 #'
-#' @description \code{idx_calendar} is a small, purely cosmetic object that
-#' describes how to translate the integer positions used by
-#' \code{\link{idx_series}} back into calendar time. It holds no data of its
-#' own and is never touched by the statistical engine of this package
-#' (estimation, filtering, forecasting); it exists solely for use at the
-#' edges of the package - plotting, printing, reporting - where a human
+#' @description \code{idx_calendar} describes how to translate the integer
+#' positions used by \code{\link{idx_series}} back into calendar time. It
+#' holds no data of its own and is not used by the statistical engine of
+#' this package (estimation, filtering, forecasting); it exists for use at
+#' the edges of the package - plotting, printing, reporting - where a human
 #' needs to see a date rather than an integer position.
 #'
 #' An \code{idx_calendar} is defined by:
@@ -199,20 +182,16 @@ idx_calendar_offset <- function(cal, pos) {
   pat <- cal$pattern
   plen <- length(pat)
   
-  # Cumulative pattern weight *ending at* each of the plen cycle slots,
-  # i.e. cum_from_start[k] = sum of pattern[1:k]. Used to compute, for any
-  # run of whole/partial cycles, the total weighted step count.
+  # Cumulative pattern weight ending at each cycle slot.
   cum_from_start <- cumsum(pat)
   cycle_total <- cum_from_start[plen]
   
-  # weight_between(a, b): total pattern-weighted steps to go from cycle
-  # slot `a` to cycle slot `b` (both in 1:plen), moving forward, *not*
-  # wrapping past b. Used for the partial-cycle remainder.
+  # Pattern-weighted steps from cycle slot a to cycle slot b, moving
+  # forward and wrapping around the pattern if necessary.
   weight_between <- function(a, b) {
     if (b >= a) {
       if (a == 1) cum_from_start[b] else cum_from_start[b] - cum_from_start[a - 1]
     } else {
-      # wraps around the end of the pattern back to slot b
       tail_w <- if (a == 1) 0 else cycle_total - cum_from_start[a - 1]
       tail_w + cum_from_start[b]
     }
@@ -227,24 +206,16 @@ idx_calendar_offset <- function(cal, pos) {
     }
     fwd <- delta_pos > 0
     n_steps <- abs(delta_pos)
-    
-    # Full cycles contribute n_full * cycle_total; the remainder r steps
-    # are walked one at a time from the anchor's slot in the pattern.
     n_full <- n_steps %/% plen
     r <- n_steps %% plen
     
     w <- n_full * cycle_total
     if (r > 0) {
       if (fwd) {
-        # Steps taken are pattern[pattern_start], pattern[pattern_start+1], ...
-        # i.e. the weight moving from anchor slot to (anchor slot + r - 1),
-        # inclusive, wrapping cyclically.
         start_slot <- cal$pattern_start
         end_slot <- ((start_slot - 1 + r - 1) %% plen) + 1
         w <- w + weight_between(start_slot, end_slot)
       } else {
-        # Moving backward: the r steps immediately preceding anchor slot,
-        # i.e. slots (pattern_start - r) .. (pattern_start - 1), cyclically.
         start_slot <- ((cal$pattern_start - 1 - r) %% plen) + 1
         end_slot <- ((cal$pattern_start - 1 - 1) %% plen) + 1
         w <- w + weight_between(start_slot, end_slot)

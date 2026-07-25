@@ -1,27 +1,6 @@
-# Created by: Craig Thamotheram
-# Created on: 27/07/2022
-# Refactored: model works on idx_series (integer-indexed) data rather than
-# xts/Date-indexed data. n.lag is a number of integer positions rather than
-# a calendar lag. Plotting has been removed from this file; it will be
-# reintroduced elsewhere as a purely cosmetic layer that translates integer
-# positions back to calendar time.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 setOldClass("KFS")
 setOldClass("idx_series")
-#'
+
 #' @title Class for designing a Leading Indicator Model
 #'
 #' @description A class for specifying the parameters of a leading indicator model. The model 
@@ -226,10 +205,10 @@ SSModelLeadingIndicator <- setRefClass(
       xreg_lead <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
       xreg_targ <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL
       
-      # Standard update function - edited to allow the targeting of the signal-to-noise ratio
-      # Signal-to-noise ratio is defined as the variance of the trend component of order 'order'
-      # (= 1 for level, = 2 for slope, etc) relative to variance of irregular of series 'index'
-      # (= 1 for 1st col of dataframe, = 2 for 2nd etc)
+      # Update function allowing the signal-to-noise ratio to be targeted.
+      # The signal-to-noise ratio is the variance of the trend component of
+      # order 'order' (1 = level, 2 = slope, etc) relative to the variance
+      # of the irregular of series 'index' (1 = first column, 2 = second).
       updatesn=function(pars, model, snr, order, index){
         if(any(is.na(model$Q))){
           Q <- as.matrix(model$Q[,,1])
@@ -255,11 +234,10 @@ SSModelLeadingIndicator <- setRefClass(
         }
         model
       }
-      # Create the SSM model
-      # This has a common trend and slope (common trend of degree 2),
-      # an extra trend [random walk] in LDLtarg only [degree = 1],
-      # and a trigonometric seasonal (period = sea.period, if > 1).
-      
+      # Create the state-space model: a common trend and slope (common
+      # trend of degree 2), an extra trend [random walk] in LDLtarg only
+      # [degree = 1], and a trigonometric seasonal (period = sea.period,
+      # if > 1).
       if (sea.period<2){
         if (is.null(xreg_lead)){
           if (is.null(xreg_targ)){
@@ -319,24 +297,17 @@ SSModelLeadingIndicator <- setRefClass(
         }
       }
       
-      # Compute number of parameters - this is just the number of NAs in the model Q and H combined.
+      # Number of parameters to estimate: the number of NAs in Q and H.
       npar = sum(is.na(mod$Q)) + sum(is.na(mod$H))
-      
-      # Set the options for the update function
-      # We have a signal/noise ratio of 0.005, the signal is the slope and we are
-      # targeting the variance of the irregular in cases
       
       if (is.null(q)){
         fit = fitSSM(mod, rep(0,npar))
       }
       else{
         update = updatesn %>% purrr::partial(snr=q,order=2,index=2)
-        
-        # Fit the state-space model (ML, diffuse prior)
         fit = fitSSM(mod, rep(0,npar), updatefn = update)
       }
       
-      # Apply the Kalman filter and smoother to the fitted model
       out = KFS(fit$model)
       
       results <- FilterResultsLI$new(

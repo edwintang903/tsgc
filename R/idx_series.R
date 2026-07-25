@@ -1,20 +1,3 @@
-# Created by: Craig Thamotheram
-# Created on: 15/02/2022
-# Refactored: detach analysis from calendar time.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 #' @title Index-anchored series
 #'
 #' @description \code{idx_series} is the core data structure used throughout
@@ -63,9 +46,8 @@ idx_series <- function(data, start = 1L) {
   )
 }
 
-# Register idx_series as an S4-compatible "old" S3 class so that it can be
-# used as a field type in setRefClass()-based classes elsewhere in the
-# package (mirrors setOldClass("KFS") for KFAS's KFS objects).
+# Register idx_series as an S4-compatible "old" S3 class so it can be used
+# as a field type in setRefClass()-based classes elsewhere in the package.
 methods::setOldClass("idx_series")
 
 #' @title Test whether an object is an \code{idx_series}
@@ -201,13 +183,10 @@ print.idx_series <- function(x, ...) {
 
 #' @title Coerce an \code{idx_series} to a plain numeric vector or matrix
 #'
-#' @description \code{as.numeric()} is a primitive generic in base R and,
-#' unlike ordinary closures, does not always reliably dispatch S3 methods
-#' registered only under the \code{as.numeric.*} name (this depends on how
-#' the call reaches the internal C-level coercion). To be safe,
-#' \code{as.double.idx_series} is also registered, and both are
-#' additionally registered explicitly via \code{registerS3method()} so
-#' dispatch works regardless of how this file is sourced/loaded.
+#' @description \code{as.numeric()} is a primitive generic in base R and
+#' does not always reliably dispatch S3 methods registered only under the
+#' \code{as.numeric.*} name. \code{as.double.idx_series} is also provided
+#' for the same reason.
 #'
 #' @param x An \code{idx_series} object.
 #' @param ... Unused.
@@ -327,17 +306,8 @@ idx_rbind <- function(x, y) {
   idx_series(newdata, start = x$start)
 }
 
-## ----------------------------------------------------------------------
-## Explicit S3 method registration.
-##
-## When this package is loaded normally (library(tsgc)), methods declared
-## with @export/@S3method in NAMESPACE are registered automatically. When
-## this file is merely source()'d (e.g. in ad hoc scripts or this file's
-## own test harness), that registration can be skipped for some primitive
-## generics (notably as.numeric/as.double), causing dispatch to silently
-## fall through to the default method instead of *.idx_series. Registering
-## explicitly here makes behaviour identical in both loading paths.
-## ----------------------------------------------------------------------
+# Explicit S3 method registration, needed for primitive generics
+# (as.numeric/as.double) to dispatch correctly in all loading paths.
 registerS3method("length", "idx_series", length.idx_series)
 registerS3method("[", "idx_series", `[.idx_series`)
 registerS3method("print", "idx_series", print.idx_series)
@@ -345,6 +315,5 @@ registerS3method("as.numeric", "idx_series", as.numeric.idx_series)
 registerS3method("as.double", "idx_series", as.double.idx_series)
 registerS3method("as.matrix", "idx_series", as.matrix.idx_series)
 # Note: base::NCOL() is a plain function (it does not call UseMethod()),
-# so it can never be made to dispatch on idx_series via S3 registration.
-# Use idx_ncol() instead of NCOL() for idx_series objects throughout this
-# package.
+# so it can never dispatch on idx_series via S3 registration. Use
+# idx_ncol() instead of NCOL() for idx_series objects in this package.

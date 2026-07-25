@@ -1,21 +1,3 @@
-# Created by: Craig Thamotheram
-# Created on: 19/02/2022
-# Refactored: analysis functions operate on idx_series (integer-indexed),
-# not on calendar time.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model"))
 
 #' @title Convert an \code{xts}/\code{zoo} object to an \code{idx_series}
@@ -222,12 +204,8 @@ df2ldl <- function(dt) {
   }
   lag.aligned <- lagged[idx_positions(d)]
   ldl <- log(idx_values(d) / idx_values(lag.aligned))
-  # Pad with a leading NA at dt's own start position, matching the old
-  # xts-based df2ldl() (log(diff(dt) / stats::lag(dt))), which naturally
-  # returns an NA for the first, undefined observation rather than
-  # silently starting one position later. Without this, idx_series-based
-  # series are one time-step shorter than their xts equivalents, which
-  # changes the effective sample size seen by SSModel()/KFS() downstream.
+  # Pad with a leading NA at dt's start position, since the first
+  # observation has no preceding value to compute a growth rate from.
   idx_series(c(NA_real_, ldl), start = dt$start)
 }
 
@@ -417,13 +395,7 @@ mapes <- function(res, n.ahead, Y) {
 #' generation interval of the disease/process being modelled (in the same
 #' integer-position units as \code{res}). This estimate, and its confidence
 #' interval, is a deterministic transformation of \code{get_gy_ci()}'s
-#' output; \code{res} must already have been produced by \code{estimate()}
-#' (i.e. estimation of any hyperparameters, including a \code{NULL}
-#' signal-to-noise ratio \code{q}, has already taken place via this
-#' package's own \code{update()} method - not a generic/default KFAS
-#' updating function - as part of \code{estimate()}). This function does no
-#' further estimation itself; it purely transforms already-filtered/
-#' smoothed output.
+#' output; \code{res} must already have been produced by \code{estimate()}.
 #'
 #' @param res A \code{FilterResults} or \code{FilterResultsLI} object,
 #' obtained from the \code{estimate()} method.
@@ -451,10 +423,10 @@ mapes <- function(res, n.ahead, Y) {
 #' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
 #' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
 #' res <- estimate(model)
-#' estimate_r0(res, gen_int = 5, ndays = 7)
+#' estimate_r0(res, gen_int = 5, n.ahead = 7)
 #'
 #' @export
-estimate_r0 <- function(res, gen_int, ndays = 7, smoothed = FALSE,
+estimate_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
                         confidence.level = 0.68) {
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
     stop("res must be a FilterResults or FilterResultsLI object.")
@@ -462,7 +434,7 @@ estimate_r0 <- function(res, gen_int, ndays = 7, smoothed = FALSE,
   gy.ci <- res$get_gy_ci(smoothed = smoothed, confidence.level = confidence.level)
   rt_mat <- exp(idx_values(gy.ci) * gen_int)
   n <- nrow(rt_mat)
-  keep <- seq.int(max(1L, n - ndays + 1L), n)
+  keep <- seq.int(max(1L, n - n.ahead + 1L), n)
   idx_series(rt_mat[keep, , drop = FALSE], start = gy.ci$start + keep[1] - 1L)
 }
 
@@ -573,6 +545,7 @@ cross_val <- function(Y, model_list, est.end, n.ahead = 7, n.estimate = 1, gap =
   colnames(results) <- c("Model", all_ends)
   return(results)
 }
+
 #' @title Write a selection of relevant results to disk
 #'
 #' @description Function writes the following results to csv files which get
@@ -614,7 +587,8 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")){
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
-  # 1. New Cases - Delta Y
+  
+  # New cases (delta Y)
   y.hat.diff <- res$predict_level(
     n.ahead = n.ahead,
     confidence.level = confidence.level,
@@ -625,7 +599,7 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
     row.names = idx_positions(y.hat.diff),
     file = file.path(res.dir, paste(prefix, "cases_fcst.csv", sep="")))
   
-  # 2. Filtered slope / level
+  # Filtered slope / level
   y.hat.all <- res$predict_all(n.ahead, return.all = TRUE)
   filtered.level <- y.hat.all$level.t.t
   filtered.slope <- y.hat.all$slope.t.t
@@ -654,8 +628,8 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
     file = file.path(res.dir, paste(prefix, "log_gr_level_filt.csv", sep=""))
   )
   
-  # 3. Filtered growth rate of new cases (g_{y}) - CI from standard error on
-  # slope component of state covariance matrix.
+  # Filtered growth rate of new cases (g_y); CI from standard error on the
+  # slope component of the state covariance matrix.
   g.y.t.t <- exp(idx_values(filtered.level)) + idx_values(filtered.slope)
   ci <- qnorm((1 - confidence.level) / 2) * gamma.std.err %o% c(1, -1)
   ci_bounds <- as.vector(g.y.t.t) + ci
@@ -668,5 +642,4 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
     file = file.path(res.dir, paste(prefix, "cases_gr.csv", sep="")))
   
   message("Saved results for: ", substitute(res))
-  
 }

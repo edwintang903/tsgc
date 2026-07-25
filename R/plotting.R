@@ -1,24 +1,3 @@
-# Created by: Craig Thamotheram
-# Created on: 11/02/2022
-# Refactored: rewritten against idx_series/idx_calendar rather than
-# xts/Date-indexed data. All plotting now lives in this single file as free
-# functions (rather than scattered RefClass methods), operating on the
-# idx_series/idx_calendar carried by FilterResults/FilterResultsLI/
-# SSModelDynamicGompertz/SSModelLeadingIndicator objects.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 ## ----------------------------------------------------------------------
 ## Internal helpers: idx_series -> plottable data.frame
 ##
@@ -47,11 +26,11 @@
 #'   \code{posixct = TRUE} is supplied, else \code{"position"}.
 #'   \item \code{"position"}: plain integer \code{idx_series} positions.
 #'   \item \code{"steps"}: steps from the calendar's anchor position, i.e.
-#'   \code{position - anchor_pos}. Labelled "Steps from [anchor_name]" if
+#'   \code{position - anchor_pos}. Labelled "Steps from \emph{anchor_name}" if
 #'   the calendar has an \code{anchor_name}, else "Steps from anchor".
 #'   \item \code{"time_since"}: the pattern-weighted calendar offset from
 #'   the anchor (via \code{idx_calendar_offset()}), expressed in
-#'   \code{calendar$unit}s. Labelled "Time since [anchor_name] (unit)" or
+#'   \code{calendar$unit}s. Labelled "Time since \emph{anchor_name} (unit)" or
 #'   "Time since anchor (unit)". Also valid when \code{calendar$posixct}
 #'   is \code{TRUE}: this simply plots the numeric offset instead of a real
 #'   date, which can be more readable than dates for e.g. hourly/irregular

@@ -1,27 +1,6 @@
-# Created by: Craig Thamotheram
-# Created on: 27/07/2022
-# Refactored: model works on idx_series (integer-indexed) data rather than
-# xts/Date-indexed data. Reinitialisation happens at an integer position
-# (reinit.idx) rather than a calendar date. Plotting has been removed from
-# this file; it will be reintroduced elsewhere as a purely cosmetic layer
-# that translates integer positions back to calendar time.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 setOldClass("KFS")
 setOldClass("idx_series")
-#'
+
 #' @title Class for designing a Dynamic Gompertz Curve State-Space Model
 #'
 #' @description Class for Dynamic Gompertz Curve State-Space Model Object, which encapsulates
@@ -283,29 +262,14 @@ SSModelDynamicGompertz <- setRefClass(
       { "Obtain the model object which is then used for 
         estimation."
         # Named `xreg` rather than `xpred` to avoid shadowing the
-        # SSModelDynamicGompertz RefClass field `xpred`, which triggers a
-        # spurious "local assignment to field name" warning from the
-        # RefClass method compiler even though this is a distinct local
-        # parameter of a nested function. Note KFAS's SSMregression(~xreg)
-        # names the fitted coefficient state after this literal formula
-        # variable name (not the underlying matrix's column names), so
-        # whatever this parameter is called becomes user-visible in
-        # print()/summary() output - "xreg" is a deliberate, conventional
-        # choice (as used by e.g. stats::arima, forecast::Arima) rather
-        # than an internal refactoring artifact like "xpred_arg".
-        #
-        # SSMregression() needs a plain matrix with exactly the same number
-        # of rows as y. Previously (with xts), passing an xpred that spanned
-        # a slightly wider date range than y "just worked" because xts/zoo
-        # silently inner-joined on the Date index inside the formula. Plain
-        # matrices have no such alignment, so we must explicitly align
-        # xreg to y's integer positions before converting to a matrix.
+        # SSModelDynamicGompertz RefClass field `xpred`. KFAS's
+        # SSMregression(~xreg) names the fitted coefficient state after
+        # this formula variable name, so it is also user-visible in
+        # print()/summary() output.
         if (is_idx_series(xreg) && is_idx_series(y)) {
           xreg <- xreg[idx_positions(y)]
         }
         if (is_idx_series(xreg)) { xreg <- idx_values(xreg) }
-        # Likewise convert y to a plain matrix once, up front, rather than
-        # repeatedly calling as.matrix() on it inline in formulas below.
         if (is_idx_series(y)) { y <- as.matrix(idx_values(y)) }
         Ht <- if (is.null(H)) { NA } else { H }
         Qt.slope <- if (is.null(Q)) { NA } else { Q[2, 2] }
@@ -596,16 +560,9 @@ SSModelDynamicGompertz <- setRefClass(
         
         # 4.1. Position for reinitialisation, t_0
         stopifnot(reinit.idx %in% idx_positions(Y))
-        # as.numeric() strips any dim attribute: Y[reinit.idx - 1] is a
-        # single-row idx_series, so idx_values() on it can come back as a
-        # 1x1 matrix (whenever Y$data is matrix-valued, e.g. because it was
-        # built via zoo::coredata() on a single-column xts). R's arithmetic
-        # operators require matching dimensions - not just recyclable
-        # length - whenever *both* operands carry a dim attribute, so a 1x1
-        # matrix will not broadcast against the n x 1 matrix
-        # idx_values(lag.Y) below the way a plain scalar would; it throws
-        # "non-conformable arrays" instead. Coercing to a plain numeric
-        # scalar here avoids that.
+        # Coerce to a plain numeric scalar: idx_values() on a single-row
+        # idx_series can return a 1x1 matrix, which does not broadcast
+        # against the n x 1 matrix idx_values(lag.Y) below.
         Y.t.r_0 <- as.numeric(idx_values(Y[reinit.idx - 1]))
         
         # 4.2 Reinitialisation:
@@ -613,11 +570,8 @@ SSModelDynamicGompertz <- setRefClass(
         y_pos <- idx_positions(y)
         reinit_pos <- y_pos[y_pos > reinit.idx]
         lag.Y <- idx_lag(Y, 1L)[reinit_pos]
-        # Coerce to plain numeric vectors before arithmetic: y$data and
-        # Y$data may differ in shape (plain vector vs matrix), and R's
-        # arithmetic operators require matching dimensions - not just
-        # recyclable length - whenever both operands carry a dim
-        # attribute, which otherwise throws "non-conformable arrays".
+        # Coerce to plain numeric vectors before arithmetic, since y$data
+        # and Y$data may differ in shape (plain vector vs matrix).
         y.vals <- as.numeric(idx_values(y[reinit_pos]))
         lag.Y.vals <- as.numeric(idx_values(lag.Y))
         y.reinit <- idx_series(

@@ -27,7 +27,7 @@ devtools::install()
 
 ## Usage
 
-Here is a basic example of setting up and estimating a model with the `tsgc` package:
+Here is a basic example of setting up and estimating a model with the `tsgc` package. Models operate on `idx_series` objects (integer-indexed series), so calendar-indexed data such as the bundled `xts` datasets is first converted with `xts_to_idx()`:
   
   ```r
 library(tsgc)
@@ -35,8 +35,11 @@ library(tsgc)
 # Load example data
 data("gauteng", package = "tsgc")
 
+# Convert to an idx_series, with an idx_calendar mapping positions back to dates
+conv <- xts_to_idx(gauteng)
+
 # Initialize and estimate the model
-model <- SSModelDynamicGompertz$new(Y = gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, calendar = conv$calendar)
 results <- model$estimate()
 
 # View results
@@ -52,9 +55,12 @@ library(tsgc)
 # Load example data: daily cases and hospitalisations for England
 data("england", package = "tsgc")
 
+# Convert to an idx_series, with an idx_calendar mapping positions back to dates
+conv <- xts_to_idx(england[, 1:2])
+
 # Initialize and estimate the model, with cases as a 4-day leading
 # indicator for hospitalisations
-model <- SSModelLeadingIndicator$new(Y = england[, 1:2], n.lag = 4)
+model <- SSModelLeadingIndicator$new(Y = conv$series, n.lag = 4, calendar = conv$calendar)
 results <- model$estimate()
 
 # View results
@@ -75,7 +81,7 @@ print(results)
 
 ## Dependencies
 
-This package requires R (version 3.5.0 or higher) and depends on several other R packages for handling state space models and time series data, including `KFAS`, `xts`, `zoo`, and `here`.
+This package requires R (version 3.5.0 or higher) and depends on several other R packages for handling state space models and time series data, including `KFAS`, `xts`, and `zoo`.
 
 ## Getting Help
 

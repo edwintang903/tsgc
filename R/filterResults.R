@@ -1,25 +1,6 @@
-# Created by: Craig Thamotheram
-# Refactored: analysis-only FilterResults class operating on idx_series
-# (integer-indexed) data. All plotting methods have been removed from this
-# file; they will be reintroduced elsewhere as a purely cosmetic layer that
-# translates integer positions back to calendar time before plotting.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 setOldClass("KFS")
 setOldClass("idx_series")
-#'
+
 #' @title Class for estimated Dynamic Gompertz Curve model
 #'
 #' @description Class for estimated Dynamic Gompertz Curve model and contains
@@ -171,7 +152,6 @@ FilterResults <- setRefClass(
                                         return.all = FALSE, 
                                         confidence.level = confidence.level)
       
-      # # 1. Extract parameters.
       timespan <- n + 0:n.ahead
       
       # Calculate g.t as exponent of y.t
@@ -309,7 +289,6 @@ FilterResults <- setRefClass(
           new.Q <- new.model$Q
           xpred.new.vec <- xpred.new.mat
           if (ar1){
-            #AR1 with sea.period
             if (sea.period > 1){
               ar1_index<-dim(new.Q)[1]
               newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
@@ -322,7 +301,6 @@ FilterResults <- setRefClass(
                                +SSMregression(~xpred.new.vec)
                                +SSMcustom(Z=1,T=1,R=1,Q=new.Q[ar1_index,ar1_index,1],state_names="ar1"))
             } else {
-              #AR1 and no sea.period
               ar1_index<-dim(new.Q)[1]
               newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
@@ -331,7 +309,6 @@ FilterResults <- setRefClass(
                                +SSMcustom(Z=1,T=1,R=1,Q=new.Q[ar1_index,ar1_index,1],state_names="ar1"))
             }
           } else {
-            #sea period only
             if (sea.period > 1){
               newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
@@ -342,7 +319,6 @@ FilterResults <- setRefClass(
                                  sea.type = "trigonometric")
                                +SSMregression(~xpred.new.vec))
             } else {
-              #no sea period 
               newdata<-SSModel(rep(NA,dim(xpred.new.vec)[1])
                                ~SSMtrend(degree = 2,
                                          Q = list(matrix(0), matrix(new.Q[2,2,1])))
@@ -560,7 +536,6 @@ FilterResults <- setRefClass(
         sea.on = TRUE
       )
       
-      # Extract the relevant, overlapping positions
       eval_pos <- idx_positions(y.eval.diff)
       eval_pos <- eval_pos[eval_pos > estimation.end]
       filtered_y_eval_diff <- y.eval.diff[eval_pos]

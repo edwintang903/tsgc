@@ -1,24 +1,6 @@
-# Refactored: analysis-only FilterResultsLI class operating on idx_series
-# (integer-indexed) data. All plotting methods have been removed from this
-# file; they will be reintroduced elsewhere as a purely cosmetic layer that
-# translates integer positions back to calendar time before plotting.
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
 setOldClass("KFS")
 setOldClass("idx_series")
-#'
+
 #' @title Class for the estimated Leading Indicator Model
 #'
 #' @description A class that holds the information of an estimated Leading Indicator model.
@@ -157,16 +139,12 @@ FilterResultsLI <- setRefClass(
       }
       
       if (!sea.on){
-        # Create the forecasts
-        # This gives the forecasts of delta
         forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE, 
                                    confidence.level=confidence.level)$y.hat.kfas
       } else {
-        #Re-do with seasonal component
         forcout = .self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat.kfas
       }
       
-      # Create empty matrix to put forecasts in
       forecasts <- matrix(NA_real_, ncol=3, nrow=n.ahead)
       colnames(forecasts) <- c('forc','lwr','upr')
       
@@ -174,8 +152,8 @@ FilterResultsLI <- setRefClass(
       
       LDLtarg_fc <- forcout$LDLtarg
       
-      # Compute forecasts as per (7) in Andrew's Time Series Models for Epidemics paper
-      # Confidence intervals computed as per Harvey, Kattuman and Thamotheram 2021 NIESR paper
+      # Forecasts computed as per (7) in Harvey and Kattuman (2021); the
+      # confidence intervals follow Harvey, Kattuman and Thamotheram (2021).
       forecasts[1, 1] = last_admit*exp(LDLtarg_fc[1,1])
       forecasts[2:n.ahead, 1] = last_admit*exp(LDLtarg_fc[2:n.ahead,1])*cumprod(1+exp(LDLtarg_fc[1:(n.ahead-1),1]))
       
@@ -185,7 +163,6 @@ FilterResultsLI <- setRefClass(
       forecasts[1, 3] = last_admit*exp(LDLtarg_fc[1,3])
       forecasts[2:n.ahead, 3] = last_admit*exp(LDLtarg_fc[2:n.ahead,3])*cumprod(1+exp(LDLtarg_fc[1:(n.ahead-1),3]))
       
-      # Round forecasts to 2 decimal places
       forecasts <- round(forecasts, 2)
       
       fadmits <- idx_series(forecasts, start = end + 1L)
@@ -264,7 +241,6 @@ FilterResultsLI <- setRefClass(
       Hf = matrixKFS(output,"H")[,,1]
       oldn<-attr(new.model, 'n')
       
-      # Provide observed leading indicator data
       na_vals<-matrix(NA, ncol = ncol(gety(new.model)), nrow = n.ahead)
       
       remaining_data <- idx_range(data)[2] - end
@@ -275,7 +251,6 @@ FilterResultsLI <- setRefClass(
         na_vals[1:future_rows,1] = idx_values(true_leading)[,"LDLlead"]
       }
       
-      #Supply the new data back to the new.model object
       new.model$y <- rbind(gety(new.model),na_vals) %>% as.ts()
       
       if (xpred_logical[1] || xpred_logical[2]){
