@@ -10,8 +10,10 @@
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' output(res)
 #'
@@ -31,8 +33,10 @@ output <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' modelKFS(output(res))
 #'
@@ -53,8 +57,10 @@ modelKFS <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' seasonalComp(output(res))
 #'
@@ -75,8 +81,10 @@ seasonalComp <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' att(output(res))
 #'
@@ -97,8 +105,10 @@ att <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' Ptt(output(res))
 #'
@@ -119,8 +129,10 @@ Ptt <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' get_V(output(res))
 #'
@@ -144,8 +156,10 @@ get_V <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' matrixKFS(output(res), "Z")
 #'
@@ -166,8 +180,10 @@ matrixKFS <- function(object, matrix) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' gety(modelKFS(output(res)))
 #'
@@ -188,8 +204,10 @@ gety <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' all_predictions <- res$predict_all(n.ahead = 7)
 #' gety.hat(all_predictions)
@@ -211,8 +229,10 @@ gety.hat <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' alphahat(output(res))
 #'
@@ -235,8 +255,10 @@ alphahat <- function(object) {
 #' @examples
 #' library(tsgc)
 #' data(gauteng, package = "tsgc")
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#'                                     end.date = as.Date("2020-07-20"))
+#' conv <- xts_to_idx(gauteng)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' estimate(model)
 #'
 #' @export

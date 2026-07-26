@@ -140,6 +140,11 @@ SSModelLeadingIndicator <- setRefClass(
       # are one position shorter due to differencing, and now additionally
       # shifted forward by n.lag positions).
       common_pos <- Reduce(intersect, lapply(y, idx_positions))
+      if (length(common_pos) == 0) {
+        stop("No overlapping positions remain across the leading indicator ",
+             "and target series after lagging by n.lag = ", n.lag,
+             "; n.lag may be too large relative to the available data.")
+      }
       combined_mat <- do.call(cbind, lapply(y, function(s) idx_values(s[common_pos])))
       colnames(combined_mat) <- names(y)
       y_combined <- idx_series(combined_mat, start = common_pos[1])

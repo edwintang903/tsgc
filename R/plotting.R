@@ -1152,3 +1152,88 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
   idx_add_info_box(p, calendar, axis)
 }
+
+## ----------------------------------------------------------------------
+## plot_r0
+## ----------------------------------------------------------------------
+
+#' @title Plot the estimated reproduction number \eqn{R_t}
+#'
+#' @description Plots \eqn{R_t}, as computed by \code{\link{estimate_r0}},
+#' together with its confidence interval, over the most recent
+#' \code{n.ahead} integer positions of \code{res}. A horizontal reference
+#' line is drawn at \eqn{R_t = 1}, the threshold separating a growing from
+#' a shrinking epidemic/process.
+#'
+#' @param res A \code{FilterResults} or \code{FilterResultsLI} object,
+#' obtained from the \code{estimate()} method.
+#' @param gen_int The mean generation interval, in the same integer-position
+#' units as \code{res} (e.g. if positions are days, this is the mean
+#' generation interval in days). Passed through to \code{estimate_r0()}.
+#' @param n.ahead Number of most recent integer positions to plot, taken
+#' from the end of \code{res}'s filtered/smoothed range. Default \code{7}.
+#' Passed through to \code{estimate_r0()}.
+#' @param smoothed Logical value indicating whether to use the smoothed
+#' (\code{TRUE}) or filtered (\code{FALSE}, default) growth rate estimates
+#' underlying \eqn{R_t}. Passed through to \code{estimate_r0()}.
+#' @param confidence.level Confidence level for the confidence interval
+#' around \eqn{R_t}. Default \code{0.68}. Passed through to
+#' \code{estimate_r0()}.
+#' @param title Title for the plot. \code{NULL} (default) for no title.
+#' @param axis An \code{\link{idx_axis_opts}} object controlling x-axis
+#' mode and info box, or \code{NULL} (default) for the previous default
+#' behaviour (dates if a POSIXct calendar is present, else positions).
+#'
+#' @returns A \code{ggplot2} plot.
+#'
+#' @examples
+#' library(tsgc)
+#' set.seed(1)
+#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+#' res <- estimate(model)
+#' plot_r0(res, gen_int = 5, n.ahead = 7)
+#'
+#' @importFrom ggplot2 ggplot geom_line geom_point geom_segment geom_ribbon
+#' @importFrom ggplot2 geom_hline labs theme scale_y_continuous
+#'
+#' @export
+plot_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
+                    confidence.level = 0.68, title = NULL, axis = NULL) {
+  if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
+    stop("res must be a FilterResults or FilterResultsLI object.")
+  }
+  
+  calendar <- res$calendar
+  r.t <- estimate_r0(res, gen_int = gen_int, n.ahead = n.ahead,
+                     smoothed = smoothed, confidence.level = confidence.level)
+  
+  resolved_axis <- idx_resolve_axis(axis, calendar)
+  df_plot <- idx_series_df(r.t, calendar, resolved_axis)
+  
+  fit <- lower <- upper <- NULL
+  p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = x)) +
+    ggplot2::geom_line(ggplot2::aes(y = fit, colour = "Rt")) +
+    ggplot2::geom_point(ggplot2::aes(y = fit), colour = "red", size = 3) +
+    ggplot2::geom_segment(ggplot2::aes(xend = x, yend = lower, y = fit), colour = "blue") +
+    ggplot2::geom_segment(ggplot2::aes(xend = x, yend = upper, y = fit), colour = "blue") +
+    ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper,
+                                      fill = paste0(round(confidence.level * 100), "% Interval")),
+                         alpha = 0.2) +
+    ggplot2::geom_hline(yintercept = 1, linetype = "solid", linewidth = 1, colour = "black") +
+    ggplot2::labs(title = title, x = idx_x_lab(calendar, resolved_axis),
+                  y = expression(R[t])) +
+    ggplot2::scale_y_continuous(limits = c(0, NA)) +
+    ggplot2::theme_light(base_size = 12) +
+    ggplot2::theme(
+      legend.position = "inside",
+      legend.position.inside = c(0.85, 0.2),
+      legend.title = ggplot2::element_blank(),
+      legend.text = ggplot2::element_text(size = 10),
+      axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 10),
+      plot.title = ggplot2::element_text(face = "bold")
+    ) +
+    idx_x_scale(calendar, resolved_axis)
+  
+  idx_add_info_box(p, calendar, resolved_axis)
+}

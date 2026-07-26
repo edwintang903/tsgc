@@ -641,3 +641,75 @@ test_that("Model works with a plain, non-calendar idx_series (arbitrary integer 
   expect_equal(res$index[1], 1000L)
   expect_equal(tail(res$index, 1), 1050L)
 })
+
+## ----------------------------------------------------------------------
+## Non-posixct calendar coverage: estimation equivalence, xpred.new
+## ----------------------------------------------------------------------
+
+test_that("SSModelDynamicGompertz estimates identically regardless of calendar posixct flag", {
+  data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng)
+  
+  cal_np <- idx_calendar(anchor = zoo::index(gauteng)[1], anchor_pos = 1L,
+                         amount = 1, unit = "days", posixct = FALSE)
+  
+  end.pos <- idx_to_pos(conv$calendar, as.Date("2020-07-20"))
+  
+  model_posix <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                            end = end.pos, calendar = conv$calendar)
+  model_nonposix <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                               end = end.pos, calendar = cal_np)
+  
+  res_posix <- estimate(model_posix)
+  res_nonposix <- estimate(model_nonposix)
+  
+  expect_false(res_nonposix$calendar$posixct)
+  expect_equal(att(output(res_posix)), att(output(res_nonposix)))
+  expect_equal(gety.hat(res_posix$predict_all(n.ahead = 7)),
+               gety.hat(res_nonposix$predict_all(n.ahead = 7)))
+})
+
+test_that("SSModelDynamicGompertz works with a fully non-calendar (numeric-anchor, non-posixct) calendar", {
+  set.seed(42)
+  Y <- idx_series(cumsum(rpois(80, 8)) + 1, start = 1L)
+  cal_ps <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 2.5,
+                         unit = "picoseconds", posixct = FALSE)
+  
+  model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 60, calendar = cal_ps)
+  res <- estimate(model)
+  expect_s4_class(res, "FilterResults")
+  expect_false(res$calendar$posixct)
+  expect_no_error(res$predict_all(n.ahead = 7))
+})
+
+test_that("supplying res$xpred.new works when the fitted model used a non-posixct calendar", {
+  set.seed(99)
+  n <- 80
+  y <- idx_series(cumsum(rpois(n, 8)) + 1, start = 1L)
+  x <- idx_series(matrix(rnorm(n), ncol = 1), start = 1L)
+  cal_np <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                         amount = 1, unit = "days", posixct = FALSE)
+  
+  model <- SSModelDynamicGompertz$new(Y = y, xpred = x, q = 0.005, end = 60, calendar = cal_np)
+  res <- estimate(model)
+  
+  future_x <- idx_series(matrix(rnorm(10), ncol = 1), start = 61L)
+  res$xpred.new <- future_x
+  expect_no_error(res$predict_all(n.ahead = 10))
+  expect_no_error(plot_forecast(res, n.ahead = 10))
+})
+
+test_that("estimation and predict_all give identical results whether calendar is a posixct=FALSE object or NULL entirely", {
+  set.seed(25)
+  Y <- idx_series(cumsum(rpois(60, 8)) + 1, start = 1L)
+  cal_np <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                         amount = 1, unit = "days", posixct = FALSE)
+  
+  res_cal <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 50, calendar = cal_np)$estimate()
+  res_nocal <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 50)$estimate()
+  
+  expect_equal(att(output(res_cal)), att(output(res_nocal)))
+  expect_equal(res_cal$index, res_nocal$index)
+  expect_equal(gety.hat(res_cal$predict_all(n.ahead = 7)),
+               gety.hat(res_nocal$predict_all(n.ahead = 7)))
+})

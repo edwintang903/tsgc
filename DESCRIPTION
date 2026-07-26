@@ -30,7 +30,9 @@ Encoding: UTF-8
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 Suggests:
+    dplyr,
     ggfortify,
+    ggthemes,
     knitr,
     RColorBrewer,
     rmarkdown,

@@ -1,4 +1,7 @@
-utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model"))
+utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model", "x", "Centered.MA"))
+
+#' @importFrom utils tail
+NULL
 
 #' @title Convert an \code{xts}/\code{zoo} object to an \code{idx_series}
 #'
@@ -27,12 +30,15 @@ utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model"))
 #' conv$series
 #' conv$calendar
 #'
+#' @importFrom xts xts
+#' @importFrom zoo index coredata
+#'
 #' @export
 xts_to_idx <- function(x, start.pos = 1L) {
   list(
-    series = idx_series(zoo::coredata(x), start = start.pos),
+    series = idx_series(coredata(x), start = start.pos),
     calendar = idx_calendar(
-      anchor = zoo::index(x)[1],
+      anchor = index(x)[1],
       anchor_pos = start.pos,
       amount = 1, unit = "days",
       posixct = TRUE
@@ -575,8 +581,10 @@ cross_val <- function(Y, model_list, est.end, n.ahead = 7, n.estimate = 1, gap =
 #'
 #' res.dir <- tempdir()
 #' data(gauteng,package="tsgc")
-#' res <- estimate(SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-#' end.date=as.Date("2020-07-06")))
+#' conv <- xts_to_idx(gauteng)
+#' res <- estimate(SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#' calendar = conv$calendar,
+#' end = idx_to_pos(conv$calendar, "2020-07-06")))
 #'
 #' tsgc::write_results(
 #' res=res, res.dir = res.dir, prefix="dyn_gompertz",n.ahead = 14,

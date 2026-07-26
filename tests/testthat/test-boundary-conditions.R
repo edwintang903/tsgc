@@ -307,8 +307,7 @@ test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds 
   Y_li  <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 20, LeadIndCol = 1)
-  result <- tryCatch(mod$estimate(), error = function(e) e)
-  expect_true(inherits(result, "error"))
+  expect_error(mod$estimate(), "n.lag|overlapping positions")
 })
 
 

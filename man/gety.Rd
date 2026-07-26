@@ -19,8 +19,10 @@ Accessor method to access the time series \code{y} in an
 \examples{
 library(tsgc)
 data(gauteng, package = "tsgc")
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-                                    end.date = as.Date("2020-07-20"))
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
 gety(modelKFS(output(res)))
 

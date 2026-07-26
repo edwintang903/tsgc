@@ -38,8 +38,10 @@ library(here)
 
 res.dir <- tempdir()
 data(gauteng,package="tsgc")
-res <- estimate(SSModelDynamicGompertz$new(Y = gauteng, q = 0.005,
-end.date=as.Date("2020-07-06")))
+conv <- xts_to_idx(gauteng)
+res <- estimate(SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+calendar = conv$calendar,
+end = idx_to_pos(conv$calendar, "2020-07-06")))
 
 tsgc::write_results(
 res=res, res.dir = res.dir, prefix="dyn_gompertz",n.ahead = 14,

@@ -256,3 +256,94 @@ test_that("LI works with a plain, non-calendar idx_series (arbitrary integer pos
   expect_true(res$start > 1L)
   expect_equal(res$end, 100L)
 })
+
+## ----------------------------------------------------------------------
+## Non-posixct calendar coverage: estimation equivalence,
+## quarterly/monthly frequency
+## ----------------------------------------------------------------------
+
+test_that("SSModelLeadingIndicator estimates identically regardless of calendar posixct flag", {
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
+  
+  cal_np <- idx_calendar(anchor = zoo::index(england)[1], anchor_pos = 1L,
+                         amount = 1, unit = "days", posixct = FALSE)
+  
+  start.pos <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
+  end.pos   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
+  
+  model_posix <- SSModelLeadingIndicator$new(
+    conv$series, n.lag = 4, sea.period = 7,
+    start = start.pos, end = end.pos, calendar = conv$calendar
+  )
+  model_nonposix <- SSModelLeadingIndicator$new(
+    conv$series, n.lag = 4, sea.period = 7,
+    start = start.pos, end = end.pos, calendar = cal_np
+  )
+  
+  res_posix <- estimate(model_posix)
+  res_nonposix <- estimate(model_nonposix)
+  
+  expect_false(res_nonposix$calendar$posixct)
+  expect_equal(att(output(res_posix)), att(output(res_nonposix)))
+})
+
+test_that("quarterly-frequency data works under a non-posixct calendar (plain integer step, not calendar-aware quarter stepping)", {
+  data(nintendo_sales, package = "tsgc")
+  y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
+  nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
+  
+  # posixct = FALSE here means idx_to_date/plotting must NOT attempt
+  # calendar-aware quarter stepping; positions are just integers 1..n.
+  nintendo_cal_np <- idx_calendar(
+    anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
+    anchor_pos = 1L, amount = 1, unit = "quarters", posixct = FALSE
+  )
+  expect_error(idx_to_pos(nintendo_cal_np, "2017-01-01"), "not a calendar-anchored")
+  
+  # Positions/lag can only be derived via idx_to_pos() on a posixct = TRUE
+  # calendar (same anchor as above, per the vignette's worked example);
+  # the resulting integers are then reused with the non-posixct calendar,
+  # which is purely cosmetic and does not affect estimation.
+  nintendo_cal_helper <- idx_calendar(
+    anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
+    anchor_pos = 1L, amount = 1, unit = "quarters", posixct = TRUE
+  )
+  n.lag.q <- idx_to_pos(nintendo_cal_helper, "2017-01-01") - idx_to_pos(nintendo_cal_helper, "2006-10-01")
+  start.q <- idx_to_pos(nintendo_cal_helper, "2017-01-01")
+  end.q   <- idx_to_pos(nintendo_cal_helper, "2019-10-01")
+  
+  mod.q <- SSModelLeadingIndicator$new(
+    Y = nintendo_idx, sea.period = 4, n.lag = n.lag.q,
+    start = start.q, end = end.q, calendar = nintendo_cal_np
+  )
+  res.q <- estimate(mod.q)
+  expect_no_error(tsgc::plot_log_forecast(res.q, Y = nintendo_idx, n.ahead = 8))
+  expect_no_error(plot_gy_ci(res.q, axis = idx_axis_opts(mode = "steps")))
+})
+
+test_that("monthly-frequency data works under a non-posixct calendar", {
+  data(etrading_apps, package = "tsgc")
+  y_m_xts <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+  etrading_idx <- idx_series(zoo::coredata(y_m_xts), start = 1L)
+  
+  etrading_cal_np <- idx_calendar(
+    anchor = zoo::as.Date(zoo::index(y_m_xts)[1]),
+    anchor_pos = 1L, amount = 1, unit = "months", posixct = FALSE
+  )
+  etrading_cal_helper <- idx_calendar(
+    anchor = zoo::as.Date(zoo::index(y_m_xts)[1]),
+    anchor_pos = 1L, amount = 1, unit = "months", posixct = TRUE
+  )
+  n.lag.m <- idx_to_pos(etrading_cal_helper, "2017-07-01") - idx_to_pos(etrading_cal_helper, "2017-01-01")
+  start.m <- idx_to_pos(etrading_cal_helper, "2017-07-01")
+  end.m   <- idx_to_pos(etrading_cal_helper, "2021-02-01")
+  
+  mod.m <- SSModelLeadingIndicator$new(
+    Y = etrading_idx, sea.period = 12, n.lag = n.lag.m,
+    start = start.m, end = end.m, calendar = etrading_cal_np
+  )
+  res.m <- estimate(mod.m)
+  expect_no_error(tsgc::plot_forecast(res.m, n.ahead = 4))
+  expect_no_error(plot_forecast(res.m, n.ahead = 4, axis = idx_axis_opts(mode = "time_since")))
+})

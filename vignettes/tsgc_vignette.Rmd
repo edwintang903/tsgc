@@ -23,6 +23,7 @@ library(dplyr)
 library(ggplot2)
 library(ggthemes)
 library(zoo)
+library(xts)
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
 ```
 
@@ -684,7 +685,7 @@ New COVID-19 cases reported for Gauteng province and their centered
 7-day moving average presented in Figure 1 show a sequence of four waves
 over the period between 10 March 2020 and 5 January 2022.
 
-```{r make-fig-1, echo = FALSE, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
+```{r make-fig-1, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
 mod_all <- SSModelDynamicGompertz(Y = gauteng_idx, calendar = gauteng_cal)
 plot(mod_all, series.name = "daily cases", MA_period = 7)
 ```
@@ -858,44 +859,20 @@ the six days from 28 April the MAPE was 12.8%. Over the full 14 days of
 the forecasts, the MAPE was 27%.
 
 As discussed earlier, the reproduction numbers $R_t$ and their 68%
-approximate pointwise uncertainty bands can be calculated. This is shown
-in Figure 5.
+approximate pointwise uncertainty bands can be calculated using
+`estimate_r0()`, which returns an `idx_series` of the fitted $R_t$ values
+together with their lower and upper bounds. These can then be plotted
+directly with `plot_r0()`, as shown in Figure 5.
 
 ```{r calc_rt}
 gen_int <- 4
 r.t <- estimate_r0(res, gen_int, n.ahead = 7)
+r.t
 ```
 
-```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
-r.t.mat <- as.matrix(idx_values(r.t))
-r.t.df <- data.frame(
-  x = idx_to_date(cal, idx_positions(r.t)),
-  fit = r.t.mat[, "fit"],
-  lower = r.t.mat[, "lower"],
-  upper = r.t.mat[, "upper"]
-)
-
-fit <- lower <- upper <- NULL
-ggplot(r.t.df, aes(x = x)) +
-  geom_line(aes(y = fit, color = "Rt")) +
-  geom_point(aes(y = fit), color = "red", size = 3) +
-  geom_segment(aes(xend = x, yend = lower, y = fit), color = "blue") +
-  geom_segment(aes(xend = x, yend = upper, y = fit), color = "blue") +
-  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
-  geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
-  scale_x_date(date_breaks = "1 day", labels = scales::date_format("%d %b %y")) +
-  labs(title = "Reproduction numbers for the 7-day period to 3 May 2021",
-      x = "Date", y = expression(R[t])) +
-  scale_y_continuous(limits = c(0, NA)) +
-  theme_light(base_size = 12) +
-  theme(
-    legend.position = "inside",
-    legend.position.inside = c(0.85, 0.2),
-    legend.title = element_blank(),
-    legend.text = element_text(size = 10),
-    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-    plot.title = element_text(face = "bold")
-  )
+```{r fig-5, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
+plot_r0(res, gen_int = gen_int, n.ahead = 7,
+        title = "Reproduction numbers for the 7-day period to 3 May 2021")
 ```
 
 A CSV file (`y-forecast`) is written to the directory specified. The
@@ -1091,7 +1068,7 @@ is 41.9% (see Figure 8). With reinitialization, it falls to 20.2% (see
 Figure 9). The corresponding MAPE figures for 7-day forecasts is 15.2%
 without reinitialization and 9.5% with reinitialization.
 
-```{r fig-8, echo=FALSE, fig.cap = "Figure 8: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+```{r fig-8, fig.cap = "Figure 8: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
 tsgc::plot_holdout(
   res = res,
   Y = Y,
@@ -1101,7 +1078,7 @@ tsgc::plot_holdout(
 )
 ```
 
-```{r fig-9, echo=FALSE, fig.cap = "Figure 9: Forecast accuracy of the model with reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
+```{r fig-9, fig.cap = "Figure 9: Forecast accuracy of the model with reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
 tsgc::plot_holdout(
   res = res.reinit,
   Y = Y,
