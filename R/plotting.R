@@ -743,7 +743,7 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
   calendar <- res$calendar
-  if (is.null(plt.start)) plt.start <- res$index[1]
+  if (is.null(plt.start)) plt.start <- idx_range(res$data)[1]
   
   gy.components <- res$get_growth_y(return.components = TRUE, smoothed = smoothed)
   gy.t <- gy.components[[1]]
@@ -818,7 +818,7 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
   calendar <- res$calendar
-  if (is.null(plt.start)) plt.start <- res$index[1]
+  if (is.null(plt.start)) plt.start <- idx_range(res$data)[1]
   
   gy.ci <- res$get_gy_ci(smoothed = smoothed)
   

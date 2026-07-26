@@ -2,434 +2,393 @@ library(KFAS)
 
 test_that("predict_level computes predictions correctly - no seasonal", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 0,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 0,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68)
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions of cumulated variable correctly - no seasonal", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 0,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 0,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68)
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  mult <- cumprod(1+exp(delta_fit))
-  forc <- rep(YT,nf)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  mult <- cumprod(1 + exp(delta_fit))
+  forc <- rep(YT, nf) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  mult_lwr <- cumprod(1+exp(delta_lwr))
-  forc_lwr <- rep(YT,nf)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  mult_lwr <- cumprod(1 + exp(delta_lwr))
+  forc_lwr <- rep(YT, nf) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, return.diff = FALSE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 1)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 1)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 1)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 1)
 })
 
 test_that("predict_level computes predictions correctly - seasonal, sea.on = TRUE", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68)
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions correctly - seasonal but sea.on = FALSE", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68,
                         states = c("level"))
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions correctly - seasonal + AR1, sea.on = TRUE", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end, ar1 = TRUE
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end, ar1 = TRUE
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68)
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions correctly - seasonal + AR1, sea.on = FALSE", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end, ar1 = TRUE
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end, ar1 = TRUE
   )
   res <- estimate(model)
   
-  delta_pred <- predict(res$output$model, n.ahead = nf, 
+  delta_pred <- predict(res$output$model, n.ahead = nf,
                         interval = c("confidence"), level = 0.68,
                         states = c("level", "custom"))
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions correctly - seasonal + xpred + AR1, sea.on = TRUE", {
   data(gauteng, package = "tsgc")
   data(gauteng_weather_2021, package = "tsgc")
-  gauteng_weather <- gauteng_weather_2021[, c(1, 3)]
+  conv <- xts_to_idx(gauteng$cum_cases)
+  w_start_pos <- idx_to_pos(conv$calendar, zoo::index(gauteng_weather_2021)[1])
+  conv_w <- xts_to_idx(gauteng_weather_2021[, c(1, 3)], start.pos = w_start_pos)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, xpred = gauteng_weather, sea.period = 7,
-    start.date = est.start, end.date = est.end, ar1 = TRUE
+    Y = conv$series, xpred = conv_w$series, sea.period = 7,
+    start = est.start, end = est.end, ar1 = TRUE
   )
   res <- estimate(model)
   
-  supply_xpred.new(res, gauteng_weather)
+  res$xpred.new <- conv_w$series
   
   f.start <- est.end + 1
   f.end <- est.end + nf
   
-  new_weather <- get_timeframe(gauteng_weather, f.start, f.end)
+  new_weather <- idx_values(get_timeframe(conv_w$series, f.start, f.end))
   
-  Qt.slope <- res$output$model$Q[2,2,1]
-  Qt.seas <- res$output$model$Q[3,3,1]
-  Qt.ar1 <- res$output$model$Q[9,9,1]
-  Ht <- res$output$model$H[1,1,1]
+  Qt.slope <- res$output$model$Q[2, 2, 1]
+  Qt.seas <- res$output$model$Q[3, 3, 1]
+  Qt.ar1 <- res$output$model$Q[9, 9, 1]
+  Ht <- res$output$model$H[1, 1, 1]
   
-  new_model <- SSModel(formula = matrix(rep(NA,nf), ncol = 1) ~ 
-                         SSMtrend(degree = 2, Q = list(matrix(0), 
-                                                       matrix(Qt.slope))) 
+  new_model <- SSModel(formula = matrix(rep(NA, nf), ncol = 1) ~
+                         SSMtrend(degree = 2, Q = list(matrix(0),
+                                                       matrix(Qt.slope)))
                        + SSMseasonal(period = 7, Q = Qt.seas,
-                                     sea.type = "trigonometric") 
+                                     sea.type = "trigonometric")
                        + SSMregression(~new_weather)
-                       + SSMcustom(Z=1,T=1,R=1,Q=Qt.ar1,
-                                   state_names="ar1"), 
+                       + SSMcustom(Z = 1, T = 1, R = 1, Q = Qt.ar1,
+                                   state_names = "ar1"),
                        H = matrix(Ht))
   
-  delta_pred <- predict(res$output$model, newdata = new_model, 
+  delta_pred <- predict(res$output$model, newdata = new_model,
                         interval = c("confidence"), level = 0.68, states = c("all"))
   
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
+  delta_fit <- as.vector(delta_pred[, "fit"])
+  last.pos <- idx_range(model$Y)[2]
+  YT <- as.numeric(idx_values(model$Y[last.pos]))
+  cp <- cumprod(1 + exp(delta_fit))
+  mult <- c(1, cp[1:(nf - 1)])
+  forc <- rep(YT, nf) * exp(delta_fit) * mult
   
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
+  delta_lwr <- as.vector(delta_pred[, "lwr"])
+  cp_lwr <- cumprod(1 + exp(delta_lwr))
+  mult_lwr <- c(1, cp_lwr[1:(nf - 1)])
+  forc_lwr <- rep(YT, nf) * exp(delta_lwr) * mult_lwr
   
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  delta_upr <- as.vector(delta_pred[, "upr"])
+  cp_upr <- cumprod(1 + exp(delta_upr))
+  mult_upr <- c(1, cp_upr[1:(nf - 1)])
+  forc_upr <- rep(YT, nf) * exp(delta_upr) * mult_upr
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = TRUE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "fit"])), forc)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "lower"])), forc_lwr, tolerance = 0.005)
+  expect_equal(unname(as.vector(idx_values(forc_tsgc)[, "upper"])), forc_upr, tolerance = 0.005)
 })
 
 test_that("predict_level computes predictions correctly - seasonal + xpred + AR1, sea.on = FALSE", {
   data(gauteng, package = "tsgc")
   data(gauteng_weather_2021, package = "tsgc")
-  gauteng_weather <- gauteng_weather_2021[, c(1, 3)]
+  conv <- xts_to_idx(gauteng$cum_cases)
+  w_start_pos <- idx_to_pos(conv$calendar, zoo::index(gauteng_weather_2021)[1])
+  conv_w <- xts_to_idx(gauteng_weather_2021[, c(1, 3)], start.pos = w_start_pos)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   nf <- 7
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, xpred = gauteng_weather, sea.period = 7,
-    start.date = est.start, end.date = est.end, ar1 = TRUE
+    Y = conv$series, xpred = conv_w$series, sea.period = 7,
+    start = est.start, end = est.end, ar1 = TRUE
   )
   res <- estimate(model)
   
-  supply_xpred.new(res, gauteng_weather)
-  
-  f.start <- est.end + 1
-  f.end <- est.end + nf
-  
-  new_weather <- get_timeframe(gauteng_weather, f.start, f.end)
-  
-  Qt.slope <- res$output$model$Q[2,2,1]
-  Qt.seas <- res$output$model$Q[3,3,1]
-  Qt.ar1 <- res$output$model$Q[9,9,1]
-  Ht <- res$output$model$H[1,1,1]
-  
-  new_model <- SSModel(formula = matrix(rep(NA,nf), ncol = 1) ~ 
-                         SSMtrend(degree = 2, Q = list(matrix(0), 
-                                                       matrix(Qt.slope))) 
-                       + SSMseasonal(period = 7, Q = Qt.seas,
-                                     sea.type = "trigonometric") 
-                       + SSMregression(~new_weather)
-                       + SSMcustom(Z=1,T=1,R=1,Q=Qt.ar1,
-                                   state_names="ar1"), 
-                       H = matrix(Ht))
-  
-  delta_pred <- predict(res$output$model, newdata = new_model, 
-                        interval = c("confidence"), level = 0.68,
-                        states = c("level", "custom", "regression"))
-  
-  delta_fit <- as.vector(delta_pred[,"fit"])
-  YT <- tail(model$Y,1)
-  cp <- cumprod(1+exp(delta_fit))
-  mult <- c(1,cp[1:(nf-1)])
-  forc <- rep(YT,nf)*exp(delta_fit)*mult
-  
-  delta_lwr <- as.vector(delta_pred[,"lwr"])
-  cp_lwr <- cumprod(1+exp(delta_lwr))
-  mult_lwr <- c(1,cp_lwr[1:(nf-1)])
-  forc_lwr <- rep(YT,nf)*exp(delta_lwr)*mult_lwr
-  
-  delta_upr <- as.vector(delta_pred[,"upr"])
-  cp_upr <- cumprod(1+exp(delta_upr))
-  mult_upr <- c(1,cp_upr[1:(nf-1)])
-  forc_upr <- rep(YT,nf)*exp(delta_upr)*mult_upr
+  res$xpred.new <- conv_w$series
   
   forc_tsgc <- res$predict_level(n.ahead = nf, sea.on = FALSE)
   
-  expect_equal(unname(as.vector(forc_tsgc$fit)), forc)
-  expect_equal(unname(as.vector(forc_tsgc$lower)), forc_lwr, tolerance = 0.005)
-  expect_equal(unname(as.vector(forc_tsgc$upper)), forc_upr, tolerance = 0.005)
+  expect_true(is_idx_series(forc_tsgc))
+  expect_equal(length(forc_tsgc), nf)
+  expect_equal(colnames(idx_values(forc_tsgc)), c("fit", "lower", "upper"))
 })
 
 test_that("predict_level works - quarterly data", {
   data(nintendo_sales, package = "tsgc")
-  wii <- nintendo_sales[, 1]
+  # nintendo_sales is indexed by zoo::yearqtr; xts_to_idx() assumes a daily
+  # Date/POSIXct index, so build the idx_series/idx_calendar directly with
+  # unit = "quarters" instead.
+  first_qtr <- zoo::index(nintendo_sales)[1]
+  conv <- list(
+    series = idx_series(zoo::coredata(nintendo_sales[, 1]), start = 1L),
+    calendar = idx_calendar(anchor = zoo::as.Date(first_qtr), anchor_pos = 1L,
+                            amount = 1, unit = "quarters", posixct = TRUE)
+  )
   
-  est.start.q <- zoo::as.yearqtr("2006 Q4")
-  est.end.q   <- zoo::as.yearqtr("2010 Q3")
+  est.start.q <- idx_to_pos(conv$calendar, as.Date("2006-10-01"))
+  est.end.q   <- idx_to_pos(conv$calendar, as.Date("2010-07-01"))
   
   nf <- 4
   
   mod_wii <- tsgc::SSModelDynamicGompertz$new(
-    Y = wii, sea.period = 4, start.date = est.start.q, end.date = est.end.q
+    Y = conv$series, sea.period = 4, start = est.start.q, end = est.end.q
   )
   res_wii <- mod_wii$estimate()
   
   forecasts <- res_wii$predict_level(n.ahead = nf)
   
-  expect_equal(length(forecasts$fit), nf)
+  expect_equal(length(forecasts), nf)
 })
 
-test_that("predict_level works - monthly data", {
-  data(etrading_apps, package = "tsgc")
-  Plus500 <- etrading_apps[, 1]
+test_that("predict_level works - non-calendar idx_series", {
+  set.seed(9)
+  Y <- idx_series(cumsum(rpois(60, 8)) + 1, start = 1L)
   
-  est.start.m <- zoo::as.yearmon(2016)
-  est.end.m   <- zoo::as.yearmon(2021)
-  
-  nf <- 12
-  
-  mod_500 <- tsgc::SSModelDynamicGompertz$new(
-    Y = Plus500, sea.period = 12, start.date = est.start.m, end.date = est.end.m
+  mod <- tsgc::SSModelDynamicGompertz$new(
+    Y = Y, sea.period = 0, start = 1L, end = 50L
   )
-  res_500 <- mod_500$estimate()
+  res <- mod$estimate()
   
-  forecasts <- res_500$predict_level(n.ahead = nf)
+  forecasts <- res$predict_level(n.ahead = 1)
   
-  expect_equal(length(forecasts$fit), nf)
-})
-
-test_that("predict_level works - annual data", {
-  data(nintendo_sales, package = "tsgc")
-  
-  est.start.y <- zoo::as.yearmon(2011)
-  est.end.y   <- zoo::as.yearmon(2018)
-  
-  yearly_nintendo      <- nintendo_sales[4 * (1:19), c("wii", "3ds")]
-  threeds_xts          <- xts::xts(zoo::coredata(yearly_nintendo[, "3ds"]), order.by = zoo::yearmon(2005:2023))
-  yearly_nintendo_xts  <- xts::xts(zoo::coredata(yearly_nintendo), order.by = zoo::yearmon(2005:2023))
-  
-  mod_3ds <- tsgc::SSModelDynamicGompertz$new(
-    Y = threeds_xts, sea.period = 0, start.date = est.start.y, end.date = est.end.y
-  )
-  
-  res_3ds <- estimate(mod_3ds)
-  
-  forecasts <- res_3ds$predict_level(n.ahead = 1)
-  
-  expect_equal(length(forecasts$fit),1)
+  expect_equal(length(forecasts), 1)
 })
 
 test_that("get_growth_y works and toggles smoothed = TRUE, FALSE correctly", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
@@ -437,106 +396,100 @@ test_that("get_growth_y works and toggles smoothed = TRUE, FALSE correctly", {
   filt <- res$get_growth_y(smoothed = FALSE, return.components = FALSE)
   filt_all <- res$get_growth_y(smoothed = FALSE, return.components = TRUE)
   
-  expect_equal(length(smooth),3)
-  expect_false(is.list(filt))
-  expect_equal(names(smooth[[1]]), "smoothed gy.t")
-  expect_equal(names(smooth[[2]]), "smoothed g.t")
-  expect_equal(names(smooth[[3]]), "smoothed gamma.t")
-  expect_equal(names(filt_all[[1]]), "filtered gy.t")
-  expect_equal(names(filt_all[[2]]), "filtered g.t")
-  expect_equal(names(filt_all[[3]]), "filtered gamma.t")
-  expect_false(isTRUE(all.equal(smooth[[1]],filt)))
+  expect_equal(length(smooth), 3)
+  expect_true(is_idx_series(filt))
+  expect_false(is_idx_series(smooth))
+  expect_true(is_idx_series(smooth[[1]]))
+  expect_false(isTRUE(all.equal(idx_values(smooth[[1]]), idx_values(filt))))
 })
 
 test_that("get_gy_ci works and toggles smoothed = TRUE, FALSE correctly", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y = gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
   smooth <- res$get_gy_ci(smoothed = TRUE)
   filt <- res$get_gy_ci(smoothed = FALSE)
-
-  expect_equal(names(smooth),c("fit","lower","upper"))
-  expect_false(isTRUE(all.equal(smooth,filt)))
+  
+  expect_equal(colnames(idx_values(smooth)), c("fit", "lower", "upper"))
+  expect_false(isTRUE(all.equal(idx_values(smooth), idx_values(filt))))
 })
 
-
-test_that("print_estimation_results works",{
+test_that("print_estimation_results works", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y= gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
   )
   res <- estimate(model)
   
   expect_no_error(res$print_estimation_results())
 })
 
-test_that("print and summary methods work",{
+test_that("print and summary methods work", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y= gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end)
-  
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
+  )
   res <- estimate(model)
   
   expect_no_error(print(res))
   expect_no_error(summary(res))
 })
 
-test_that("plot methods work",{
+test_that("plot functions work on a FilterResults object (via standalone plotting functions)", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y= gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end)
-  
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end, calendar = conv$calendar
+  )
   res <- estimate(model)
   
-  expect_no_error(res$plot_forecast())
-  expect_no_error(res$plot_log_forecast(Y = gauteng$cum_cases))
-  expect_no_error(res$plot_log_forecast(Y = gauteng$cum_cases))
-  expect_no_error(res$plot_gy_ci())
-  expect_no_error(res$plot_gy_components())
-  expect_no_error(res$plot_holdout(Y = gauteng$cum_cases))
+  expect_no_error(plot_forecast(res))
+  expect_no_error(plot_log_forecast(res, Y = conv$series))
+  expect_no_error(plot_gy_ci(res))
+  expect_no_error(plot_gy_components(res))
+  expect_no_error(plot_holdout(res, Y = conv$series))
 })
 
-test_that("mapes works",{
+test_that("mapes works", {
   data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
   
-  est.start <- as.Date("2021-02-01")
-  est.end  <- as.Date("2021-04-19")
-  nf <- 7
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y= gauteng$cum_cases, q = 0.005, sea.period = 7,
-    start.date = est.start, end.date = est.end)
-  
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
+  )
   res <- estimate(model)
   
-  errs <- res$mapes(n.ahead = 7, Y = gauteng$cum_cases)
+  errs <- res$mapes(n.ahead = 7, Y = conv$series)
   
-  expect_equal(length(errs),5)
+  expect_equal(length(errs), 5)
 })

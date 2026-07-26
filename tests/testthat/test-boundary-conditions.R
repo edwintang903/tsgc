@@ -1,17 +1,21 @@
 # =============================================================================
 # Boundary & Edge-Case Tests: SSModelDynamicGompertz and SSModelLeadingIndicator
 #
-# Boundaries are derived directly from the package source and cross-checked 
-# against theory. Tested in pairs (just inside vs. just outside valid regions) 
+# Boundaries are derived directly from the package source and cross-checked
+# against theory. Tested in pairs (just inside vs. just outside valid regions)
 # to confirm exact boundary locations.
 #
-# Out-of-scope: Reinitialisation trigger rules, exact peak-prediction formula 
+# Out-of-scope: Reinitialisation trigger rules, exact peak-prediction formula
 # (estimate_r0 used as proxy), and near-unidentified parameter estimates.
+#
+# Note: the old date-resolution validation (irregular calendar gaps detected
+# at construction time) no longer applies. idx_series is indexed by plain
+# integer position, so "gaps" are a property of an optional idx_calendar
+# layered on top, not of the series itself; SSModelLeadingIndicator now
+# validates that no positions are missing from the trimmed series instead.
 # =============================================================================
 
 library(tsgc)
-library(xts)
-library(zoo)
 
 # #############################################################################
 # 1. THEORETICAL BOUNDARIES: SSModelDynamicGompertz
@@ -22,9 +26,8 @@ library(zoo)
 # -----------------------------------------------------------------------
 
 test_that("SSModelDynamicGompertz errors on a plateaued or decreasing series at estimate(), not at construction", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
   cum <- c(seq(100, 200, length.out = 20), rep(200, 3), seq(205, 250, length.out = 7))
-  Y_flat <- xts(cum, order.by = dates)
+  Y_flat <- idx_series(cum, start = 1L)
   
   expect_no_error(model <- SSModelDynamicGompertz$new(Y = Y_flat))
   model <- SSModelDynamicGompertz$new(Y = Y_flat)
@@ -32,9 +35,8 @@ test_that("SSModelDynamicGompertz errors on a plateaued or decreasing series at 
 })
 
 test_that("SSModelDynamicGompertz errors on a strictly decreasing segment (not just flat)", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 15)
   cum <- c(seq(100, 180, length.out = 10), 178, seq(182, 220, length.out = 4))
-  Y_dec <- xts(cum, order.by = dates)
+  Y_dec <- idx_series(cum, start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_dec)
   expect_error(model$estimate(), "strictly increasing")
@@ -42,10 +44,9 @@ test_that("SSModelDynamicGompertz errors on a strictly decreasing segment (not j
 
 test_that("SSModelDynamicGompertz accepts a series with an arbitrarily small but strictly positive increment at the same point that previously plateaued", {
   # Boundary case: identical series to the plateau test, nudged up by a tiny epsilon.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
   cum <- c(seq(100, 200, length.out = 20), rep(200, 3), seq(205, 250, length.out = 7))
   jitter <- c(rep(0, 20), 1e-8, 2e-8, 3e-8, rep(0, 7))
-  Y_jittered <- xts(cum + jitter, order.by = dates)
+  Y_jittered <- idx_series(cum + jitter, start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_jittered)
   expect_no_error(res <- model$estimate())
@@ -53,27 +54,25 @@ test_that("SSModelDynamicGompertz accepts a series with an arbitrarily small but
 })
 
 # -----------------------------------------------------------------------
-# 1.2 reinit.date must be an exact match in Y's index
+# 1.2 reinit.idx must correspond to a position actually present in Y
 # -----------------------------------------------------------------------
 
-test_that("SSModelDynamicGompertz accepts a reinit.date that is an exact match in the series index", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 60)
-  Y <- xts(exp(seq(4, 7, length.out = 60)), order.by = dates)
+test_that("SSModelDynamicGompertz accepts a reinit.idx that is a position within the series", {
+  Y <- idx_series(exp(seq(4, 7, length.out = 60)), start = 1L)
   
   model <- SSModelDynamicGompertz$new(
-    Y = Y, q = 0.01, reinit.date = dates[30]
+    Y = Y, q = 0.01, reinit.idx = 30L
   )
   expect_no_error(res <- model$estimate())
   expect_true(inherits(res, "FilterResults"))
 })
 
-test_that("SSModelDynamicGompertz fails with a reinit.date that does not exist in the series index", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 60)
-  Y <- xts(exp(seq(4, 7, length.out = 60)), order.by = dates)
+test_that("SSModelDynamicGompertz fails with a reinit.idx that does not exist in the series", {
+  Y <- idx_series(exp(seq(4, 7, length.out = 60)), start = 1L)
   
-  # One day beyond the end of the series.
+  # One position beyond the end of the series.
   model <- SSModelDynamicGompertz$new(
-    Y = Y, q = 0.01, reinit.date = tail(dates, 1) + 1
+    Y = Y, q = 0.01, reinit.idx = 61L
   )
   expect_error(model$estimate())
 })
@@ -83,8 +82,7 @@ test_that("SSModelDynamicGompertz fails with a reinit.date that does not exist i
 # -----------------------------------------------------------------------
 
 test_that("SSModelDynamicGompertz warns of a degenerate model on an extremely short series (sea.period = 0)", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 3)
-  Y_short <- xts(c(100, 110, 125), order.by = dates)
+  Y_short <- idx_series(c(100, 110, 125), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_short, sea.period = 0)
   expect_warning(result <- model$estimate(), "degenerate")
@@ -96,8 +94,7 @@ test_that("SSModelDynamicGompertz warns of a degenerate model on an extremely sh
 
 test_that("SSModelDynamicGompertz with sea.period = 0 estimates cleanly, with no degeneracy warning, once given enough data", {
   # Positive control: trend-only specification with sufficient length.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 25)
-  Y_ok <- xts(exp(seq(4.6, 6, length.out = 25)), order.by = dates)
+  Y_ok <- idx_series(exp(seq(4.6, 6, length.out = 25)), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_ok, q = 0.01, sea.period = 0)
   expect_no_warning(res <- model$estimate())
@@ -105,8 +102,7 @@ test_that("SSModelDynamicGompertz with sea.period = 0 estimates cleanly, with no
 })
 
 test_that("SSModelDynamicGompertz with sea.period = 7 warns of a degenerate model when data cannot identify seasonal states", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 5)
-  Y_short <- xts(seq(100, 140, length.out = 5), order.by = dates)
+  Y_short <- idx_series(seq(100, 140, length.out = 5), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_short, sea.period = 7)
   
@@ -125,8 +121,7 @@ test_that("SSModelDynamicGompertz with sea.period = 7 warns of a degenerate mode
 
 test_that("SSModelDynamicGompertz with sea.period = 7 estimates cleanly, with no degeneracy warning, once given enough data", {
   # Positive control: 8 states to estimate, comfortable series length.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 40)
-  Y_ok <- xts(exp(seq(4.6, 7, length.out = 40)), order.by = dates)
+  Y_ok <- idx_series(exp(seq(4.6, 7, length.out = 40)), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_ok, q = 0.01, sea.period = 7)
   expect_no_warning(res <- model$estimate())
@@ -139,41 +134,47 @@ test_that("SSModelDynamicGompertz with sea.period = 7 estimates cleanly, with no
 
 test_that("estimate_r0 reproduces the documented decline toward Rt = 1 approaching a known peak", {
   data(gauteng, package = "tsgc")
-  cumulative_cases <- gauteng[, 1]
+  conv <- xts_to_idx(gauteng[, 1])
+  
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
   model <- SSModelDynamicGompertz$new(
-    Y = cumulative_cases, q = 0.005,
-    start.date = as.Date("2021-02-01"),
-    end.date   = as.Date("2021-04-19")
+    Y = conv$series, q = 0.005,
+    start = est.start, end = est.end
   )
   res <- model$estimate()
-  r_t <- estimate_r0(res, gen_int = 4, ndays = 7)
+  r_t <- estimate_r0(res, gen_int = 4, n.ahead = 7)
+  rt_vals <- idx_values(r_t)[, "fit"]
   
-  expect_equal(nrow(r_t), 7)
+  expect_equal(length(r_t), 7)
   # Decline over the first six days of the documented window.
-  expect_true(all(diff(r_t$Rt[1:6]) <= 1e-8))
+  expect_true(all(diff(rt_vals[1:6]) <= 1e-8))
   # Ensure the window as a whole approaches Rt = 1 at the end.
-  expect_true(abs(tail(r_t$Rt, 1) - 1) < abs(r_t$Rt[1] - 1))
+  expect_true(abs(tail(rt_vals, 1) - 1) < abs(rt_vals[1] - 1))
 })
 
 test_that("estimate_r0 output brackets Rt = 1 as growth decelerates through a known peak (wider window)", {
   data(gauteng, package = "tsgc")
-  cumulative_cases <- gauteng[, 1]
+  conv <- xts_to_idx(gauteng[, 1])
+  
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-06-25"))
   
   model <- SSModelDynamicGompertz$new(
-    Y = cumulative_cases, q = 0.005,
-    start.date = as.Date("2021-02-01"),
-    end.date   = as.Date("2021-06-25")
+    Y = conv$series, q = 0.005,
+    start = est.start, end = est.end
   )
   res <- model$estimate()
-  r_t <- estimate_r0(res, gen_int = 4, ndays = 30)
+  r_t <- estimate_r0(res, gen_int = 4, n.ahead = 30)
+  rt <- idx_values(r_t)
   
-  expect_s3_class(r_t, "data.frame")
-  expect_true(all(c("Date", "Rt", "lower", "upper") %in% names(r_t)))
-  expect_true(any(r_t$Rt > 1) || any(r_t$Rt < 1))
-  expect_true(all(r_t$lower <= r_t$Rt))
-  expect_true(all(r_t$Rt <= r_t$upper))
-  expect_true(all(is.finite(r_t$Rt)))
+  expect_true(is_idx_series(r_t))
+  expect_true(all(c("fit", "lower", "upper") %in% colnames(rt)))
+  expect_true(any(rt[, "fit"] > 1) || any(rt[, "fit"] < 1))
+  expect_true(all(rt[, "lower"] <= rt[, "fit"]))
+  expect_true(all(rt[, "fit"] <= rt[, "upper"]))
+  expect_true(all(is.finite(rt[, "fit"])))
 })
 
 
@@ -182,18 +183,16 @@ test_that("estimate_r0 output brackets Rt = 1 as growth decelerates through a kn
 # #############################################################################
 
 # -----------------------------------------------------------------------
-# 2.1 Strictly increasing series: DECREASE vs PLATEAU trigger different errors
+# 2.1 Strictly increasing series: DECREASE vs PLATEAU
 # -----------------------------------------------------------------------
 
 test_that("SSModelLeadingIndicator: a genuine decrease in the target series is caught by df2ldl's own on-topic message", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
-  lead  <- seq(100, 400, length.out = 50)
+  lead <- seq(100, 400, length.out = 50)
   
   targ <- seq(50, 200, length.out = 50)
   targ[35] <- targ[34] - 1  # genuine decrease, not a plateau
   
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 5, LeadIndCol = 1)
   expect_error(mod$estimate(), "nonpositive increments")
@@ -201,46 +200,44 @@ test_that("SSModelLeadingIndicator: a genuine decrease in the target series is c
 
 test_that("SSModelLeadingIndicator: a decrease in the LEAD series is caught by the same df2ldl message", {
   # Confirms check applies symmetrically to both columns.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
-  targ  <- seq(50, 200, length.out = 50)
+  targ <- seq(50, 200, length.out = 50)
   
   lead <- seq(100, 400, length.out = 50)
   lead[35] <- lead[34] - 1  # genuine decrease in the lead column
   
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 5, LeadIndCol = 1)
   expect_error(mod$estimate(), "nonpositive increments")
 })
 
-test_that("SSModelLeadingIndicator: a plateau (not a decrease) in the target series produces a misleading date-resolution error rather than the strictly-increasing guidance", {
-  # Documents current verified behaviour (plateau trips date-resolution error). 
+test_that("SSModelLeadingIndicator: an exact plateau (not a decrease) in the target series produces an interior-gap error rather than the strictly-increasing message", {
+  # An exact plateau (newTarg == 0) makes LDLtarg = log(0) = -Inf at that
+  # single interior position, which is treated as missing and dropped -
+  # leaving a gap that idx_series cannot represent - rather than tripping
+  # the "> 0" strictly-increasing check (which only sees the surviving,
+  # already-finite rows). This documents the current, verified behaviour.
   n_lag <- 5
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
   lead  <- seq(100, 400, length.out = 50)
   
   targ <- seq(50, 200, length.out = 50)
   targ[35] <- targ[34]  # exact plateau, not a decrease
   
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = n_lag, LeadIndCol = 1)
-  expect_error(mod$estimate(), "not separated by the same time resolution")
+  expect_error(mod$estimate(), "gaps|idx_series cannot represent")
 })
 
 test_that("SSModelLeadingIndicator accepts a jittered version of the same plateaued series", {
   # Positive control: plateaued segment nudged up by epsilon.
   n_lag <- 5
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
   lead  <- seq(100, 400, length.out = 50)
   
   targ <- seq(50, 200, length.out = 50)
   targ[35] <- targ[34] + 1e-6
   
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = n_lag, LeadIndCol = 1)
   expect_no_error(res <- mod$estimate())
@@ -248,31 +245,29 @@ test_that("SSModelLeadingIndicator accepts a jittered version of the same platea
 })
 
 # -----------------------------------------------------------------------
-# 2.2 Date resolution checks during initialization
+# 2.2 Gaps in the position index after trimming missing/infinite values
 # -----------------------------------------------------------------------
 
-test_that("SSModelLeadingIndicator rejects irregular raw dates immediately at construction, before estimate() is ever called", {
-  # Isolate the constructor check: skip one calendar day.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
-  dates <- dates[-25]  # remove one day, creating a single 2-day gap
+test_that("SSModelLeadingIndicator errors when removing missing/infinite values leaves a gap in the position index", {
+  # Deliberately introduce an interior NA in one column so that, after
+  # add_daily_ldl()/idx_lag() trim NAs, the remaining valid positions are
+  # not contiguous -- this can no longer be represented by idx_series.
+  lead <- seq(100, 400, length.out = 50)
+  targ <- seq(50, 200, length.out = 50)
+  targ[25] <- NA
   
-  lead <- seq(100, 400, length.out = 49)
-  targ <- seq(50, 200, length.out = 49)
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   expect_error(
-    SSModelLeadingIndicator$new(Y = Y_li, n.lag = 5, LeadIndCol = 1),
-    "not separated by the same time resolution"
+    SSModelLeadingIndicator$new(Y = Y_li, n.lag = 5, LeadIndCol = 1)$estimate(),
+    "gaps|idx_series cannot represent"
   )
 })
 
-test_that("SSModelLeadingIndicator accepts raw input with fully regular daily dates (paired positive control)", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 50)
+test_that("SSModelLeadingIndicator accepts fully regular, contiguous series (paired positive control)", {
   lead <- seq(100, 400, length.out = 50)
   targ <- seq(50, 200, length.out = 50)
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   expect_no_error(
     mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 5, LeadIndCol = 1)
@@ -286,11 +281,9 @@ test_that("SSModelLeadingIndicator accepts raw input with fully regular daily da
 # -----------------------------------------------------------------------
 
 test_that("SSModelLeadingIndicator accepts n.lag = 0 (contemporaneous alignment, a valid edge case)", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 40)
   lead <- seq(100, 400, length.out = 40)
   targ <- seq(50, 200, length.out = 40)
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 0, LeadIndCol = 1)
   expect_no_error(res <- mod$estimate())
@@ -299,11 +292,9 @@ test_that("SSModelLeadingIndicator accepts n.lag = 0 (contemporaneous alignment,
 
 test_that("SSModelLeadingIndicator does NOT error on a negative n.lag, but silently reverses the intended lead/lag direction", {
   # Documents risk: negative shift reverses alignment rather than throwing error.
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 40)
   lead <- seq(100, 400, length.out = 40)
   targ <- seq(50, 200, length.out = 40)
-  Y_li <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = -3, LeadIndCol = 1)
   expect_no_error(res <- mod$estimate())
@@ -311,11 +302,9 @@ test_that("SSModelLeadingIndicator does NOT error on a negative n.lag, but silen
 })
 
 test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds available data", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 10)
   lead  <- seq(100, 200, length.out = 10)
   targ  <- seq(50, 90, length.out = 10)
-  Y_li  <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y_li) <- c("lead_col", "targ_col")
+  Y_li  <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   mod <- SSModelLeadingIndicator$new(Y = Y_li, n.lag = 20, LeadIndCol = 1)
   result <- tryCatch(mod$estimate(), error = function(e) e)
@@ -328,8 +317,7 @@ test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds 
 # #############################################################################
 
 test_that("sea.period validation is identical and correctly enforced in both model classes", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
-  Y1 <- xts(exp(seq(4, 6, length.out = 30)), order.by = dates)
+  Y1 <- idx_series(exp(seq(4, 6, length.out = 30)), start = 1L)
   
   # Just-outside: 1 is explicitly excluded; negative and non-integer also fail.
   expect_error(SSModelDynamicGompertz$new(Y = Y1, sea.period = 1), "sea.period")
@@ -341,16 +329,14 @@ test_that("sea.period validation is identical and correctly enforced in both mod
   
   lead <- seq(100, 300, length.out = 30)
   targ <- seq(50, 150, length.out = 30)
-  Y2 <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y2) <- c("lead_col", "targ_col")
+  Y2 <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   expect_error(SSModelLeadingIndicator$new(Y = Y2, n.lag = 3, sea.period = 1), "sea.period")
   expect_no_error(SSModelLeadingIndicator$new(Y = Y2, n.lag = 3, sea.period = 0))
 })
 
 test_that("original.results must be NULL or a FilterResults object", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
-  Y <- xts(exp(seq(4, 6, length.out = 30)), order.by = dates)
+  Y <- idx_series(exp(seq(4, 6, length.out = 30)), start = 1L)
   
   expect_error(
     SSModelDynamicGompertz$new(Y = Y, original.results = "not_a_filterresults"),
@@ -359,17 +345,15 @@ test_that("original.results must be NULL or a FilterResults object", {
   expect_no_error(SSModelDynamicGompertz$new(Y = Y, original.results = NULL))
 })
 
-test_that("xpred / xpred_lead / xpred_targ must be NULL or an xts object, in both classes", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
-  Y1 <- xts(exp(seq(4, 6, length.out = 30)), order.by = dates)
+test_that("xpred / xpred_lead / xpred_targ must be NULL or an idx_series object, in both classes", {
+  Y1 <- idx_series(exp(seq(4, 6, length.out = 30)), start = 1L)
   
   expect_error(SSModelDynamicGompertz$new(Y = Y1, xpred = data.frame(x = 1:30)), "xpred")
   expect_no_error(SSModelDynamicGompertz$new(Y = Y1, xpred = NULL))
   
   lead <- seq(100, 300, length.out = 30)
   targ <- seq(50, 150, length.out = 30)
-  Y2 <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y2) <- c("lead_col", "targ_col")
+  Y2 <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   expect_error(
     SSModelLeadingIndicator$new(Y = Y2, n.lag = 3, xpred_lead = data.frame(x = 1:30)),
@@ -382,11 +366,9 @@ test_that("xpred / xpred_lead / xpred_targ must be NULL or an xts object, in bot
 })
 
 test_that("LeadIndCol must take the value 1 or 2, in SSModelLeadingIndicator", {
-  dates <- seq(as.Date("2021-01-01"), by = "day", length.out = 30)
   lead <- seq(100, 300, length.out = 30)
   targ <- seq(50, 150, length.out = 30)
-  Y <- xts(cbind(lead, targ), order.by = dates)
-  colnames(Y) <- c("lead_col", "targ_col")
+  Y <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
   expect_error(SSModelLeadingIndicator$new(Y = Y, n.lag = 3, LeadIndCol = 0), "LeadIndCol")
   expect_error(SSModelLeadingIndicator$new(Y = Y, n.lag = 3, LeadIndCol = 3), "LeadIndCol")
@@ -394,43 +376,42 @@ test_that("LeadIndCol must take the value 1 or 2, in SSModelLeadingIndicator", {
   expect_no_error(SSModelLeadingIndicator$new(Y = Y, n.lag = 3, LeadIndCol = 2))
 })
 
-
-# #############################################################################
-# 4. SHARED UTILITY BOUNDARIES: get_timeframe() and get_time_resolution()
-# #############################################################################
-
-test_that("get_timeframe silently returns a zero-row object when start.date > end.date", {
-  # Risk: No check prevents an empty window from silent downstream propagation.
-  data(gauteng, package = "tsgc")
-  result <- get_timeframe(gauteng, as.Date("2021-06-01"), as.Date("2021-01-01"))
-  expect_equal(nrow(result), 0)
-})
-
-test_that("get_timeframe returns the expected non-empty window when start.date <= end.date (paired positive control)", {
-  data(gauteng, package = "tsgc")
-  result <- get_timeframe(gauteng, as.Date("2021-01-01"), as.Date("2021-01-10"))
-  expect_equal(nrow(result), 10)
-})
-
-test_that("get_time_resolution errors cleanly with fewer than two distinct dates", {
-  # Expecting "Input must contain at least two distinct dates."
+test_that("calendar must be NULL or an idx_calendar object, in both classes", {
+  Y1 <- idx_series(exp(seq(4, 6, length.out = 30)), start = 1L)
+  
+  expect_error(SSModelDynamicGompertz$new(Y = Y1, calendar = "not_a_calendar"), "calendar")
+  expect_no_error(SSModelDynamicGompertz$new(Y = Y1, calendar = NULL))
+  
+  lead <- seq(100, 300, length.out = 30)
+  targ <- seq(50, 150, length.out = 30)
+  Y2 <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
+  
   expect_error(
-    get_time_resolution(as.Date("2021-01-01")),
-    "at least two distinct dates|not a vector of dates"
-  )
-  # Identical dates collapse after unique().
-  expect_error(
-    get_time_resolution(as.Date(c("2021-01-01", "2021-01-01"))),
-    "at least two distinct dates|not a vector of dates"
+    SSModelLeadingIndicator$new(Y = Y2, n.lag = 3, calendar = "not_a_calendar"),
+    "calendar"
   )
 })
 
-test_that("get_time_resolution succeeds with exactly two distinct, regularly-spaced dates (paired positive control)", {
-  result <- get_time_resolution(as.Date(c("2021-01-01", "2021-01-02")))
-  expect_equal(result, "daily")
+
+# #############################################################################
+# 4. SHARED UTILITY BOUNDARIES: get_timeframe()
+# #############################################################################
+
+test_that("get_timeframe errors when start > end (both fall within the available range)", {
+  # Unlike the old xts version, an out-of-order but in-range start/end
+  # is now caught explicitly rather than silently returning zero rows.
+  x <- idx_series(1:20, start = 1L)
+  expect_error(get_timeframe(x, 15, 5), "start is after end")
 })
 
-test_that("get_time_resolution errors on irregularly-spaced dates", {
-  irregular <- as.Date(c("2021-01-01", "2021-01-02", "2021-01-05"))
-  expect_error(get_time_resolution(irregular), "not separated by the same time resolution")
+test_that("get_timeframe returns the expected non-empty window when start <= end (paired positive control)", {
+  x <- idx_series(1:20, start = 1L)
+  result <- get_timeframe(x, 1, 10)
+  expect_equal(length(result), 10)
+})
+
+test_that("get_timeframe clamps to the available range rather than erroring when start/end extend beyond it", {
+  x <- idx_series(1:20, start = 1L)
+  result <- get_timeframe(x, -10, 100)
+  expect_equal(length(result), 20)
 })

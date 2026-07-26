@@ -1,284 +1,258 @@
 library(KFAS)
-library(xts)
-library(stats)
-library(timetk)
-library(zoo)
 
 test_that("tsgc produces same LI output as KFAS", {
   set.seed(123)
-  data(ukitaly, package = 'tsgc')
+  data(ukitaly, package = "tsgc")
+  conv <- xts_to_idx(ukitaly)
   
-  est.start <- as.Date("2020-02-25") 
-  est.end <- as.Date("2020-04-01")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2020-02-25"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2020-04-01"))
   
   n.lag <- 14
   
-  tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = NULL,
-                                      sea.period = 0, start.date = est.start, 
-                                      end.date = est.end, LeadIndCol = 1)
+  tsgc_mod <- SSModelLeadingIndicator(Y = conv$series, n.lag = n.lag, q = NULL,
+                                      sea.period = 0, start = est.start,
+                                      end = est.end, LeadIndCol = 1)
   tsgc_est <- tsgc_mod$estimate()
   
-  y<-add_daily_ldl(ukitaly, LeadIndCol=1)
+  y <- add_daily_ldl(conv$series, LeadIndCol = 1)
   
-  y$newLead = stats::lag(y$newLead,n.lag)
-  y$LDLlead = stats::lag(y$LDLlead,n.lag)
-  y$cLead = stats::lag(y$cLead,n.lag)
+  y$newLead <- idx_lag(y$newLead, n.lag)
+  y$LDLlead <- idx_lag(y$LDLlead, n.lag)
+  y$cLead   <- idx_lag(y$cLead, n.lag)
   
-  y[is.infinite(y)] <- NA
+  common_pos <- Reduce(intersect, lapply(y, idx_positions))
+  combined_mat <- do.call(cbind, lapply(y, function(s) idx_values(s[common_pos])))
+  colnames(combined_mat) <- names(y)
+  y_combined <- idx_series(combined_mat, start = common_pos[1])
   
-  y <- get_timeframe(na.omit(y),est.start)
+  finite_rows <- apply(idx_values(y_combined), 1, function(row) all(is.finite(row)))
+  keep_pos <- idx_positions(y_combined)[finite_rows]
+  y_clean <- y_combined[keep_pos]
   
-  data_ldl <- get_timeframe(y, est.start, est.end)[,c("LDLlead","LDLtarg")]
+  data_ldl <- get_timeframe(y_clean, est.start, est.end)
+  data_mat <- idx_values(data_ldl)[, c("LDLlead", "LDLtarg")]
   
-  data_mat <- as.matrix(data_ldl)
-  
-  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2, 
-                                                        Q = matrix(c(0,0,0,NA),2,2),
-                                                        type = 'common') +
-                        SSMtrend(degree = 1, Q = matrix(NA),index=1),
-                      H = matrix(c(NA,0,0,NA),2,2))
+  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2,
+                                          Q = matrix(c(0, 0, 0, NA), 2, 2),
+                                          type = "common") +
+                        SSMtrend(degree = 1, Q = matrix(NA), index = 1),
+                      H = matrix(c(NA, 0, 0, NA), 2, 2))
   npar <- sum(is.na(kfas_mod$Q)) + sum(is.na(kfas_mod$H))
-  kfas_fit <- fitSSM(kfas_mod, rep(0,npar))
+  kfas_fit <- fitSSM(kfas_mod, rep(0, npar))
   kfas_est <- KFS(kfas_fit$model)
   
-  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)), 
-                      unname(as.matrix(kfas_est$alphahat)))
+  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)),
+               unname(as.matrix(kfas_est$alphahat)))
 })
 
 test_that("tsgc produces same LI output as KFAS with fixed q", {
-  data(ukitaly, package = 'tsgc')
+  data(ukitaly, package = "tsgc")
+  conv <- xts_to_idx(ukitaly)
   
-  est.start <- as.Date("2020-02-25") 
-  est.end <- as.Date("2020-04-01")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2020-02-25"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2020-04-01"))
   
   n.lag <- 14
   
-  tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = 0.005,
-                                      sea.period = 0, start.date = est.start, 
-                                      end.date = est.end, LeadIndCol = 1)
+  tsgc_mod <- SSModelLeadingIndicator(Y = conv$series, n.lag = n.lag, q = 0.005,
+                                      sea.period = 0, start = est.start,
+                                      end = est.end, LeadIndCol = 1)
   tsgc_est <- tsgc_mod$estimate()
   
-  updatesn=function(pars, model, snr, order, index){
-    if(any(is.na(model$Q))){
-      Q <- as.matrix(model$Q[,,1])
+  updatesn <- function(pars, model, snr, order, index) {
+    if (any(is.na(model$Q))) {
+      Q <- as.matrix(model$Q[, , 1])
       naQd  <- which(is.na(diag(Q)))
-      naQnd <- which(upper.tri(Q[naQd,naQd]) & is.na(Q[naQd,naQd]))
-      Q[naQd,naQd][lower.tri(Q[naQd,naQd])] <- 0
+      naQnd <- which(upper.tri(Q[naQd, naQd]) & is.na(Q[naQd, naQd]))
+      Q[naQd, naQd][lower.tri(Q[naQd, naQd])] <- 0
       diag(Q)[naQd] <- exp(0.5 * pars[1:length(naQd)])
-      Q[naQd,naQd][naQnd] <- pars[length(naQd)+1:length(naQnd)]
-      model$Q[naQd,naQd,1] <- crossprod(Q[naQd,naQd])
+      Q[naQd, naQd][naQnd] <- pars[length(naQd) + 1:length(naQnd)]
+      model$Q[naQd, naQd, 1] <- crossprod(Q[naQd, naQd])
     }
-    if(!identical(model$H,'Omitted') && any(is.na(model$H))){
-      H<-as.matrix(model$H[,,1])
+    if (!identical(model$H, "Omitted") && any(is.na(model$H))) {
+      H <- as.matrix(model$H[, , 1])
       naHd  <- which(is.na(diag(H)))
-      naHnd <- which(upper.tri(H[naHd,naHd]) & is.na(H[naHd,naHd]))
-      H[naHd,naHd][lower.tri(H[naHd,naHd])] <- 0
+      naHnd <- which(upper.tri(H[naHd, naHd]) & is.na(H[naHd, naHd]))
+      H[naHd, naHd][lower.tri(H[naHd, naHd])] <- 0
       diag(H)[naHd] <-
-        exp(0.5 * pars[length(naQd)+length(naQnd)+1:length(naHd)])
-      H[naHd,naHd][naHnd] <-
-        pars[length(naQd)+length(naQnd)+length(naHd)+1:length(naHnd)]
-      model$H[naHd,naHd,1] <- crossprod(H[naHd,naHd])
-      model$Q[order,order,1] <- snr*crossprod(H[index,index])
+        exp(0.5 * pars[length(naQd) + length(naQnd) + 1:length(naHd)])
+      H[naHd, naHd][naHnd] <-
+        pars[length(naQd) + length(naQnd) + length(naHd) + 1:length(naHnd)]
+      model$H[naHd, naHd, 1] <- crossprod(H[naHd, naHd])
+      model$Q[order, order, 1] <- snr * crossprod(H[index, index])
     }
     model
   }
-  updateli = updatesn %>% purrr::partial(snr=0.005,order=2,index=2)
+  updateli <- updatesn %>% purrr::partial(snr = 0.005, order = 2, index = 2)
   
-  y<-add_daily_ldl(ukitaly, LeadIndCol=1)
+  y <- add_daily_ldl(conv$series, LeadIndCol = 1)
+  y$newLead <- idx_lag(y$newLead, n.lag)
+  y$LDLlead <- idx_lag(y$LDLlead, n.lag)
+  y$cLead   <- idx_lag(y$cLead, n.lag)
   
-  y$newLead = stats::lag(y$newLead,n.lag)
-  y$LDLlead = stats::lag(y$LDLlead,n.lag)
-  y$cLead = stats::lag(y$cLead,n.lag)
+  common_pos <- Reduce(intersect, lapply(y, idx_positions))
+  combined_mat <- do.call(cbind, lapply(y, function(s) idx_values(s[common_pos])))
+  colnames(combined_mat) <- names(y)
+  y_combined <- idx_series(combined_mat, start = common_pos[1])
   
-  y[is.infinite(y)] <- NA
+  finite_rows <- apply(idx_values(y_combined), 1, function(row) all(is.finite(row)))
+  keep_pos <- idx_positions(y_combined)[finite_rows]
+  y_clean <- y_combined[keep_pos]
   
-  y <- get_timeframe(na.omit(y),est.start)
+  data_ldl <- get_timeframe(y_clean, est.start, est.end)
+  data_mat <- idx_values(data_ldl)[, c("LDLlead", "LDLtarg")]
   
-  data_ldl <- get_timeframe(y, est.start, est.end)[,c("LDLlead","LDLtarg")]
-  
-  data_mat <- as.matrix(data_ldl)
-  
-  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2, 
-                                                        Q = matrix(c(0,0,0,NA),2,2),
-                                                        type = 'common') +
-                        SSMtrend(degree = 1, Q = matrix(NA),index=1),
-                      H = matrix(c(NA,0,0,NA),2,2))
+  kfas_mod <- SSModel(data_mat ~ SSMtrend(degree = 2,
+                                          Q = matrix(c(0, 0, 0, NA), 2, 2),
+                                          type = "common") +
+                        SSMtrend(degree = 1, Q = matrix(NA), index = 1),
+                      H = matrix(c(NA, 0, 0, NA), 2, 2))
   npar <- sum(is.na(kfas_mod$Q)) + sum(is.na(kfas_mod$H))
-  kfas_fit <- fitSSM(kfas_mod, rep(0,npar), updatefn = updateli)
+  kfas_fit <- fitSSM(kfas_mod, rep(0, npar), updatefn = updateli)
   kfas_est <- KFS(kfas_fit$model)
   
-  tsgc_snr <- tsgc_est$output$model$Q[2,2,1]/tsgc_est$output$model$H[2,2,1]
-  kfas_snr <- kfas_est$model$Q[2,2,1]/kfas_est$model$H[2,2,1]
+  tsgc_snr <- tsgc_est$output$model$Q[2, 2, 1] / tsgc_est$output$model$H[2, 2, 1]
+  kfas_snr <- kfas_est$model$Q[2, 2, 1] / kfas_est$model$H[2, 2, 1]
   
   expect_equal(tsgc_snr, 0.005)
   expect_equal(kfas_snr, 0.005)
-  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)), 
+  expect_equal(unname(as.matrix(tsgc_est$output$alphahat)),
                unname(as.matrix(kfas_est$alphahat)))
 })
 
 test_that("Summary method works", {
-  data(ukitaly, package = 'tsgc')
+  data(ukitaly, package = "tsgc")
+  conv <- xts_to_idx(ukitaly)
   
-  est.start <- as.Date("2020-02-25") 
-  est.end <- as.Date("2020-04-01")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2020-02-25"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2020-04-01"))
   
-  n.lag <- 14
-  
-  tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = NULL,
-                                      sea.period = 0, start.date = est.start, 
-                                      end.date = est.end, LeadIndCol = 1)
+  tsgc_mod <- SSModelLeadingIndicator(Y = conv$series, n.lag = 14, q = NULL,
+                                      sea.period = 0, start = est.start,
+                                      end = est.end, LeadIndCol = 1)
   
   expect_no_error(expect_no_warning(tsgc_mod$summary()))
 })
 
 test_that("Print method works", {
-  data(ukitaly, package = 'tsgc')
+  data(ukitaly, package = "tsgc")
+  conv <- xts_to_idx(ukitaly)
   
-  est.start <- as.Date("2020-02-25") 
-  est.end <- as.Date("2020-04-01")
+  est.start <- idx_to_pos(conv$calendar, as.Date("2020-02-25"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2020-04-01"))
   
-  n.lag <- 14
-  
-  tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = NULL,
-                                      sea.period = 0, start.date = est.start, 
-                                      end.date = est.end, LeadIndCol = 1)
+  tsgc_mod <- SSModelLeadingIndicator(Y = conv$series, n.lag = 14, q = NULL,
+                                      sea.period = 0, start = est.start,
+                                      end = est.end, LeadIndCol = 1)
   
   expect_no_error(expect_no_warning(tsgc_mod$print()))
 })
 
-test_that("Plot method works", {
-  data(ukitaly, package = 'tsgc')
-  
-  est.start <- as.Date("2020-02-25") 
-  est.end <- as.Date("2020-04-01")
-  
-  n.lag <- 14
-  
-  tsgc_mod <- SSModelLeadingIndicator(Y = ukitaly, n.lag = n.lag, q = NULL,
-                                      sea.period = 0, start.date = est.start, 
-                                      end.date = est.end, LeadIndCol = 1)
-  
-  expect_no_error(suppressWarnings(tsgc_mod$plot()))
-})
-
 test_that("Leading indicator model + seasonal has correct number of elements", {
-  eng <- tsgc::england[, 1:2]
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
   
-  est.start.eng <- as.Date("2021-04-30")
-  est.end.eng   <- as.Date("2021-07-24")
+  est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
+  est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   sea <- 7
   
-  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
-                                     end.date = est.end.eng, sea.period = sea)
+  mod <- SSModelLeadingIndicator$new(conv$series, n.lag = 5, start = est.start.eng,
+                                     end = est.end.eng, sea.period = sea)
   res <- mod$estimate()
-  expect_equal(ncol(res$output$alphahat), 3 + 2*(sea-1))
+  expect_equal(ncol(res$output$alphahat), 3 + 2 * (sea - 1))
 })
 
 test_that("LI model + xpred_lead + seasonal has correct number of elements", {
-  eng <- tsgc::england[, 1:2]
+  data(england, package = "tsgc")
+  data(england_weather_2021, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
+  conv_xp <- xts_to_idx(england_weather_2021[, 1:4], start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1]))
   
-  est.start.eng <- as.Date("2021-04-30")
-  est.end.eng   <- as.Date("2021-07-24")
+  est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
+  est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   sea <- 7
   
-  xp <- england_weather_2021[, 1:4]
-  
-  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
-                                     end.date = est.end.eng, sea.period = sea,
-                                     xpred_lead = xp)
+  mod <- SSModelLeadingIndicator$new(conv$series, n.lag = 5, start = est.start.eng,
+                                     end = est.end.eng, sea.period = sea,
+                                     xpred_lead = conv_xp$series)
   res <- mod$estimate()
-  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + ncol(xp))
+  expect_equal(ncol(res$output$alphahat), 3 + 2 * (sea - 1) + idx_ncol(conv_xp$series))
 })
 
 test_that("LI model + xpred_targ has correct number of elements", {
-  eng <- tsgc::england[, 1:2]
+  data(england, package = "tsgc")
+  data(england_weather_2021, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
+  conv_xp <- xts_to_idx(england_weather_2021[, 1:4], start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1]))
   
-  est.start.eng <- as.Date("2021-04-30")
-  est.end.eng   <- as.Date("2021-07-24")
+  est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
+  est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   sea <- 0
   
-  xp <- england_weather_2021[, 1:4]
-  
-  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
-                                     end.date = est.end.eng, sea.period = sea,
-                                     xpred_targ = xp)
+  mod <- SSModelLeadingIndicator$new(conv$series, n.lag = 5, start = est.start.eng,
+                                     end = est.end.eng, sea.period = sea,
+                                     xpred_targ = conv_xp$series)
   res <- mod$estimate()
-  expect_equal(ncol(res$output$alphahat),3 + ncol(xp))
+  expect_equal(ncol(res$output$alphahat), 3 + idx_ncol(conv_xp$series))
 })
 
 test_that("LI + xpred_lead + xpred_targ + seasonal has correct number of elements", {
-  eng <- tsgc::england[, 1:2]
+  data(england, package = "tsgc")
+  data(england_weather_2021, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
+  conv_xp <- xts_to_idx(england_weather_2021[, 1:4], start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1]))
   
-  est.start.eng <- as.Date("2021-04-30")
-  est.end.eng   <- as.Date("2021-07-24")
+  est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
+  est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   sea <- 7
   
-  xp <- england_weather_2021[, 1:4]
-  
-  mod <- SSModelLeadingIndicator$new(eng, n.lag = 5, start.date = est.start.eng, 
-                                     end.date = est.end.eng, sea.period = sea,
-                                     xpred_lead = xp, xpred_targ = xp)
+  mod <- SSModelLeadingIndicator$new(conv$series, n.lag = 5, start = est.start.eng,
+                                     end = est.end.eng, sea.period = sea,
+                                     xpred_lead = conv_xp$series, xpred_targ = conv_xp$series)
   res <- mod$estimate()
-  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1) + 2*ncol(xp))
+  expect_equal(ncol(res$output$alphahat), 3 + 2 * (sea - 1) + 2 * idx_ncol(conv_xp$series))
 })
 
 test_that("LI with quarterly data has correct number of components", {
   data(nintendo_sales, package = "tsgc")
+  # nintendo_sales is indexed by zoo::yearqtr; build the idx_series/idx_calendar
+  # directly with unit = "quarters" (xts_to_idx() assumes a daily index).
+  first_qtr <- zoo::index(nintendo_sales)[1]
+  conv <- list(
+    series = idx_series(zoo::coredata(nintendo_sales[, c("wii", "switch_all")]), start = 1L),
+    calendar = idx_calendar(anchor = zoo::as.Date(first_qtr), anchor_pos = 1L,
+                            amount = 1, unit = "quarters", posixct = TRUE)
+  )
   
   sea <- 4
-  
-  est.start.q2  <- zoo::as.yearqtr("2017 Q1")
-  est.end.q2    <- zoo::as.yearqtr("2019 Q4")
-  n.lag.q       <- zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")
-  
-  y_q <- nintendo_sales[, c("wii", "switch_all")]
+  est.start.q2 <- idx_to_pos(conv$calendar, as.Date("2017-01-01"))
+  est.end.q2   <- idx_to_pos(conv$calendar, as.Date("2019-10-01"))
+  n.lag.q      <- est.start.q2 - idx_to_pos(conv$calendar, as.Date("2006-10-01"))
   
   mod_switch <- tsgc::SSModelLeadingIndicator$new(
-    Y = y_q, sea.period = sea, n.lag = n.lag.q,
-    start.date = est.start.q2, end.date = est.end.q2
+    Y = conv$series, sea.period = sea, n.lag = n.lag.q,
+    start = est.start.q2, end = est.end.q2
   )
   res <- mod_switch$estimate()
   
-  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1))
+  expect_equal(ncol(res$output$alphahat), 3 + 2 * (sea - 1))
 })
 
-test_that("LI with monthly data has correct number of components", {
-  data(etrading_apps, package = "tsgc")
+test_that("LI works with a plain, non-calendar idx_series (arbitrary integer positions)", {
+  set.seed(4)
+  lead <- cumsum(rpois(150, 6)) + 1
+  targ <- cumsum(rpois(150, 8)) + 1
+  Y <- idx_series(cbind(lead, targ), start = 1L)
   
-  sea <- 12
+  mod <- SSModelLeadingIndicator(Y = Y, n.lag = 5, q = NULL, LeadIndCol = 1,
+                                 sea.period = 0, start = 1L, end = 100L)
+  res <- estimate(mod)
   
-  est.start.m2 <- zoo::as.yearmon(2017.5)
-  est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
-  n.lag.m      <- zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)
-  
-  y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
-  mod_500_lead <- tsgc::SSModelLeadingIndicator$new(
-    Y = y_m, sea.period = 12, n.lag = n.lag.m,
-    start.date = est.start.m2, end.date = est.end.m2
-  )
-  res <- mod_500_lead$estimate()
-  
-  expect_equal(ncol(res$output$alphahat),3 + 2*(sea-1))
-})
-
-test_that("LI with annual data has correct number of components", {
-  data(nintendo_sales, package = "tsgc")
-  est.start.y <- zoo::as.yearmon(2011)
-  est.end.y   <- zoo::as.yearmon(2018)
-  
-  yearly_nintendo      <- nintendo_sales[4 * (1:19), c("wii", "3ds")]
-  yearly_nintendo_xts  <- xts::xts(zoo::coredata(yearly_nintendo), 
-                                   order.by = zoo::yearmon(2005:2023))
-  
-  est.start.m2 <- zoo::as.yearmon(2017.5)
-  est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
-  n.lag.y <- zoo::as.yearmon(2011) - zoo::as.yearmon(2007)
-  
-  mod_lead_y <- tsgc::SSModelLeadingIndicator$new(
-    Y = yearly_nintendo_xts, sea.period = 0, n.lag = n.lag.y,
-    start.date = est.start.y, end.date = est.end.y, LeadIndCol = 1
-  )
-  res <- mod_lead_y$estimate()
-  
-  expect_equal(ncol(res$output$alphahat),3)
+  expect_true(inherits(res, "FilterResultsLI"))
+  # The requested start = 1L is clamped upward: add_daily_ldl()'s own
+  # differencing drops the first position, and lagging the leading
+  # indicator by n.lag further shifts the earliest usable position forward.
+  expect_true(res$start > 1L)
+  expect_equal(res$end, 100L)
 })

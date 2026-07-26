@@ -1,338 +1,270 @@
-test_that("df2ldl produces expected numerical outout", {
-  data(england, package = 'tsgc')
-  lng <- df2ldl(england$cum_cases[1:10])
-  x <- as.numeric(lng[2])
-  expect_equal(x,log((7915-6877)/6877))
+test_that("xts_to_idx converts a daily xts object to an idx_series + idx_calendar", {
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england$cum_cases)
+  
+  expect_true(is_idx_series(conv$series))
+  expect_true(is_idx_calendar(conv$calendar))
+  expect_equal(as.numeric(idx_values(conv$series)), as.numeric(zoo::coredata(england$cum_cases)))
+  expect_equal(conv$calendar$anchor, zoo::index(england$cum_cases)[1])
 })
 
-test_that("df2ldl returns xts object", {
-  data(england, package = 'tsgc')
-  lng <- df2ldl(england$cum_cases[1:10])
-  expect_s3_class(lng,"xts")
+test_that("xts_to_idx honours a custom start.pos for alignment", {
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england$cum_cases, start.pos = 100L)
+  expect_equal(conv$series$start, 100L)
+  expect_equal(conv$calendar$anchor_pos, 100L)
 })
 
-test_that("get_timeframe works correctly", {
-  data(england, package = 'tsgc')
-  x <- get_timeframe(england, as.Date('2020-03-20'), as.Date('2020-03-29'))
-  y <- head(england,10)
-  expect_equal(x,y)
+test_that("df2ldl produces expected numerical output", {
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england$cum_cases)
+  x10 <- get_timeframe(conv$series, conv$series$start, conv$series$start + 9)
+  lng <- df2ldl(x10)
+  expect_equal(idx_values(lng)[2], log((7915 - 6877) / 6877))
 })
 
-test_that("reinitialise_dataframe works correctly", {
-  data(england, package = 'tsgc')
-  reinit <- reinitialise_dataframe(england$cum_cases,as.Date('2022-03-14'))
-  x <- as.numeric(reinit[1,1])
-  expect_equal(x,79242)
+test_that("df2ldl returns an idx_series with a leading NA and errors on bad input", {
+  x <- idx_series(cumsum(1:10) + 1, start = 1L)
+  lng <- df2ldl(x)
+  expect_true(is_idx_series(lng))
+  expect_true(is.na(idx_values(lng)[1]))
+  expect_equal(length(lng), length(x))
+  
+  expect_error(df2ldl(1:10), "idx_series")
+  expect_error(df2ldl(idx_series(matrix(1:10, ncol = 2))), "1 data column")
 })
 
-test_that("argmax returns expected output", {
-  x <- xts::xts(1:10, order.by = seq(as.Date("2021-01-01"),
-                                     length.out = 10, by = 1))
-  x[5,] <- 20
-  expect_identical(str(zoo::index(argmax(x))), str(zoo::index(x)[5]))
-  expect_identical(
-    str(zoo::index(argmax(x, decreasing = FALSE))),
-    str(zoo::index(x)[1])
-  )
+test_that("df2ldl errors on negative levels or genuinely negative increments", {
+  x_neg <- idx_series(c(10, -5, 20, 30), start = 1L)
+  expect_error(df2ldl(x_neg), "negative")
+  
+  # A genuine decrease (negative increment) is caught explicitly.
+  x_dec <- idx_series(c(10, 20, 15, 30), start = 1L)
+  expect_error(df2ldl(x_dec), "nonpositive increments")
 })
 
-test_that("estimate_r0 returns correct data frame structure", {
+test_that("df2ldl does not error on an exact plateau (zero increment), but produces -Inf at that position", {
+  # The increment check in df2ldl only rejects strictly negative increments
+  # (idx_values(d) < 0); a zero increment passes it and instead surfaces as
+  # log(0 / lag) = -Inf downstream, since it isn't itself an invalid input.
+  x_flat <- idx_series(c(10, 20, 20, 30), start = 1L)
+  ldl <- df2ldl(x_flat)
+  expect_true(is.infinite(idx_values(ldl)[3]) && idx_values(ldl)[3] < 0)
+})
+
+test_that("get_timeframe subsets an idx_series by integer position range", {
+  x <- idx_series(1:30, start = 1L)
+  sub <- get_timeframe(x, 5, 10)
+  expect_equal(idx_values(sub), 5:10)
+  expect_equal(sub$start, 5L)
+})
+
+test_that("get_timeframe defaults end to the last position in df", {
+  x <- idx_series(1:30, start = 1L)
+  sub <- get_timeframe(x, 25)
+  expect_equal(idx_values(sub), 25:30)
+})
+
+test_that("get_timeframe clamps start/end to the available range of df", {
+  x <- idx_series(1:10, start = 1L)
+  sub <- get_timeframe(x, -5, 20)
+  expect_equal(idx_values(sub), 1:10)
+})
+
+test_that("get_timeframe errors when start is after end within the available range", {
+  x <- idx_series(1:10, start = 1L)
+  expect_error(get_timeframe(x, 9, 3), "start is after end")
+})
+
+test_that("get_timeframe returns NULL when df is NULL, and errors on non-idx_series input", {
+  expect_null(get_timeframe(NULL, 1, 10))
+  expect_error(get_timeframe(1:10, 1, 10), "idx_series")
+})
+
+test_that("reinitialise_dataframe rebases a series relative to the value just before reinit.idx", {
+  x <- idx_series(c(100, 110, 125, 140, 160), start = 1L)
+  reinit <- reinitialise_dataframe(x, 3L)
+  expect_equal(reinit$start, 3L)
+  # reinit.idx itself is included in the output, rebased relative to the
+  # value at reinit.idx - 1 (not to itself), so it is not necessarily zero.
+  expect_equal(idx_values(reinit), idx_values(x)[3:5] - idx_values(x)[2])
+  expect_equal(idx_values(reinit)[1], 15)
+})
+
+test_that("reinitialise_dataframe errors when reinit.idx is out of range or has no preceding value", {
+  x <- idx_series(1:10, start = 1L)
+  expect_error(reinitialise_dataframe(x, 1L), "not present")
+  expect_error(reinitialise_dataframe(x, 15L), "not present")
+})
+
+test_that("argmax returns expected output for an idx_series", {
+  x <- idx_series(c(1, 2, 20, 3, 4), start = 1L)
+  mx <- argmax(x)
+  expect_true(is_idx_series(mx))
+  expect_equal(idx_values(mx), 20)
+  expect_equal(mx$start, 3L)
+  
+  mn <- argmax(x, decreasing = FALSE)
+  expect_equal(idx_values(mn), 1)
+  expect_equal(mn$start, 1L)
+})
+
+test_that("argmax returns expected output for a plain numeric vector", {
+  x <- c(5, 1, 9, 3)
+  expect_equal(argmax(x), 9)
+  expect_equal(argmax(x, decreasing = FALSE), 1)
+})
+
+test_that("mapes works and returns five named error metrics", {
   data(gauteng, package = "tsgc")
-  cumulative_cases <- gauteng[, 1]
-  gen_int <- 4
-  ndays <- 7
+  conv <- xts_to_idx(gauteng)
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
   
-  # Estimate model
-  model_q <- SSModelDynamicGompertz$new(
-    Y = cumulative_cases,
-    q = 0.005,
-    start.date = as.Date("2021-02-01"),
-    end.date = as.Date("2021-04-19")
+  model <- SSModelDynamicGompertz$new(
+    Y = conv$series, q = 0.005,
+    start = est.start, end = est.end
   )
-  res_q <- estimate(model_q)
-  # Call the function for data frame output
-  r_t_df <- estimate_r0(res_q, gen_int, ndays, show_plot = FALSE)
+  res <- estimate(model)
   
-  # Check the class and dimensions
-  expect_s3_class(r_t_df, "data.frame")
-  expect_equal(nrow(r_t_df), ndays)
-  expect_equal(ncol(r_t_df), 4)
+  error_metrics <- mapes(res, n.ahead = 7, Y = conv$series)
   
-  # Check column names
-  expected_names <- c("Date", "Rt", "lower", "upper")
-  expect_equal(names(r_t_df), expected_names)
-  
-  # Check column types
-  expect_s3_class(r_t_df$Date, "Date")
-  expect_type(r_t_df$Rt, "double")
-  expect_type(r_t_df$lower, "double")
-  expect_type(r_t_df$upper, "double")
-  
-  # Check logical constraint: lower <= Rt <= upper
-  expect_true(all(r_t_df$lower <= r_t_df$Rt))
-  expect_true(all(r_t_df$Rt <= r_t_df$upper))
-})
-
-test_that("estimate_r0 returns a ggplot object when show_plot is TRUE", {
-  data(gauteng, package = "tsgc")
-  cumulative_cases <- gauteng[, 1]
-  gen_int <- 4
-  ndays <- 7
-  
-  # Estimate model
-  model_q <- SSModelDynamicGompertz$new(
-    Y = cumulative_cases,
-    q = 0.005,
-    start.date = as.Date("2021-02-01"),
-    end.date = as.Date("2021-04-19")
-  )
-  res_q <- estimate(model_q)
-  
-  # Call the function for plot output
-  r_t_plot <- estimate_r0(res_q, gen_int, ndays, show_plot = TRUE)
-  
-  # Check the class of the returned object
-  expect_s3_class(r_t_plot, "ggplot")
-})
-
-test_that("get_time_resolution handles invalid inputs correctly", {
-  # Not a vector of dates (length > 1)
-  expect_error(get_time_resolution(1:5), "Input is not a vector of dates.")
-  # Single date
-  expect_error(get_time_resolution(Sys.Date()), "Input is not a vector of dates.")
-  # Dates with unequal time separation
-  dates_unequal <- as.Date(c("2024-01-01", "2024-01-03", "2024-01-07"))
-  expect_error(get_time_resolution(dates_unequal), "The dates are not separated by the same time resolution.")
-})
-
-test_that("get_time_resolution identifies daily resolution", {
-  daily_dates <- seq(as.Date("2024-01-01"), by = "day", length.out = 5)
-  expect_equal(get_time_resolution(daily_dates), "daily")
-})
-
-test_that("get_time_resolution identifies monthly resolution", {
-  monthly_dates <- seq(as.yearmon("2024-01"), by = 1/12, length.out = 4)
-  expect_equal(get_time_resolution(monthly_dates), "monthly")
-})
-
-test_that("get_time_resolution identifies quarterly resolution", {
-  quarterly_dates <- seq(as.yearqtr("2024-01"), by = 0.25, length.out = 4)
-  expect_equal(get_time_resolution(quarterly_dates), "quarterly")
-})
-
-test_that("get_time_resolution identifies yearly resolution (yearmon)", {
-  yearly_mon_dates <- seq(as.yearmon("2024-01"), by = 1, length.out = 3)
-  expect_equal(get_time_resolution(yearly_mon_dates), "yearly")
-})
-
-test_that("get_time_resolution identifies yearly resolution (yearqtr)", {
-  yearly_qtr_dates <- seq(as.yearqtr("2024-01"), by = 1, length.out = 3)
-  expect_equal(get_time_resolution(yearly_qtr_dates), "yearly")
-})
-
-test_that("qtr2date correctly converts yearqtr to Date", {
-  # Input: Single yearqtr object
-  qtr_date <- zoo::yearqtr(2024.25) # Q2 2024
-  expected_date <- as.Date("2024-04-01") # First day of Q2
-  converted_date <- qtr2date(qtr_date)
-  
-  expect_s3_class(converted_date, "Date")
-  expect_equal(converted_date, expected_date)
-  
-  # Input: Multiple yearqtr objects
-  multi_qtr_dates <- c(zoo::yearqtr(2020.0), zoo::yearqtr(2020.5)) # Q1, Q3 2020
-  expected_dates <- as.Date(c("2020-01-01", "2020-07-01"))
-  expect_equal(qtr2date(multi_qtr_dates), expected_dates)
-})
-
-test_that("qtr2date correctly converts yearmon to Date", {
-  # Input: Multiple yearmon objects
-  mon_dates <- zoo::yearmon(c(2024 + 5/12, 2024 + 8/12)) # June, September 2024
-  expected_dates <- as.Date(c("2024-06-01", "2024-09-01"))
-  converted_dates <- qtr2date(mon_dates)
-  
-  expect_s3_class(converted_dates, "Date")
-  expect_equal(converted_dates, expected_dates)
-})
-
-test_that("seq_dates handles input constraints correctly", {
-  from_date <- as.Date("2025-01-01")
-  
-  # Constraint 1: Both 'length.out' and 'to' cannot be empty
-  expect_error(seq_dates(from_date, "daily"), "Both length.out and to inputs cannot be empty.")
-  
-  # Constraint 2: Only one of 'length.out' or 'to' can be supplied
-  to_date <- as.Date("2025-01-05")
-  expect_error(seq_dates(from_date, "daily", to = to_date, length.out = 5), "Please supply only one of length.out or to.")
-})
-
-test_that("seq_dates generates daily sequences correctly", {
-  from_date <- as.Date("2025-01-01")
-  
-  # Scenario 1: Using length.out
-  expected_len <- seq(from_date, by = 'day', length.out = 5)
-  expect_equal(seq_dates(from_date, "daily", length.out = 5), expected_len)
-  
-  # Scenario 2: Using 'to'
-  to_date <- as.Date("2025-01-05")
-  expected_to <- seq(from_date, to_date, by = 'day')
-  expect_equal(seq_dates(from_date, "daily", to = to_date), expected_to)
-})
-
-test_that("seq_dates generates quarterly sequences correctly", {
-  from_qtr <- zoo::as.yearqtr("2024-01-01") # Q1 2024
-  
-  # Scenario 1: Using length.out
-  expected_len <- zoo::as.yearqtr(seq(as.numeric(from_qtr), by = 0.25, length.out = 3))
-  expect_equal(seq_dates(from_qtr, "quarterly", length.out = 3), expected_len)
-  
-  # Scenario 2: Using 'to'
-  to_qtr <- zoo::as.yearqtr(as.Date("2024-07-01")) # Q3 2024
-  expected_to <- zoo::as.yearqtr(seq(as.numeric(from_qtr), as.numeric(to_qtr), by = 0.25))
-  expect_equal(seq_dates(from_qtr, "quarterly", to = to_qtr), expected_to)
-})
-
-test_that("seq_dates generates monthly sequences correctly", {
-  from_mon <- zoo::as.yearmon("2025-03")
-  
-  # Scenario 1: Using length.out
-  expected_len <- zoo::as.yearmon(seq(as.numeric(from_mon), by = 1/12, length.out = 4))
-  expect_equal(seq_dates(from_mon, "monthly", length.out = 4), expected_len)
-  
-  # Scenario 2: Using 'to'
-  to_mon <- zoo::as.yearmon("2025-06")
-  expected_to <- zoo::as.yearmon(seq(as.numeric(from_mon), as.numeric(to_mon), by = 1/12))
-  expect_equal(seq_dates(from_mon, "monthly", to = to_mon), expected_to)
-})
-
-test_that("seq_dates generates yearly sequences correctly (from yearmon)", {
-  from_mon <- zoo::as.yearmon("2024-01")
-  
-  # Using length.out
-  expected_len <- zoo::as.yearmon(seq(as.numeric(from_mon), by = 1, length.out = 3))
-  expect_equal(seq_dates(from_mon, "yearly", length.out = 3), expected_len)
-})
-
-
-
-test_that("cross_val reports the correct criterion (e.g., 'rmse')", {
-  data(ukitaly, package = "tsgc")
-  Yuk <- tsgc::ukitaly[, "UK"]
-  est.start <- as.Date("2020-02-25")
-  est.end <- as.Date("2020-04-01")
-  
-  # Create a list of models for comparison
-  cv_models <- list()
-  cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(Y = Yuk, q = 0.005, start.date = est.start, end.date = est.end)
-  cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(Y = Yuk, start.date = est.start, end.date = est.end, ar1 = TRUE)
-  cv_models[["Lag7"]] <- SSModelLeadingIndicator$new(Y = ukitaly, start.date = est.start, end.date = est.end, n.lag = 7)
-  
-  n.ahead <- 7
-  n.estimate <- 3
-  gap <- 2
-  
-  # Run validation using RMSE
-  cv_result_rmse <- cross_val(
-    Y = ukitaly,
-    model_list = cv_models,
-    est.end.date = est.end,
-    n.ahead = n.ahead,
-    n.estimate = 1, # Use 1 estimate for a simple check
-    gap = gap,
-    criterion = "rmse"
-  )
-  
-  # Check if the result is numeric and positive
-  expect_type(cv_result_rmse$`2020-04-01`, "double")
-  expect_true(all(cv_result_rmse$`2020-04-01` > 0))
-  
-  # Spot-check one value (e.g., Vanilla_q RMSE for the first date)
-  # Calculate the expected value manually or use a previously validated constant
-  model_q_test <- SSModelDynamicGompertz$new(Y = Yuk, q = 0.005, start.date = est.start, end.date = est.end)
-  res_q_test <- estimate(model_q_test)
-  expected_rmse <- round(mapes(res_q_test, n.ahead, Yuk)[["rmse"]], 2)
-  
-  # Expect the cross_val result to be close to the manual result
-  expect_equal(cv_result_rmse[cv_result_rmse$Model == "Vanilla_q", "2020-04-01"][[1]], expected_rmse)
-})
-
-test_that("mapes works", {
-  data(gauteng, package = "tsgc")
-  n.ahead <- 7
-  est.start <- as.Date("2021-04-30")
-  est.end <- as.Date("2021-07-24")
-  
-  # Estimate model
-  model_q <- SSModelDynamicGompertz$new(
-    Y = gauteng,
-    q = 0.005,
-    start.date = est.start,
-    end.date = est.end
-  )
-  res <- estimate(model_q)
-  
-  error_metrics <- mapes(res, n.ahead, gauteng)
-  
-  # Check object class
   expect_type(error_metrics, "list")
-  
-  # Check element names
   expected_names <- c("mape", "smape", "mae", "rmse", "coverage")
   expect_equal(sort(names(error_metrics)), sort(expected_names))
 })
 
-test_that("add_daily_ldl correctly handles LeadIndCol logic", {
-  dates <- seq(as.Date("2023-01-01"), by = "day", length.out = 4)
-  # Use simple numbers to make math verification easy
-  # Column 1: 10, 20, 40, 70 (Increments: NA, 10, 20, 30)
-  # Column 2: 5, 15, 25, 35  (Increments: NA, 10, 10, 10)
-  dummy_xts <- xts(cbind(c(10, 20, 40, 70), c(5, 15, 25, 35)), order.by = dates)
-  colnames(dummy_xts) <- c("col_a", "col_b")
+test_that("estimate_r0 returns an idx_series with fit/lower/upper columns", {
+  set.seed(1)
+  Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1L)
+  model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+  res <- estimate(model)
   
-  # Case 1: LeadIndCol = 1 (Default)
-  res1 <- add_daily_ldl(dummy_xts, LeadIndCol = 1)
-  expect_equal(colnames(res1)[1:2], c("cLead", "cTarg"))
-  expect_equal(as.numeric(res1$cLead), c(10, 20, 40, 70))
+  r_t <- estimate_r0(res, gen_int = 5, n.ahead = 7)
   
-  # Case 2: LeadIndCol = 2 (Should swap columns)
-  res2 <- add_daily_ldl(dummy_xts, LeadIndCol = 2)
-  expect_equal(colnames(res2)[1:2], c("cLead", "cTarg"))
-  # Column 2 from dummy should now be cLead
-  expect_equal(as.numeric(res2$cLead), c(5, 15, 25, 35)) 
-  expect_equal(as.numeric(res2$cTarg), c(10, 20, 40, 70))
+  expect_true(is_idx_series(r_t))
+  expect_equal(colnames(idx_values(r_t)), c("fit", "lower", "upper"))
+  expect_equal(length(r_t), 7)
+  expect_true(all(idx_values(r_t)[, "lower"] <= idx_values(r_t)[, "fit"]))
+  expect_true(all(idx_values(r_t)[, "fit"] <= idx_values(r_t)[, "upper"]))
+})
+
+test_that("estimate_r0 errors when res is not a FilterResults or FilterResultsLI object", {
+  expect_error(estimate_r0(list(), gen_int = 5), "FilterResults")
+})
+
+test_that("add_daily_ldl handles LeadIndCol logic correctly", {
+  # Column 1: 10, 20, 40, 70 (increments: NA, 10, 20, 30)
+  # Column 2: 5, 15, 25, 35  (increments: NA, 10, 10, 10)
+  data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
+  x <- idx_series(data_mat, start = 1L)
+  
+  res1 <- add_daily_ldl(x, LeadIndCol = 1)
+  expect_equal(idx_values(res1$cLead), c(10, 20, 40, 70))
+  expect_equal(idx_values(res1$cTarg), c(5, 15, 25, 35))
+  
+  res2 <- add_daily_ldl(x, LeadIndCol = 2)
+  expect_equal(idx_values(res2$cLead), c(5, 15, 25, 35))
+  expect_equal(idx_values(res2$cTarg), c(10, 20, 40, 70))
 })
 
 test_that("add_daily_ldl computes increments correctly", {
-  dates <- seq(as.Date("2023-01-01"), by = "day", length.out = 4)
-  # Use simple numbers to make math verification easy
-  # Column 1: 10, 20, 40, 70 (Increments: NA, 10, 20, 30)
-  # Column 2: 5, 15, 25, 35  (Increments: NA, 10, 10, 10)
-  dummy_xts <- xts(cbind(c(10, 20, 40, 70), c(5, 15, 25, 35)), order.by = dates)
-  colnames(dummy_xts) <- c("col_a", "col_b")
+  data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
+  x <- idx_series(data_mat, start = 1L)
   
-  res <- add_daily_ldl(dummy_xts, LeadIndCol = 1)
+  res <- add_daily_ldl(x, LeadIndCol = 1)
   
-  # Check newLead (Increments of col 1: 20-10=10, 40-20=20, 70-40=30)
-  expect_equal(as.numeric(res$newLead), c(NA, 10, 20, 30))
-  
-  # Check newTarg (Increments of col 2: 15-5=10, 25-15=10, 35-25=10)
-  expect_equal(as.numeric(res$newTarg), c(NA, 10, 10, 10))
+  expect_equal(idx_values(res$newLead), c(10, 20, 30))
+  expect_equal(idx_values(res$newTarg), c(10, 10, 10))
+  expect_equal(res$newLead$start, 2L)
 })
 
 test_that("add_daily_ldl output structure is correct", {
-  dates <- seq(as.Date("2023-01-01"), by = "day", length.out = 4)
-  # Use simple numbers to make math verification easy
-  # Column 1: 10, 20, 40, 70 (Increments: NA, 10, 20, 30)
-  # Column 2: 5, 15, 25, 35  (Increments: NA, 10, 10, 10)
-  dummy_xts <- xts(cbind(c(10, 20, 40, 70), c(5, 15, 25, 35)), order.by = dates)
-  colnames(dummy_xts) <- c("col_a", "col_b")
+  data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
+  x <- idx_series(data_mat, start = 1L)
   
-  res <- add_daily_ldl(dummy_xts)
+  res <- add_daily_ldl(x)
   
-  # Should have 6 columns: cLead, cTarg, newLead, newTarg, LDLlead, LDLtarg
-  expect_equal(ncol(res), 6)
-  expect_s3_class(res, "xts")
+  expect_equal(names(res), c("cLead", "cTarg", "newLead", "newTarg", "LDLlead", "LDLtarg"))
+  expect_true(all(vapply(res, is_idx_series, logical(1))))
+})
+
+test_that("add_daily_ldl errors on non-idx_series or wrong number of columns", {
+  expect_error(add_daily_ldl(1:10), "idx_series")
+  expect_error(add_daily_ldl(idx_series(1:10)), "exactly two series")
+  expect_error(add_daily_ldl(idx_series(matrix(1:10, ncol = 2)), LeadIndCol = 3), "LeadIndCol")
+})
+
+test_that("cross_val reports the correct criterion (e.g., 'rmse')", {
+  data(ukitaly, package = "tsgc")
+  conv <- xts_to_idx(ukitaly)
+  Yuk <- idx_series(idx_values(conv$series)[, "UK"], start = conv$series$start)
   
-  # Check for expected column names
-  expect_true(all(c("LDLlead", "LDLtarg") %in% colnames(res)))
+  est.start <- idx_to_pos(conv$calendar, as.Date("2020-02-25"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2020-04-01"))
+  
+  cv_models <- list()
+  cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(Y = Yuk, q = 0.005, start = est.start, end = est.end)
+  cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(Y = Yuk, start = est.start, end = est.end, ar1 = TRUE)
+  cv_models[["Lag7"]] <- SSModelLeadingIndicator$new(Y = conv$series, start = est.start, end = est.end, n.lag = 7)
+  
+  n.ahead <- 7
+  
+  cv_result_rmse <- cross_val(
+    Y = conv$series,
+    model_list = cv_models,
+    est.end = est.end,
+    n.ahead = n.ahead,
+    n.estimate = 1,
+    gap = 2,
+    criterion = "rmse"
+  )
+  
+  col_name <- as.character(est.end)
+  expect_type(cv_result_rmse[[col_name]], "double")
+  expect_true(all(cv_result_rmse[[col_name]] > 0))
+  
+  model_q_test <- SSModelDynamicGompertz$new(Y = Yuk, q = 0.005, start = est.start, end = est.end)
+  res_q_test <- estimate(model_q_test)
+  expected_rmse <- round(mapes(res_q_test, n.ahead, Yuk)[["rmse"]], 2)
+  
+  expect_equal(cv_result_rmse[cv_result_rmse$Model == "Vanilla_q", col_name][[1]], expected_rmse)
+})
+
+test_that("cross_val errors on non-idx_series Y, bad est.end, or non-positive n.ahead", {
+  x <- idx_series(cumsum(rpois(30, 5)) + 1, start = 1L)
+  model_list <- list(m1 = SSModelDynamicGompertz$new(Y = x, end = 20))
+  
+  expect_error(cross_val(Y = 1:10, model_list = model_list, est.end = 20), "idx_series")
+  expect_error(cross_val(Y = x, model_list = model_list, est.end = c(1, 2)), "single integer")
+  expect_error(cross_val(Y = x, model_list = model_list, est.end = 20, n.ahead = 0), "positive")
+})
+
+test_that("write_results writes forecast, filtered level/slope and growth rate CSVs to disk", {
+  data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng)
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
+  
+  model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005, start = est.start, end = est.end)
+  res <- estimate(model)
+  
+  res.dir <- tempdir()
+  prefix <- paste0("test_", as.integer(Sys.time()), "_")
+  
+  expect_no_error(
+    write_results(res = res, res.dir = res.dir, n.ahead = 5, prefix = prefix, confidence.level = 0.68)
+  )
+  
+  expect_true(file.exists(file.path(res.dir, paste0(prefix, "cases_fcst.csv"))))
+  expect_true(file.exists(file.path(res.dir, paste0(prefix, "trend_slope_filt.csv"))))
+  expect_true(file.exists(file.path(res.dir, paste0(prefix, "log_gr_level_filt.csv"))))
+  expect_true(file.exists(file.path(res.dir, paste0(prefix, "cases_gr.csv"))))
+})
+
+test_that("write_results errors when res is not a FilterResults or FilterResultsLI object", {
+  expect_error(
+    write_results(res = list(), res.dir = tempdir(), n.ahead = 5),
+    "FilterResults"
+  )
 })
