@@ -293,8 +293,13 @@ FilterResultsLI <- setRefClass(
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
           if (is.xts(xpred_lead.new)){
-            new_index<-which.max(index(data_xts)==end.date)
-            xpred_lead.new.subset<-lag(xpred_lead.new,n.lag)[(new_index+1):(new_index+n.ahead)]
+            lagged_lead <- lag(xpred_lead.new, n.lag)
+            fc_dates <- seq(end.date, by = "day", length.out = n.ahead + 1L)[-1]
+            xpred_lead.new.subset <- lagged_lead[fc_dates]
+            if (any(!complete.cases(xpred_lead.new.subset)) ||
+                nrow(xpred_lead.new.subset) != n.ahead){
+              stop("xpred_lead.new does not cover the required forecast dates.")
+            }
             d1<-dim(xpred_lead.new.subset)[2]
             newZ[1,1:d1,]<-t(xpred_lead.new.subset)
           } else {
@@ -303,8 +308,12 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is.xts(xpred_targ.new)){
-            new_index<-which.max(index(data_xts)==end.date)
-            xpred_targ.new.subset<-xpred_targ.new[(new_index+1):(new_index+n.ahead)]
+            fc_dates <- seq(end.date, by = "day", length.out = n.ahead + 1L)[-1]
+            xpred_targ.new.subset <- xpred_targ.new[fc_dates]
+            if (any(!complete.cases(xpred_targ.new.subset)) ||
+                nrow(xpred_targ.new.subset) != n.ahead){
+              stop("xpred_targ.new does not cover the required forecast dates.")
+            }
             d2<-dim(xpred_targ.new.subset)[2]
             if (!xpred_logical[1]){d1=0}
             newZ[2,(d1+1):(d1+d2),]<-t(xpred_targ.new.subset)
@@ -318,9 +327,9 @@ FilterResultsLI <- setRefClass(
         
         newdata <- if (sea.period<2 && !xpred_logical[1] && xpred_logical[2]){
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
-                              SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
-                              SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
-                            H = Hf)
+                    SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
+                    SSMregression(~xpred_targ.new.subset, type="distinct", index=2),
+                  H = Hf)
         } else if (sea.period<2 && xpred_logical[1] && !xpred_logical[2]){
           SSModel(na_vals ~ SSMtrend(degree = 2, Q = matrix(c(0,0,0,Qf[2,2]),2,2),type = 'common')+
                     SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1)+
@@ -377,14 +386,14 @@ FilterResultsLI <- setRefClass(
         # Create forecast model object
         if (sea.period==0) {
           forcmodel = SSModel(na_vals ~ SSMtrend(degree = 2, 
-                                                  Q = matrix(c(0,0,0,Qf[2,2]),2,2),
-                                                  type = 'common')
+                                                 Q = matrix(c(0,0,0,Qf[2,2]),2,2),
+                                                 type = 'common')
                               +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
                               H = matrixKFS(output,"H"))
         } else {
           forcmodel = SSModel(na_vals ~ SSMtrend(degree = 2, 
-                                                  Q = matrix(c(0,0,0,Qf[2,2]),2,2),
-                                                  type = 'common')
+                                                 Q = matrix(c(0,0,0,Qf[2,2]),2,2),
+                                                 type = 'common')
                               +SSMseasonal(sea.period,Q = matrix(c(0,0,0,0),2,2), 
                                            sea.type='trigonometric', type='distinct')
                               +SSMtrend(degree = 1, Q = matrix(Qf[3,3]),index=1),
@@ -408,11 +417,11 @@ FilterResultsLI <- setRefClass(
       
       dates <- seq_dates(start.date, length.out = (n + n.ahead), 
                          resolution=resolution)
-
+      
       y.hat <- xts::xts(
         c(y.t.t[2,], y.hat.kfas$LDLtarg[, 1] %>% as.matrix()),
         order.by = dates)
-
+      
       i.level <- grep("level", colnames(att(model_output)))[1]
       level.t.t <- xts::xts(att(model_output)[, i.level], order.by = dates) %>%
         as.xts()
@@ -426,7 +435,7 @@ FilterResultsLI <- setRefClass(
         level.t.t <- get_timeframe(level.t.t, newdate)
         slope.t.t <-  get_timeframe(slope.t.t, newdate)
       }
-
+      
       out <- list(
         y.hat = y.hat,
         y.hat.kfas=y.hat.kfas,
@@ -455,13 +464,13 @@ FilterResultsLI <- setRefClass(
       smoothed/filtered growth rates and components (\\eqn{\\delta} and
       \\eqn{\\gamma}), where applicable.}"
       idx <- index(get_timeframe(data_xts, start.date, end.date))
-
+      
       if (smoothed) {
         att <- alphahat(output)
       } else {
         att <- att(output)
       }
-
+      
       filtered_slope <- xts(att[, "slope"], order.by = idx)
       filtered.level <- xts(att[, "level"], order.by = idx)
       g.t <- exp(filtered.level)
@@ -553,343 +562,343 @@ FilterResultsLI <- setRefClass(
       cat("Seasonality noise:",format(Q_seasonal, digits = 4))
     },
     plot_forecast = function(n.ahead=7, confidence.level = 0.68, 
-                              title=NULL, plt.start.date=NULL, 
-                              series.name="target variable")
+                             title=NULL, plt.start.date=NULL, 
+                             series.name="target variable")
     {
       "Generates a forecast plot for the difference in the cumulative target 
       variable, showing actual values, forecasts including seasonal components,
       and prediction intervals around the forecasts. For more details, see 
       \\link{plot_forecast}."
-        
-        if (is.null(plt.start.date)){plt.start.date <- start.date}
-        sea<-.self$predict_level(n.ahead=n.ahead, 
-                                 confidence.level=confidence.level, 
-                                 sea.on=TRUE)
-        
-        #Plot forecast graph
-        df_plot<-get_timeframe(data_xts, start.date, end.date)$newTarg
-        df_plot$Forecast<-sea[,1]
-        df_plot<-get_timeframe(df_plot,plt.start.date)
-        dates<-zoo::as.Date(index(df_plot))
-        
-        df_plot<-as.data.frame(df_plot)
-        df_plot$Date <- dates
-        
-        ci_plot<-sea
-        dates2<-zoo::as.Date(index(ci_plot))
-        ci_plot<-as.data.frame(ci_plot)
-        ci_plot$Date <- dates2
-        
-        p2<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-          ggplot2::geom_line(aes(y = newTarg, color = "Data"), lwd = 0.85) +
-          ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-          ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
-          ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lwr, ymax = upr),
-                               linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
-          labs(x = "Date", y = paste("New",series.name), title = title) +
-          theme_economist_white(gray_bg = FALSE, base_size = 12) +
-          theme(legend.title = element_blank()) +
-          theme(
-            text = element_text(size = rel(1.1)),
-            axis.text = element_text(size = rel(1)),
-            axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
-            axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-            plot.title = element_text(margin=margin(b=5)),
-            plot.caption = element_text(size = rel(1))
-          ) +
-          ggplot2::scale_linetype_manual(
-            values = c("solid", "solid")) +
-          ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
-          ggplot2::scale_size_manual(values = c(1, 1, 1))
-        return(p2)
-      },
-  plot_log_forecast = function(Y, n.ahead = 14,
-                               plt.start.date=NULL, title="", caption = ""){
-    "Plots actual and filtered values of the log cumulative growth rate 
+      
+      if (is.null(plt.start.date)){plt.start.date <- start.date}
+      sea<-.self$predict_level(n.ahead=n.ahead, 
+                               confidence.level=confidence.level, 
+                               sea.on=TRUE)
+      
+      #Plot forecast graph
+      df_plot<-get_timeframe(data_xts, start.date, end.date)$newTarg
+      df_plot$Forecast<-sea[,1]
+      df_plot<-get_timeframe(df_plot,plt.start.date)
+      dates<-zoo::as.Date(index(df_plot))
+      
+      df_plot<-as.data.frame(df_plot)
+      df_plot$Date <- dates
+      
+      ci_plot<-sea
+      dates2<-zoo::as.Date(index(ci_plot))
+      ci_plot<-as.data.frame(ci_plot)
+      ci_plot$Date <- dates2
+      
+      p2<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
+        ggplot2::geom_line(aes(y = newTarg, color = "Data"), lwd = 0.85) +
+        ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
+        ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
+        ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lwr, ymax = upr),
+                             linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
+        labs(x = "Date", y = paste("New",series.name), title = title) +
+        theme_economist_white(gray_bg = FALSE, base_size = 12) +
+        theme(legend.title = element_blank()) +
+        theme(
+          text = element_text(size = rel(1.1)),
+          axis.text = element_text(size = rel(1)),
+          axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
+          axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
+          plot.title = element_text(margin=margin(b=5)),
+          plot.caption = element_text(size = rel(1))
+        ) +
+        ggplot2::scale_linetype_manual(
+          values = c("solid", "solid")) +
+        ggplot2::scale_x_date(labels = scales::date_format("%d %b %y")) +
+        ggplot2::scale_size_manual(values = c(1, 1, 1))
+      return(p2)
+    },
+    plot_log_forecast = function(Y, n.ahead = 14,
+                                 plt.start.date=NULL, title="", caption = ""){
+      "Plots actual and filtered values of the log cumulative growth rate 
       (\\eqn{\\ln(g_t)}) of the target variable in the estimation sample and 
       the forecast and realised log cumulative growth rate of the target variable
       out of the estimation sample. For more details, see \\link{plot_log_forecast}."
-    
-    forcout_sea<-.self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat
-    old<-get_timeframe(data_xts, start.date, end.date)[,"LDLtarg"]
-    
-    eng_full<-add_daily_ldl(Y, LeadIndCol = LeadIndCol)
-    eng_full<-eng_full[index(eng_full)>end.date,"LDLtarg"]
-    
-    actual<-eng_full[1:min(n.ahead, dim(eng_full)[1])]
-    
-    # Show filtered level only when xpred_logical is both FALSE
-    if (!any(xpred_logical)){
-      forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
-      smldlh = predict(output$model,states='trend')$LDLtarg
       
-      dates_filtered <- seq_dates(from = start.date, length.out = length(smldlh), resolution=resolution)
+      forcout_sea<-.self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat
+      old<-get_timeframe(data_xts, start.date, end.date)[,"LDLtarg"]
       
-      filtered=as.xts(as.vector(smldlh), order.by=dates_filtered)
-      d.plot<-cbind(old,rbind(filtered,forcout),forcout_sea,actual)
-      colnames(d.plot)<-c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
+      eng_full<-add_daily_ldl(Y, LeadIndCol = LeadIndCol)
+      eng_full<-eng_full[index(eng_full)>end.date,"LDLtarg"]
       
-      #Graphical settings
-      linetype_values<-c("solid", "solid", "solid", "dashed")
-      color_values<-c(1, 2, 3, 'grey')
-    } else {
-      d.plot<-cbind(old,forcout_sea,actual)
-      colnames(d.plot)<-c('EstimationSample', 'Forecast', 'RealisedData')
+      actual<-eng_full[1:min(n.ahead, dim(eng_full)[1])]
       
-      #Graphical settings
-      linetype_values<-c("solid", "solid", "dashed")
-      color_values<-c(1, 3, 'grey')
-    }
-    
-    if (!is.null(plt.start.date)){
-      d.plot<-d.plot[index(d.plot)>=plt.start.date]
-      df_plot <- as.data.frame(d.plot)
-    } else{
-      df_plot <- as.data.frame(d.plot)
-    }
-    df_plot$Date <- if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(df_plot)))
-    } else if (resolution=='monthly' || resolution=="yearly"){
-      qtr2date(as.yearmon(rownames(df_plot)))
-    } else {
-      as.Date(rownames(df_plot))
-    }
-    
-    p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-      ggplot2::geom_line(aes(
-        y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
-    
-    if (!any(xpred_logical)){
-      p1<-p1 +ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"),
-                           lwd = 0.85)}
-    
-    p1<-p1+
-      ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
-      ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData"),
-                         lwd = 0.85) +
-      ggplot2::scale_color_manual(values = color_values) +
-      scale_linetype_manual(
-        values = linetype_values) +
-      scale_x_date(labels = scales::date_format("%d %b %y")) +
-      labs(x = "Date", y = "Log Growth Rate", caption = caption,
-           title = title
-      ) +
-      theme_economist_white(gray_bg = FALSE) +
-      scale_fill_economist() +
-      theme(legend.title = element_blank()) +
-      theme(
-        text = element_text(size = rel(1)),
-        axis.text = element_text(size = rel(1)),
-        axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
-        axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-        plot.title = element_text(margin=margin(b=5)),
-        plot.caption = element_text(size = rel(1)))
-    return(p1)
-  }, 
-  plot_gy_components = function(plt.start.date = NULL,
-                                 smoothed = FALSE, title = NULL){
-    "Plots the growth rates and slope of the log cumulative growth rate 
+      # Show filtered level only when xpred_logical is both FALSE
+      if (!any(xpred_logical)){
+        forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE)$y.hat
+        smldlh = predict(output$model,states='trend')$LDLtarg
+        
+        dates_filtered <- seq_dates(from = start.date, length.out = length(smldlh), resolution=resolution)
+        
+        filtered=as.xts(as.vector(smldlh), order.by=dates_filtered)
+        d.plot<-cbind(old,rbind(filtered,forcout),forcout_sea,actual)
+        colnames(d.plot)<-c('EstimationSample', 'FilteredLevel', 'Forecast', 'RealisedData')
+        
+        #Graphical settings
+        linetype_values<-c("solid", "solid", "solid", "dashed")
+        color_values<-c(1, 2, 3, 'grey')
+      } else {
+        d.plot<-cbind(old,forcout_sea,actual)
+        colnames(d.plot)<-c('EstimationSample', 'Forecast', 'RealisedData')
+        
+        #Graphical settings
+        linetype_values<-c("solid", "solid", "dashed")
+        color_values<-c(1, 3, 'grey')
+      }
+      
+      if (!is.null(plt.start.date)){
+        d.plot<-d.plot[index(d.plot)>=plt.start.date]
+        df_plot <- as.data.frame(d.plot)
+      } else{
+        df_plot <- as.data.frame(d.plot)
+      }
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot))
+      }
+      
+      p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
+        ggplot2::geom_line(aes(
+          y = EstimationSample, color = "Estimation\nSample"), lwd = 0.85)
+      
+      if (!any(xpred_logical)){
+        p1<-p1 +ggplot2::geom_line(aes(y = FilteredLevel, color = "Filtered\nLevel"),
+                                   lwd = 0.85)}
+      
+      p1<-p1+
+        ggplot2::geom_line(aes(y = Forecast, color = "Forecast"), lwd = 0.85) +
+        ggplot2::geom_line(aes(y = RealisedData, color = "Realised\nData"),
+                           lwd = 0.85) +
+        ggplot2::scale_color_manual(values = color_values) +
+        scale_linetype_manual(
+          values = linetype_values) +
+        scale_x_date(labels = scales::date_format("%d %b %y")) +
+        labs(x = "Date", y = "Log Growth Rate", caption = caption,
+             title = title
+        ) +
+        theme_economist_white(gray_bg = FALSE) +
+        scale_fill_economist() +
+        theme(legend.title = element_blank()) +
+        theme(
+          text = element_text(size = rel(1)),
+          axis.text = element_text(size = rel(1)),
+          axis.title.y = element_text(size = rel(1),margin = margin(r=10)),
+          axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
+          plot.title = element_text(margin=margin(b=5)),
+          plot.caption = element_text(size = rel(1)))
+      return(p1)
+    }, 
+    plot_gy_components = function(plt.start.date = NULL,
+                                  smoothed = FALSE, title = NULL){
+      "Plots the growth rates and slope of the log cumulative growth rate 
       against the dates in estimation sample. 
       For more details, please see \\link{plot_gy_components}."
-    Date <- Value <- Variable <- NULL
-    # Determine plot start date
-    if(is.null(plt.start.date)) {
+      Date <- Value <- Variable <- NULL
+      # Determine plot start date
+      if(is.null(plt.start.date)) {
         plt.start.date <- start.date
-    }
-    
-    # Get gy.t, g.t and gamma
-    gy.components <- .self$get_growth_y(return.components = TRUE, smoothed =
-                                        smoothed)
-    gy.t <- gy.components[[1]]
-    g.t <- gy.components[[2]]
-    gamma.t <- gy.components[[3]]
-    
-    d <- cbind(gy.t,g.t,gamma.t)
-    names(d) <- c('gy.t','g.t','gamma.t')
-    
-    df_plot <- as.data.frame(d)
-    df_plot$Date <- if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(df_plot)))
-    } else if (resolution=='monthly' || resolution=="yearly"){
-      qtr2date(as.yearmon(rownames(df_plot)))
-    } else {
-      as.Date(rownames(df_plot))
-    }
-    
-    df_long <- df_plot %>%
-      dplyr::filter(Date >= zoo::as.Date(plt.start.date)) %>%
-      pivot_longer(cols = c(gy.t, g.t, gamma.t), names_to = "Variable",
-                   values_to = "Value")
-    
-    p1 <- ggplot(df_long, aes(x = Date, y = Value, color = Variable)) +
-      geom_line(lwd=0.85) +
-      ggplot2::facet_wrap(~ factor(
-        Variable, c("gy.t", "g.t", "gamma.t")), ncol = 1, scales = "free_y") +
-      labs(title = title, y=ggplot2::element_blank()) +
-      scale_color_manual(values = c("#AA2045","darkgrey","black")) +
-      scale_x_date(labels = scales::date_format("%d %b %y")) +
-      scale_y_continuous(breaks = waiver(), n.breaks = 4) +
-      theme_economist_white(gray_bg = FALSE, base_size = 14) +
-      theme(text = element_text(size= rel(1), margin=ggplot2::margin(b=5)),
-            axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
-            legend.position = "none")
-    
-    return(p1)
-  },
-  plot_gy_ci =function(plt.start.date = NULL, smoothed = FALSE,
-                           title = NULL, series.name = NULL, pad.right = NULL){
-    "Plots the growth rates and the slope of the log cumulative growth rate of 
+      }
+      
+      # Get gy.t, g.t and gamma
+      gy.components <- .self$get_growth_y(return.components = TRUE, smoothed =
+                                            smoothed)
+      gy.t <- gy.components[[1]]
+      g.t <- gy.components[[2]]
+      gamma.t <- gy.components[[3]]
+      
+      d <- cbind(gy.t,g.t,gamma.t)
+      names(d) <- c('gy.t','g.t','gamma.t')
+      
+      df_plot <- as.data.frame(d)
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot))
+      }
+      
+      df_long <- df_plot %>%
+        dplyr::filter(Date >= zoo::as.Date(plt.start.date)) %>%
+        pivot_longer(cols = c(gy.t, g.t, gamma.t), names_to = "Variable",
+                     values_to = "Value")
+      
+      p1 <- ggplot(df_long, aes(x = Date, y = Value, color = Variable)) +
+        geom_line(lwd=0.85) +
+        ggplot2::facet_wrap(~ factor(
+          Variable, c("gy.t", "g.t", "gamma.t")), ncol = 1, scales = "free_y") +
+        labs(title = title, y=ggplot2::element_blank()) +
+        scale_color_manual(values = c("#AA2045","darkgrey","black")) +
+        scale_x_date(labels = scales::date_format("%d %b %y")) +
+        scale_y_continuous(breaks = waiver(), n.breaks = 4) +
+        theme_economist_white(gray_bg = FALSE, base_size = 14) +
+        theme(text = element_text(size= rel(1), margin=ggplot2::margin(b=5)),
+              axis.title.x = element_text(size = rel(1),margin = margin(t=10)),
+              legend.position = "none")
+      
+      return(p1)
+    },
+    plot_gy_ci =function(plt.start.date = NULL, smoothed = FALSE,
+                         title = NULL, series.name = NULL, pad.right = NULL){
+      "Plots the growth rates and the slope of the log cumulative growth rate of 
     the target variable against the dates in estimation sample. 
       For more details, please see \\link{plot_gy_ci}."
-    Date <- fit <- upper <- lower <- NULL
-    
-    # Determine plot start date
-    if(is.null(plt.start.date)) {
+      Date <- fit <- upper <- lower <- NULL
+      
+      # Determine plot start date
+      if(is.null(plt.start.date)) {
         plt.start.date <- start.date
-    }
-    
-    # Get confidence intervals to plot
-    gy.ci<- .self$get_gy_ci(smoothed = smoothed)
-    
-    y.lab <- if(is.null(series.name)) { c("Growth rate") } else {
-      paste("Growth rate of"," ",series.name,sep="")
-    }
-    
-    df_plot <- as.data.frame(gy.ci)
-    df_plot$Date <- if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(df_plot)))
-    } else if (resolution=='monthly' || resolution=="yearly"){
-      qtr2date(as.yearmon(rownames(df_plot)))
-    } else {
-      as.Date(rownames(df_plot))
-    }
-    
-    p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=zoo::as.Date(plt.start.date),], aes(x=Date)) +
-      ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
-      ggplot2::geom_hline(yintercept=0, linetype="solid",
-                          color = "green", linewidth=1)+
-      ggplot2::geom_ribbon(aes(ymin = lower, ymax = upper),
-                           linetype = 0, linewidth = 0, fill = "#AA2045",
-                           alpha = 0.3) +
-      ggplot2::scale_color_manual(values = c("black")) +
-      geom_hline(
-        aes(yintercept = 0.0), linetype = "solid", color = "green", lwd = 1.
-      ) +
-      labs(title=title, x="Date", y=y.lab) +
-      theme_economist_white(gray_bg = FALSE, base_size = 14) +
-      theme(
-        legend.title = element_blank(),
-        text = element_text(size = rel(1.)),
-        axis.text = element_text(size = rel(1.)),
-        axis.title.y = element_text(
-          size = rel(1.),margin = ggplot2::margin(r=10)),
-        axis.title.x = element_text(
-          size = rel(1.),margin = ggplot2::margin(t=10)),
-        plot.caption = element_text(size = rel(1))
-      ) +
-      theme(panel.grid.major.x = ggplot2::element_line(
-        color = "gray50", linewidth = 0.5)) +
-      scale_linetype_manual(
-        values = c("solid")) +
-      scale_x_date(labels = scales::date_format("%d %b %y"))
-    
-    if (!is.null(pad.right)) {
-      plt.end.date <- tail(index(gy.ci),1)
-      p1 <- p1 +
-        ggplot2::scale_x_date(
-          limits = c(as.Date(plt.start.date), plt.end.date + pad.right))
-    }
-    
-    return(p1)
-  },
-  plot_holdout=function(Y,n.ahead=14, confidence.level = 0.68,
-                        series.name = "target variable",
-                        title= NULL, caption = NULL){
-    "Plots the forecast of the target variable over a holdout sample. 
+      }
+      
+      # Get confidence intervals to plot
+      gy.ci<- .self$get_gy_ci(smoothed = smoothed)
+      
+      y.lab <- if(is.null(series.name)) { c("Growth rate") } else {
+        paste("Growth rate of"," ",series.name,sep="")
+      }
+      
+      df_plot <- as.data.frame(gy.ci)
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot))
+      }
+      
+      p1 <- ggplot2::ggplot(df_plot[df_plot$Date>=zoo::as.Date(plt.start.date),], aes(x=Date)) +
+        ggplot2::geom_line(aes(y = fit), lwd = 0.85) +
+        ggplot2::geom_hline(yintercept=0, linetype="solid",
+                            color = "green", linewidth=1)+
+        ggplot2::geom_ribbon(aes(ymin = lower, ymax = upper),
+                             linetype = 0, linewidth = 0, fill = "#AA2045",
+                             alpha = 0.3) +
+        ggplot2::scale_color_manual(values = c("black")) +
+        geom_hline(
+          aes(yintercept = 0.0), linetype = "solid", color = "green", lwd = 1.
+        ) +
+        labs(title=title, x="Date", y=y.lab) +
+        theme_economist_white(gray_bg = FALSE, base_size = 14) +
+        theme(
+          legend.title = element_blank(),
+          text = element_text(size = rel(1.)),
+          axis.text = element_text(size = rel(1.)),
+          axis.title.y = element_text(
+            size = rel(1.),margin = ggplot2::margin(r=10)),
+          axis.title.x = element_text(
+            size = rel(1.),margin = ggplot2::margin(t=10)),
+          plot.caption = element_text(size = rel(1))
+        ) +
+        theme(panel.grid.major.x = ggplot2::element_line(
+          color = "gray50", linewidth = 0.5)) +
+        scale_linetype_manual(
+          values = c("solid")) +
+        scale_x_date(labels = scales::date_format("%d %b %y"))
+      
+      if (!is.null(pad.right)) {
+        plt.end.date <- tail(index(gy.ci),1)
+        p1 <- p1 +
+          ggplot2::scale_x_date(
+            limits = c(as.Date(plt.start.date), plt.end.date + pad.right))
+      }
+      
+      return(p1)
+    },
+    plot_holdout=function(Y,n.ahead=14, confidence.level = 0.68,
+                          series.name = "target variable",
+                          title= NULL, caption = NULL){
+      "Plots the forecast of the target variable over a holdout sample. 
     For more details, please refer to \\link{plot_holdout}."
-    
-    if (tail(index(Y),1)<=end.date){
-      stop("The time series 'Y' must extend beyond the estimation end date to 
+      
+      if (tail(index(Y),1)<=end.date){
+        stop("The time series 'Y' must extend beyond the estimation end date to 
              provide a holdout sample analysis.")
-    }
-    
-    sea<-.self$predict_level(n.ahead=n.ahead, 
-                             confidence.level=confidence.level, 
-                             sea.on=TRUE)
-    
-    newdate<-seq_dates(end.date,resolution=resolution,length.out=2)[2]
-    future_data<-get_timeframe(add_daily_ldl(Y,LeadIndCol = .self$LeadIndCol), newdate)
-    if (n.ahead>dim(future_data)[1]){
-      stop("The number of entries in the holdout sample is shorter than n.ahead.
+      }
+      
+      sea<-.self$predict_level(n.ahead=n.ahead, 
+                               confidence.level=confidence.level, 
+                               sea.on=TRUE)
+      
+      newdate<-seq_dates(end.date,resolution=resolution,length.out=2)[2]
+      future_data<-get_timeframe(add_daily_ldl(Y,LeadIndCol = .self$LeadIndCol), newdate)
+      if (n.ahead>dim(future_data)[1]){
+        stop("The number of entries in the holdout sample is shorter than n.ahead.
            Please choose a smaller n.ahead, shorten the estimation period or 
            provide more holdout data.")
-    } else {
-      data_validation<-future_data[1:n.ahead, c("cTarg", "newTarg")]
-    }
-    
-    newTarg_validation<-data_validation[,c("newTarg")]
-    compare<-cbind(newTarg_validation, sea[,1])
-    names(compare)<-c("Actual", "Forecast")
-    
-    if (any(compare$Actual==0)){
-      warning("Validation data contains zeros. MAPE is not a reliable measure.")
-    }
-    
-    mape.sea <- mean(100*(abs(compare$Actual - compare$Forecast)/compare$Actual)) %>% round(2)
-    smape<-mean(100*(abs(compare$Actual - compare$Forecast)/(compare$Actual+compare$Forecast))) %>% round(2)
-    mae<-abs(compare$Actual - compare$Forecast) %>% mean %>% signif(digits=3)
-    rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2)) %>% signif(digits=3)
-    
-    ci<-sea[,-1]
-    colnames(ci) <- c('lower', 'upper')
-    
-    df_plot <- as.data.frame(compare)
-    df_plot$Date <- if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(df_plot)))
-    } else if (resolution=='monthly' || resolution=="yearly"){
-      qtr2date(as.yearmon(rownames(df_plot)))
-    } else {
-      as.Date(rownames(df_plot))
-    }
-    
-    ci_plot <- as.data.frame(ci)
-    ci_plot$Date <- if (resolution=='quarterly'){
-      qtr2date(as.yearqtr(rownames(ci_plot)))
-    } else if (resolution=='monthly' || resolution=="yearly"){
-      qtr2date(as.yearmon(rownames(ci_plot)))
-    } else {
-      as.Date(rownames(ci_plot))
-    }
-    
-    
-    p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
-      ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
-      ggplot2::geom_line(aes(y = Forecast, color = "Forecast"),lwd = 0.85) +
-      ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
-      ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lower, ymax = upper),linetype = 0, linewidth = 0, fill = "#AA2045",
-                           alpha = 0.1) +
-      labs(x = "Date", y = paste("New",series.name), title = title,
-           subtitle = paste("MAPE: ",mape.sea,"%; SMAPE: ",smape,"%; MAE: ", mae,"; RMSE: ", rmse,".", sep="")) +
-      theme_economist_white(gray_bg = FALSE, base_size = 14) +
-      theme(legend.title = element_blank()) +
-      theme(
-        text = element_text(size = rel(1)),
-        axis.text = element_text(size = rel(1)),
-        axis.title.y = element_text(size = rel(1), margin = margin(r=10)),
-        axis.title.x = element_text(size = rel(1), margin = margin(t=10)),
-        plot.title = element_text(margin=margin(b=5)),
-        plot.subtitle = element_text(
-          size = rel(1), hjust=0,  margin = margin(t=3))
-      ) +
-      scale_linetype_manual(
-        values = c("solid", "solid")) +
-      scale_x_date(labels = scales::date_format("%d %b %y")) +
-      scale_size_manual(values = c(1, 1.5, 1))
-    
-    return(p1)
-  },
-  mapes=function(n.ahead,Y){
-    "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
+      } else {
+        data_validation<-future_data[1:n.ahead, c("cTarg", "newTarg")]
+      }
+      
+      newTarg_validation<-data_validation[,c("newTarg")]
+      compare<-cbind(newTarg_validation, sea[,1])
+      names(compare)<-c("Actual", "Forecast")
+      
+      if (any(compare$Actual==0)){
+        warning("Validation data contains zeros. MAPE is not a reliable measure.")
+      }
+      
+      mape.sea <- mean(100*(abs(compare$Actual - compare$Forecast)/compare$Actual)) %>% round(2)
+      smape<-mean(100*(abs(compare$Actual - compare$Forecast)/(compare$Actual+compare$Forecast))) %>% round(2)
+      mae<-abs(compare$Actual - compare$Forecast) %>% mean %>% signif(digits=3)
+      rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2)) %>% signif(digits=3)
+      
+      ci<-sea[,-1]
+      colnames(ci) <- c('lower', 'upper')
+      
+      df_plot <- as.data.frame(compare)
+      df_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(df_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(df_plot)))
+      } else {
+        as.Date(rownames(df_plot))
+      }
+      
+      ci_plot <- as.data.frame(ci)
+      ci_plot$Date <- if (resolution=='quarterly'){
+        qtr2date(as.yearqtr(rownames(ci_plot)))
+      } else if (resolution=='monthly' || resolution=="yearly"){
+        qtr2date(as.yearmon(rownames(ci_plot)))
+      } else {
+        as.Date(rownames(ci_plot))
+      }
+      
+      
+      p1<-ggplot2::ggplot(data = df_plot, aes(x = Date)) +
+        ggplot2::geom_line(aes(y = Actual, color = "Actual"),lwd = 0.85) +
+        ggplot2::geom_line(aes(y = Forecast, color = "Forecast"),lwd = 0.85) +
+        ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
+        ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lower, ymax = upper),linetype = 0, linewidth = 0, fill = "#AA2045",
+                             alpha = 0.1) +
+        labs(x = "Date", y = paste("New",series.name), title = title,
+             subtitle = paste("MAPE: ",mape.sea,"%; SMAPE: ",smape,"%; MAE: ", mae,"; RMSE: ", rmse,".", sep="")) +
+        theme_economist_white(gray_bg = FALSE, base_size = 14) +
+        theme(legend.title = element_blank()) +
+        theme(
+          text = element_text(size = rel(1)),
+          axis.text = element_text(size = rel(1)),
+          axis.title.y = element_text(size = rel(1), margin = margin(r=10)),
+          axis.title.x = element_text(size = rel(1), margin = margin(t=10)),
+          plot.title = element_text(margin=margin(b=5)),
+          plot.subtitle = element_text(
+            size = rel(1), hjust=0,  margin = margin(t=3))
+        ) +
+        scale_linetype_manual(
+          values = c("solid", "solid")) +
+        scale_x_date(labels = scales::date_format("%d %b %y")) +
+        scale_size_manual(values = c(1, 1.5, 1))
+      
+      return(p1)
+    },
+    mapes=function(n.ahead,Y){
+      "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
     for forecasts against a holdout sample. For more details, please refer to 
     \\link{mapes}."
       sea<-.self$predict_level(n.ahead=n.ahead, sea.on=TRUE)
@@ -912,7 +921,7 @@ FilterResultsLI <- setRefClass(
       rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2))
       coverage<-100*sum(and(sea[,2]<=compare$Actual, sea[,3]>=compare$Actual))/n.ahead
       
-    return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
-  }
-)
+      return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
+    }
+  )
 )
