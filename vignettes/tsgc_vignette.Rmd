@@ -8,7 +8,7 @@ vignette: >
   %\VignetteEncoding{UTF-8}
   %\VignetteIndexEntry{Forecasting epidemic trajectories: Time Series Growth Curves package `tsgc`}
   %\VignetteEngine{knitr::rmarkdown}
-abstract: "This paper documents the Time Series Growth Curves (`tsgc`) package for `R`, which is designed for forecasting epidemic trajectories, including the detection of new waves and turning points. The package implements dynamic Gompertz state-space methods, together with a leading-indicator extension that uses a related series moving ahead of the variable of interest to improve short-horizon forecasts, with lag selection supported by rolling-origin cross-validation. The state-space framework applies equally to daily, weekly, monthly, quarterly, or annual data. The package is illustrated with COVID-19 confirmed cases, hospitalisation data, a cross-country leading-indicator comparison, and non-epidemic applications such as the diffusion of new products and the adoption of online services. The models are estimated with Kalman-filter techniques and are suitable for short-horizon forecasting of variables whose cumulative form is subject to an unknown saturation level."
+abstract: "This paper documents the Time Series Growth Curves (`tsgc`) package for `R`, which is designed for forecasting epidemic trajectories, including the detection of new waves and turning points. The package implements dynamic Gompertz state-space methods, together with a leading-indicator extension that uses a related series moving ahead of the variable of interest to improve short-horizon forecasts, with lag selection supported by rolling-origin cross-validation. The state-space framework applies equally to daily, weekly, monthly, quarterly, or annual data. Estimation and forecasting are defined purely in terms of integer-position (`idx_series`) data; calendar time is reintroduced only as an optional, purely cosmetic layer for plotting. The package is illustrated with COVID-19 confirmed cases, hospitalisation data, a cross-country leading-indicator comparison, and non-epidemic applications such as the diffusion of new products and the adoption of online services. The models are estimated with Kalman-filter techniques and are suitable for short-horizon forecasting of variables whose cumulative form is subject to an unknown saturation level."
 editor_options: 
   markdown: 
     wrap: 72
@@ -22,15 +22,7 @@ library(tsgc)
 library(dplyr)
 library(ggplot2)
 library(ggthemes)
-library(ggfortify)
-library(ggforce)
-library(magrittr)
 library(zoo)
-library(ggfortify)
-library(latex2exp)
-library(xts)
-library(here)
-library(timetk)
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
 ```
 
@@ -486,33 +478,58 @@ The main Gompertz class in `tsgc` is `SSModelDynamicGompertz`, which
 implements the models described in (2)-(4), with or without
 reinitialization. A model object is constructed with
 `SSModelDynamicGompertz$new(...)` or `tsgc::SSModelDynamicGompertz(...)`
-and its unknown parameters are estimated with the `estimate()` method, 
-invoked as `estimate(model)`, which returns an object of the `FilterResults` 
-class. This class wraps the underlying `KFAS` `KFS` object with a date index 
-and additional methods for prediction attached.
+and its unknown parameters are estimated with the `estimate()` method,
+invoked as `estimate(model)`, which returns an object of the
+`FilterResults` class. This class wraps the underlying `KFAS` `KFS`
+object, together with additional methods for prediction, and an
+optional `idx_calendar` (see below) attached.
 
-The `SSModelDynamicGompertz` needs only a cumulative series $Y$ as an
-input. In our application, this is the cumulative number of new
-coronavirus cases. There is an option to specify the signal-to-noise
-ratio $q_{\zeta}$, rather than estimate it, and an option to specify the
+The `SSModelDynamicGompertz` needs only a cumulative series `Y` as an
+input, supplied as an `idx_series` object -- an integer-position
+representation of a time series, consisting of a vector or matrix of
+values together with a `start` position. In our application, `Y` is the
+cumulative number of new coronavirus cases. The estimation window is
+specified directly on the model object via the `start` and `end`
+arguments, which are integer positions in `Y` rather than calendar
+dates. There is an option to specify the signal-to-noise ratio
+$q_{\zeta}$, rather than estimate it, and an option to specify the
 model to have a seasonal component through the `sea.period` argument.
-The period of a seasonal component is specified through the `sea.period`
-option.
+The period of a seasonal component is specified through the
+`sea.period` option.
+
+`idx_series` positions carry no calendar meaning of their own: they are
+plain integers, and the model, its estimation, and its forecasts are
+defined purely in terms of them. Real calendar time is reintroduced only
+as an optional, purely cosmetic layer for plotting, via an
+`idx_calendar` object passed through the `calendar` argument. An
+`idx_calendar` records an anchor position and the corresponding
+calendar date (or other real-world reference point), together with the
+step size and unit between consecutive positions; it is never consulted
+during estimation or filtering. Supplying a `calendar` therefore changes
+nothing about the fitted model -- only whether its plots are labelled
+with dates or with raw integer positions. Two helper functions,
+`xts_to_idx()` and `idx_to_pos()`, are provided to ease the transition
+from calendar-time data: the former converts an `xts`/`Date`-indexed
+series into an `idx_series` plus a matching `idx_calendar` in one step,
+and the latter translates a calendar date back into the integer
+position `idx_series` expects for `start`/`end`/`reinit.idx`. Both are
+demonstrated in the Illustration section below.
 
 The `SSModelDynamicGompertz` class allows the model to be estimated for
 a new wave without losing information from prior waves. It will accept
-the reinitialization date specified by `reinit.date` or a
-`FilterResults` object from which it can extract the initial values. If
-the user wishes to reinitialize the model without using prior
-information (i.e. treat the new wave as an entirely separate epidemic),
-a reinitialization date can be specified through the `reinit.date`
-option and `use.presample.info` can be set to `FALSE`.
+the reinitialization position specified by `reinit.idx` (an integer
+position, rather than the calendar date `reinit.date` used previously)
+or a `FilterResults` object from which it can extract the initial
+values. If the user wishes to reinitialize the model without using
+prior information (i.e. treat the new wave as an entirely separate
+epidemic), a reinitialization position can be specified through the
+`reinit.idx` option and `use.presample.info` can be set to `FALSE`.
 
 The `FilterResults` class contains prediction methods which can be
 applied to estimated dynamic Gompertz curve models (both reinitialized
 and non-reinitialized). `get_growth_y()` returns filtered or smoothed
 estimates of the growth rate of new cases ($g_t$), while `get_gy_ci()`
-returns the same with confidence intervals. Forecasts of the incidence
+returns the same with uncertainty bands. Forecasts of the incidence
 variable (new cases, $y_t$) can be obtained with the `predict_level()`
 call, and forecasts of all the states can be obtained with the
 `predict_all()` call.
@@ -521,13 +538,24 @@ Several functions are available to generate plots of smoothed and
 filtered estimates and forecasts. `plot_log_forecast()` plots the
 forecast and realised values of $\ln(g_t)$. `plot_gy_components()` and
 `plot_gy_ci()` can be used to plot the smoothed or filtered growth rate,
-its components, and confidence intervals, respectively. Forecasts of the
+its components, and uncertainty bands, respectively. Forecasts of the
 incidence variable ($y_t$) and forecast intervals can be plotted using
 `plot_forecast()`, while `plot_holdout()` adds plots of prediction
 intervals and of realized outcomes over a holdout period to help
-evaluate forecast accuracy. Finally, the `reinitialise_dataframe()`
-function can be used to reinitialise a data frame at a given
-`reinit.date`.
+evaluate forecast accuracy. `plot_compare_forecast()` overlays the
+forecasts from a list of fitted models -- for example a reinitialized
+and non-reinitialized fit, or a dynamic Gompertz model against a
+leading-indicator model -- on the same axes for visual comparison.
+Finally, the `reinitialise_dataframe()` function can be used to
+reinitialise a data series at a given `reinit.idx`.
+
+Every one of these plotting functions accepts an `axis` argument, of
+class `idx_axis_opts`, which controls how integer positions are
+translated to the x-axis and is described in full in the Appendix
+"Controlling the plot x-axis" below. Left at its default (`NULL`), the
+x-axis reproduces the previous behaviour: real calendar dates whenever
+a suitable `calendar` is attached to the model or results object, and
+plain integer positions otherwise.
 
 More details on how to use the methods and functions described are
 presented in the following section.
@@ -571,12 +599,15 @@ and diagnostic methods as the `FilterResults` class used for the dynamic
 Gompertz model.
 
 The role of `n.lag` is therefore to align the information in the leading
-series with the target series. If the indicator is known to anticipate
-the target by several periods, a larger lag is appropriate. The package
-also allows the user to supply future values of exogenous covariates
-through `xpred_lead` and `xpred_targ`, together with
-`supply_xpred.new()`, making the model suitable for settings where both
-the lead and target series are influenced by observed external drivers.
+series with the target series, in integer positions rather than
+calendar time. If the indicator is known to anticipate the target by
+several periods, a larger lag is appropriate. The package also allows
+the user to supply exogenous covariates through `xpred_lead` and
+`xpred_targ` at estimation time, and their future values by setting the
+`xpred_lead.new` and `xpred_targ.new` fields directly on the fitted
+`FilterResultsLI` object before forecasting, making the model suitable
+for settings where both the lead and target series are influenced by
+observed external drivers.
 
 The empirical benefit of this extension is that it can improve
 short-horizon predictions when the relationship between the two series
@@ -602,7 +633,7 @@ $$\mathrm{MAE}=\frac{1}{n}\sum_{t=1}^n |y_t-\hat y_t|, \qquad \mathrm{RMSE}=\sqr
 sMAPE is reported as the primary percentage-based comparison measure in
 the empirical illustrations above, since MAPE can become unstable when
 observed values are close to zero. The rolling-origin procedure used by
-`cross_val()` re-estimates the model at successive evaluation dates,
+`cross_val()` re-estimates the model at successive evaluation positions,
 holds back a fixed forecast horizon, and computes the chosen loss metric
 over that out-of-sample window, so that forecast accuracy is assessed
 under a design that matches the practical forecasting problem.
@@ -620,28 +651,41 @@ coronavirus online news and information
 from the official UK government
 [dashboard](https://ukhsa-dashboard.data.gov.uk/) for data and insights
 on coronavirus). In the example that follows, we use the data on
-confirmed cases in Gauteng. The data series is in cumulative form and is
-loaded as an `xts` object with a date index, as follows.
+confirmed cases in Gauteng. The data series is in cumulative form and
+ships with the package as an `xts` object with a `Date` index, as
+follows.
 
-While the data is already an `xts` object in these examples, typical 
-applications are likely to begin with data stored as a `CSV`. A minimal
-example of how to convert a `CSV` file to an `xts` object is presented in 
-the appendix, and can be extended as needed.
-
-\begin{Code}
+```{r load-gauteng-xts}
 data(gauteng, package = "tsgc")
-\end{Code}
+```
+
+The modelling code in this version of the package works with
+`idx_series` (integer-position data) rather than directly with `xts`
+objects, so that estimation and forecasting are defined purely in terms
+of position, independent of calendar frequency or gaps. Calendar time is
+reintroduced only for plotting, via an optional `idx_calendar` that
+records how integer positions map back to real dates. `xts_to_idx()`
+performs this conversion in one step for the common case of a series
+with no gaps, returning both the `idx_series` and a matching
+`idx_calendar`; `idx_to_pos()` is its companion for translating a
+calendar date into the integer position that `start`/`end`/`reinit.idx`
+expect. A minimal example of converting a `CSV`-derived data frame to
+this representation is given in the Appendix; the pattern below extends
+directly to that case.
+
+```{r convert-gauteng}
+conv <- xts_to_idx(gauteng)
+gauteng_idx <- conv$series
+gauteng_cal <- conv$calendar
+gauteng_cal$anchor_name <- "first recorded case"
+```
 
 New COVID-19 cases reported for Gauteng province and their centered
 7-day moving average presented in Figure 1 show a sequence of four waves
 over the period between 10 March 2020 and 5 January 2022.
 
 ```{r make-fig-1, echo = FALSE, fig.cap="Figure 1: New Cases and their centered 7-day moving average for Gauteng province in South Africa between 10 March 2020 and 5 January 2022."}
-# Load Gauteng data
-data(gauteng, package = "tsgc")
-
-# Instantiate the SSModelDynamicGompertz model
-mod_all <- SSModelDynamicGompertz(Y=gauteng)
+mod_all <- SSModelDynamicGompertz(Y = gauteng_idx, calendar = gauteng_cal)
 plot(mod_all, series.name = "daily cases", MA_period = 7)
 ```
 
@@ -650,21 +694,25 @@ plot(mod_all, series.name = "daily cases", MA_period = 7)
 We begin by specifying a number of options for the forecasting exercise,
 as defined below.
 
--   `Y` is the data, in the form of time series of cumulative confirmed
-    cases. In this example the object holding this series is called
-    `gauteng`.
+-   `Y` is the data, in the form of an `idx_series` of cumulative
+    confirmed cases. In this example the object holding this series is
+    called `gauteng_idx`, with `gauteng_cal` the accompanying
+    `idx_calendar`.
 
--   `estimation.date.start` is the date of the first observation in the
-    sample to be used for estimating the model. By default, it is the
-    first date in the `xts` object `Y`.
+-   `estimation.pos.start` is the integer position of the first
+    observation in the sample to be used for estimating the model,
+    obtained here from a calendar date via `idx_to_pos()`. By default,
+    if `start` is left unspecified when constructing the model, it is
+    the first position in `Y`.
 
--   `estimation.date.end` is the date of the last observation in the
-    sample to be used for estimating the model. By default, it is the
-    last date in the `xts` object `Y`.
+-   `estimation.pos.end` is the integer position of the last observation
+    in the sample to be used for estimating the model, again obtained
+    via `idx_to_pos()`. By default, if `end` is left unspecified, it is
+    the last position in `Y`.
 
 -   `n.forecasts` is the number of days or periods for which forecasts
     are to be made. E.g., if `n.forecasts = 14`, forecasts will be
-    generated for up to 14 days following `estimation.date.end`.
+    generated for up to 14 positions following `estimation.pos.end`.
 
 -   `q` is the signal-to-noise ratio, which controls the smoothness of
     the estimated trend. A lower value will lead to more smoothness. By
@@ -673,35 +721,38 @@ as defined below.
     a good balance between the smoothness of the trend and the speed
     with which changes in estimates respond to new observations.
 
--   `confidence.level` sets the coverage of the confidence intervals for
-    $\ln(g_t)$ which is then used to generate the prediction intervals
-    for forecasts. Here, we use 0.68, corresponding to the probability
-    that the forecast lies within one standard deviation of the point
-    forecast.
+-   `confidence.level` sets the coverage used to construct the
+    state-implied forecast bands for $\ln(g_t)$, which are then used to
+    generate the forecast bands for the forecasts themselves. Here, we
+    use 0.68, corresponding to the probability that the forecast lies
+    within one standard deviation of the point forecast under the
+    (approximating) Normal distribution used to construct the bands --
+    see the note on interpretation in the Theory section above.
 
--   `plt.length` sets a truncation date to enhance the clarity of plots,
-    e.g. showing only the last 30 days of the estimation sample. The
-    date range for plotting can be set as `plt.length` days upto
-    `estimation.date.end`.
+-   `plt.length` sets a truncation position to enhance the clarity of
+    plots, e.g. showing only the last 30 positions of the estimation
+    sample. The range for plotting can be set as `plt.length` positions
+    up to `estimation.pos.end`.
 
 In this example the data is the cumulative confirmed cases time series
-for Gauteng. The start and end dates (`estimation.date.start` and
-`estimation.date.end`) that define the sample used for estimation are
-chosen as appropriate for the exercise. In this example, we begin with
-the sample period set from 1 February to 3 May 2021. This marks the
-beginning of the third wave in Gauteng as can be seen in Figure 1. The
-options are specified as below.
+for Gauteng. The start and end positions (`estimation.pos.start` and
+`estimation.pos.end`) that define the sample used for estimation are
+chosen as appropriate for the exercise, translated from calendar dates
+via `idx_to_pos()`. In this example, we begin with the sample period set
+from 1 February to 3 May 2021. This marks the beginning of the third
+wave in Gauteng as can be seen in Figure 1. The options are specified as
+below.
 
 ```{r set_options}
-file.path = here()
-res.dir <- here::here(file.path, 'results')
-Y = gauteng
-estimation.date.start = as.Date("2021-02-01")
-estimation.date.end = as.Date("2021-05-03")
-n.forecasts = 14
-q = 0.005
-confidence.level = 0.68
-plt.length = 30
+Y <- gauteng_idx
+cal <- gauteng_cal
+
+estimation.pos.start <- idx_to_pos(cal, "2021-02-01")
+estimation.pos.end   <- idx_to_pos(cal, "2021-05-03")
+n.forecasts <- 14
+q <- 0.005
+confidence.level <- 0.68
+plt.length <- 30
 ```
 
 ## Estimation
@@ -710,8 +761,12 @@ We begin by selecting the data series (`Y`) for the defined sample
 period.
 
 The estimation period is specified directly when creating the
-`SSModelDynamicGompertz` object using the `start.date` and `end.date`
-arguments, so no manual subsetting of the data is required.
+`SSModelDynamicGompertz` object using the `start` and `end` arguments
+(integer positions in `Y`), so no manual subsetting of the data is
+required. Passing `calendar = cal` attaches the `idx_calendar` to the
+resulting model and, in turn, to its `FilterResults` output, so that
+later plots are automatically labelled with real dates rather than raw
+positions.
 
 We then estimate the model using a diffuse prior distribution for the
 initial state vector. The signal-to-noise ratio can be left as a free
@@ -719,8 +774,9 @@ parameter to be estimated, as in the code below.
 
 ```{r model_est_free_q}
 model_q <- SSModelDynamicGompertz(Y = Y, sea.period = 7,
-                                      start.date = estimation.date.start, 
-                                      end.date = estimation.date.end)
+                                  start = estimation.pos.start,
+                                  end = estimation.pos.end,
+                                  calendar = cal)
 res_q <- estimate(model_q)
 ```
 
@@ -731,10 +787,11 @@ the slope parameter $\gamma$, and the speed with which it adapts to new
 observations.
 
 ```{r model_est_fix_q}
-model = SSModelDynamicGompertz(Y = Y, q = q, sea.period = 7,
-                                   start.date = estimation.date.start,
-                                   end.date = estimation.date.end)
-res = estimate(model)
+model <- SSModelDynamicGompertz(Y = Y, q = q, sea.period = 7,
+                                start = estimation.pos.start,
+                                end = estimation.pos.end,
+                                calendar = cal)
+res <- estimate(model)
 ```
 
 ## Results
@@ -751,37 +808,37 @@ tsgc::plot_log_forecast(
   res = res,
   Y = Y,
   n.ahead = n.forecasts,
-  plt.start.date = tail(res$index, 1) - plt.length
+  plt.start = tail(res$index, 1) - plt.length
 )
 ```
 
-From these results we can recover the forecasts of new cases from 4
-May 2021, with their prediction intervals.
+From these results we can recover the forecasts of new cases from 4 May
+2021, with their forecast bands.
 
 ```{r fig-3, fig.cap = "Figure 3: Fourteen-day forecast of new cases from 4 May 2021 for Gauteng province in South Africa. The shaded region is a state-implied forecast band obtained by propagating uncertainty in the latent log growth rate."}
 tsgc::plot_forecast(
   res = res,
   n.ahead = n.forecasts,
   confidence.level = confidence.level,
-  plt.start.date = tail(res$index, 1) - plt.length,
+  plt.start = tail(res$index, 1) - plt.length,
   series.name = "cases"
 )
 ```
 
 To assess accuracy, we plot these forecasts against the actual new
 cases, that have been held back from the estimation sample, using the
-`plot_holdout` function. The model forecasts are compared with the the
-first differences of `Y.eval`, the cumulative series for the forecast
-window.
+`plot_holdout` function. The model forecasts are compared with the first
+differences of `Y`, the cumulative series, over the forecast window.
 
 ```{r fig-4, fig.cap = "Figure 4: Accuracy of the fourteen-day forecast of new cases from 20 April 2021 for Gauteng province in South Africa."}
-# Update estimation date
-estimation.date.end <- as.Date("2021-04-19")
+# Update estimation end position
+estimation.pos.end <- idx_to_pos(cal, "2021-04-19")
 
 # Reestimate the model
 model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
-                                    start.date = estimation.date.start, 
-                                    end.date = estimation.date.end)
+                                    start = estimation.pos.start,
+                                    end = estimation.pos.end,
+                                    calendar = cal)
 res_eval <- estimate(model)
 
 tsgc::plot_holdout(
@@ -801,32 +858,57 @@ the six days from 28 April the MAPE was 12.8%. Over the full 14 days of
 the forecasts, the MAPE was 27%.
 
 As discussed earlier, the reproduction numbers $R_t$ and their 68%
-approximate pointwise uncertainty bands can be calculated. This is
-shown in Figure 5.
+approximate pointwise uncertainty bands can be calculated. This is shown
+in Figure 5.
 
-```{r calc_rt, eval = FALSE}
+```{r calc_rt}
 gen_int <- 4
-r.t <- estimate_r0(res, gen_int)
+r.t <- estimate_r0(res, gen_int, ndays = 7)
 ```
 
 ```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
-estimate_r0(
-  res,
-  gen_int = 4,
-  show_plot = TRUE,
-  title = "Reproduction numbers for the 7-day period to 3 May 2021"
+r.t.mat <- as.matrix(idx_values(r.t))
+r.t.df <- data.frame(
+  x = idx_to_date(cal, idx_positions(r.t)),
+  fit = r.t.mat[, "fit"],
+  lower = r.t.mat[, "lower"],
+  upper = r.t.mat[, "upper"]
 )
+
+fit <- lower <- upper <- NULL
+ggplot(r.t.df, aes(x = x)) +
+  geom_line(aes(y = fit, color = "Rt")) +
+  geom_point(aes(y = fit), color = "red", size = 3) +
+  geom_segment(aes(xend = x, yend = lower, y = fit), color = "blue") +
+  geom_segment(aes(xend = x, yend = upper, y = fit), color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
+  geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
+  scale_x_date(date_breaks = "1 day", labels = scales::date_format("%d %b %y")) +
+  labs(title = "Reproduction numbers for the 7-day period to 3 May 2021",
+      x = "Date", y = expression(R[t])) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_light(base_size = 12) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.85, 0.2),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    plot.title = element_text(face = "bold")
+  )
 ```
 
-A CSV file (`y-forecast`) is written to the directory
-specified. The forecast options specified earlier are retained.
+A CSV file (`y-forecast`) is written to the directory specified. The
+forecast options specified earlier are retained.
 
 ```{r write_results, eval=F}
+res.dir <- here::here(here::here(), "results")
+
 tsgc::write_results(
- res=res,
+ res = res,
  res.dir = res.dir,
  n.ahead = n.forecasts,
- confidence.level =  confidence.level
+ confidence.level = confidence.level
 )
 ```
 
@@ -849,7 +931,7 @@ with its peak within sight (see Figure 1). All other options remain the
 same.
 
 ```{r change-est-date-end}
-estimation.date.end = as.Date("2021-06-25")
+estimation.pos.end <- idx_to_pos(cal, "2021-06-25")
 ```
 
 ### Triggering reinitialization
@@ -861,11 +943,11 @@ $c_{reinit}=2$, that is, when the estimate of the slope parameter,
 $\gamma_t$, breaches two standard errors above zero. Reinitialization is
 then backdated to $r$, the start of the current positive spell in the
 smoothed slope estimate computed on the sample ending at the trigger
-date. In applying this rule there is a choice between the filtered
+position. In applying this rule there is a choice between the filtered
 slope estimate and the smoothed slope estimate. Experimental results
 suggest that the greater noise in the filtered estimate of $\gamma_t$
-often triggers reinitialization too early. The smoothed estimate is
-more reliable, and is what we use to compute $z_{\gamma,T}$ below.
+often triggers reinitialization too early. The smoothed estimate is more
+reliable, and is what we use to compute $z_{\gamma,T}$ below.
 
 Figure 6 shows that for the third wave in Gauteng, the smoothed slope
 estimate exceeded twice its standard error on 1 May 2021, having risen
@@ -875,25 +957,35 @@ reset date $r =$ 21 April 2021.
 ```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
 # Re-estimate model
 model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
-                                    start.date=estimation.date.start,
-                                    end.date=estimation.date.end)
+                                    start = estimation.pos.start,
+                                    end = estimation.pos.end,
+                                    calendar = cal)
 res <- estimate(model)
 
-# Extract the smoothed slope and its standard deviation
-smoothed.slope.full <- xts::xts(res$output$alphahat[, "slope"],
-                                order.by = res$index)
-smoothed.P.slope <- xts::xts(res$output$P[2, 2,-1], order.by = res$index)
+# Extract the smoothed slope and its standard deviation as idx_series,
+# then convert to a data.frame with real dates for plotting.
+smoothed.slope.full <- idx_series(res$output$alphahat[, "slope"], start = res$index[1])
+smoothed.P.slope <- idx_series(res$output$P[2, 2, -1], start = res$index[1])
 
-d2 <- cbind(smoothed.slope.full, sqrt(smoothed.P.slope),
-            1.5 * sqrt(smoothed.P.slope),
-            2 * sqrt(smoothed.P.slope))
+common_pos <- idx_positions(smoothed.slope.full)
+d2 <- idx_series(
+  cbind(
+    smoothed.slope = idx_values(smoothed.slope.full),
+    sd.smoothed.slope = sqrt(idx_values(smoothed.P.slope)),
+    sd.smoothed.slope.1.5 = 1.5 * sqrt(idx_values(smoothed.P.slope)),
+    sd.smoothed.slope.2 = 2 * sqrt(idx_values(smoothed.P.slope))
+  ),
+  start = common_pos[1]
+)
 
-d2.df <- data.frame(date=index(d2), coredata(d2))
-
-colnames(d2.df) <- c("Date", "smoothed.slope",
-                     "sd.smoothed.slope",
-                     "sd.smoothed.slope.1.5",
-                     "sd.smoothed.slope.2")
+d2.mat <- as.matrix(idx_values(d2))
+d2.df <- data.frame(
+  Date = idx_to_date(cal, idx_positions(d2)),
+  smoothed.slope = d2.mat[, "smoothed.slope"],
+  sd.smoothed.slope = d2.mat[, "sd.smoothed.slope"],
+  sd.smoothed.slope.1.5 = d2.mat[, "sd.smoothed.slope.1.5"],
+  sd.smoothed.slope.2 = d2.mat[, "sd.smoothed.slope.2"]
+)
 
 d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
 
@@ -913,7 +1005,7 @@ reinit_zero.df <- d2.df %>%
 
 # Create plot
 ggplot(data = d2.df,
-       aes(x = Date)) +
+      aes(x = Date)) +
   geom_line(aes(y = smoothed.slope,
                 color = "smoothed.slope"), linewidth=.5) +
   geom_line(aes(y = sd.smoothed.slope,
@@ -951,32 +1043,34 @@ ggplot(data = d2.df,
         plot.title = element_text(face = "bold"))
 ```
 
-The date for reinitialization is set accordingly.
+The position for reinitialization is set accordingly, translating the
+reset date to an integer position via `idx_to_pos()`.
 
 ```{r set_reinit_date}
-reinit.dates = "2021-04-21"
+reinit.pos <- idx_to_pos(cal, "2021-04-21")
 ```
 
 ### Estimating the reinitialized model
 
 A reinitialized `SSModelDynamicGompertz` uses the same arguments as the
-non-reinitialized model, with the addition of the `reinit.date`
-argument.
+non-reinitialized model, with the addition of the `reinit.idx` argument
+-- an integer position, in place of the calendar date `reinit.date` used
+previously.
 
 ```{r reinit_estim}
 model <- SSModelDynamicGompertz$new(
   Y = Y, q = q, sea.period = 7,
-  start.date=estimation.date.start,
-  end.date=estimation.date.end,
-  reinit.date = as.Date(reinit.dates, format = "%Y-%m-%d")
+  start = estimation.pos.start,
+  end = estimation.pos.end,
+  reinit.idx = reinit.pos,
+  calendar = cal
 )
 res.reinit <- estimate(model)
 ```
 
-We generate the reinitialized data frame by setting cumulative cases to
-$0$ at the appropriate point, as discussed in the Theory section and
-extract the evaluation sample from the reinitialized data frame as
-below.
+We generate the reinitialized data series by setting cumulative cases to
+$0$ at the appropriate point, as discussed in the Theory section, and
+extract the evaluation sample from the reinitialized series as below.
 
 Estimating the model with the reinitialized series, the actual and
 forecast $\ln(g_t)$ can be plotted as in Figure 7, which is analogous to
@@ -987,15 +1081,15 @@ tsgc::plot_log_forecast(
     res = res.reinit,
     Y = Y,
     n.ahead = n.forecasts,
-    plt.start.date =  tail(res.reinit$index, 1) - plt.length,
+    plt.start = tail(res.reinit$index, 1) - plt.length,
     title='Forecast of log growth rate after reinitialization.'
 )
 ```
 
 Comparing forecasts, without reinitialization the 14-day forecast MAPE
-is 41.9% (see Figure 8). With reinitialization, it falls to 20.2% (see Figure 9). The
-corresponding MAPE figures for 7-day forecasts is 15.2% without
-reinitialization and 9.5% with reinitialization.
+is 41.9% (see Figure 8). With reinitialization, it falls to 20.2% (see
+Figure 9). The corresponding MAPE figures for 7-day forecasts is 15.2%
+without reinitialization and 9.5% with reinitialization.
 
 ```{r fig-8, echo=FALSE, fig.cap = "Figure 8: Forecast accuracy of the model without reinitialization over the hold-out sample period: 14 days from 25 June 2021."}
 tsgc::plot_holdout(
@@ -1017,7 +1111,7 @@ tsgc::plot_holdout(
 )
 ```
 
-We can also compare the standard (no reinitialization) and reinitalized 
+We can also compare the standard (no reinitialization) and reinitalized
 forecasts in a single plot:
 
 ```{r fig-10, fig.cap = "Figure 10: Comparison of standard (green) and reinitialized (blue) forecasts"}
@@ -1030,24 +1124,25 @@ tsgc::plot_compare_forecast(
 
 Just as for the standard (non-reinitialized) model, the returned
 estimation results contained in `res.reinit` are a `FilterResults`
-object, and can be written to CSV using the `write_results` method.
+object, and can be written to CSV using the `write_results` function.
 
 ## Leading indicator model: England cases and hospitalisations
 
 We now illustrate the leading-indicator model described above. We load
 the England data, which contains daily cumulative COVID-19 cases and
-hospital admissions, and specify an estimation window running from 30
-April 2021 to 24 July 2021, with cases as a four-day leading indicator
-for hospitalisations.
+hospital admissions, convert it to `idx_series`/`idx_calendar` form, and
+specify an estimation window running from 30 April 2021 to 24 July 2021,
+with cases as a four-day leading indicator for hospitalisations.
 
 ```{r li-setup}
 data(england, package = "tsgc")
-data(england_weather_2021, package = "tsgc")
 
-eng <- england[, 1:2]
+conv <- xts_to_idx(england[, 1:2])
+eng <- conv$series
+eng_cal <- conv$calendar
 
-est.start.eng <- as.Date("2021-04-30")
-est.end.eng   <- as.Date("2021-07-24")
+est.start.eng <- idx_to_pos(eng_cal, "2021-04-30")
+est.end.eng   <- idx_to_pos(eng_cal, "2021-07-24")
 n.lag.eng     <- 4
 n.forecasts.eng <- 7
 plt.length.eng  <- 14
@@ -1057,7 +1152,7 @@ A preliminary plot of the two series on the log scale is useful for
 inspecting comovement before formal estimation.
 
 ```{r li-plot, fig.cap = "Figure 11: Daily COVID cases and hospitalisations, England."}
-mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng)
+mod.eng.plot <- SSModelLeadingIndicator$new(eng, n.lag = n.lag.eng, calendar = eng_cal)
 plot(
   mod.eng.plot,
   title = "Daily COVID cases and hospitalisations (England)",
@@ -1076,8 +1171,9 @@ mod.eng <- SSModelLeadingIndicator$new(
   n.lag = n.lag.eng,
   LeadIndCol = 1,
   sea.period = 7,
-  start.date = est.start.eng,
-  end.date = est.end.eng
+  start = est.start.eng,
+  end = est.end.eng,
+  calendar = eng_cal
 )
 res.eng <- estimate(mod.eng)
 ```
@@ -1090,7 +1186,7 @@ tsgc::plot_log_forecast(
   res.eng,
   Y = eng,
   n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
+  plt.start = est.end.eng - plt.length.eng,
   title = "Forecast of log growth rate of hospitalisations (England)"
 )
 ```
@@ -1099,7 +1195,7 @@ tsgc::plot_log_forecast(
 tsgc::plot_forecast(
   res.eng,
   n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
+  plt.start = est.end.eng - plt.length.eng,
   series.name = "Hospitalisations",
   title = "Forecast of hospitalisations (England)"
 )
@@ -1120,11 +1216,20 @@ tsgc::plot_holdout(
 The same specification can be enriched with exogenous predictors. Here
 we add contemporaneous weather variables (wind speed, relative humidity,
 temperature, and maximum temperature) to both the lead and target
-equations, and then supply their future values before forecasting using
-`supply_xpred.new()`.
+equations, and then supply their future values before forecasting. Where
+the previous version of the package required a dedicated
+`supply_xpred.new()` call, the corresponding fields --
+`xpred_lead.new` and `xpred_targ.new` -- are now set directly on the
+fitted `FilterResultsLI` object.
 
 ```{r li-xpred}
-xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
+data(england_weather_2021, package = "tsgc")
+
+conv <- xts_to_idx(england_weather_2021[, 1:4],
+                    start.pos = idx_to_pos(eng_cal, zoo::index(england_weather_2021)[1]))
+england_weather_idx <- conv$series
+
+xpred_lead <- xpred_targ <- england_weather_idx
 
 mod.eng.x <- SSModelLeadingIndicator$new(
   eng,
@@ -1132,20 +1237,21 @@ mod.eng.x <- SSModelLeadingIndicator$new(
   xpred_lead = xpred_lead,
   xpred_targ = xpred_targ,
   sea.period = 7,
-  start.date = est.start.eng,
-  end.date = est.end.eng
+  start = est.start.eng,
+  end = est.end.eng,
+  calendar = eng_cal
 )
 res.eng.x <- estimate(mod.eng.x)
 
-supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "lead")
-supply_xpred.new(res.eng.x, england_weather_2021[, 1:4], idx = "targ")
+res.eng.x$xpred_lead.new <- england_weather_idx
+res.eng.x$xpred_targ.new <- england_weather_idx
 ```
 
 ```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
 tsgc::plot_forecast(
   res.eng.x,
   n.ahead = n.forecasts.eng,
-  plt.start.date = est.end.eng - plt.length.eng,
+  plt.start = est.end.eng - plt.length.eng,
   title = "Forecast of hospitalisations with regressors",
   series.name = "Hospitalisations"
 )
@@ -1168,17 +1274,21 @@ first wave.
 ```{r cv-setup}
 data(ukitaly, package = "tsgc")
 
+conv <- xts_to_idx(ukitaly)
+ukitaly_idx <- conv$series
+ukitaly_cal <- conv$calendar
+
 n.forecasts.uk <- 14
 plt.length.uk  <- 30
 q.uk   <- 0.005
 
-est.start.uk <- as.Date("2020-02-25")
-est.end.uk   <- as.Date("2020-04-01")
-Yuk          <- ukitaly[, "UK"]
+est.start.uk <- idx_to_pos(ukitaly_cal, "2020-02-25")
+est.end.uk   <- idx_to_pos(ukitaly_cal, "2020-04-01")
+Yuk          <- idx_series(idx_values(ukitaly_idx)[, "UK"], start = ukitaly_idx$start)
 ```
 
 ```{r fig-uk-italy, fig.cap = "Figure 16: Daily COVID cases in UK and Italy."}
-mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly, n.lag = 4)
+mod.ukit.plot <- SSModelLeadingIndicator$new(ukitaly_idx, n.lag = 4, calendar = ukitaly_cal)
 plot(
   mod.ukit.plot,
   title = "Daily COVID cases in UK and Italy",
@@ -1200,7 +1310,8 @@ tuning choices is beyond the scope of this vignette.
 ```{r uk-gompertz}
 mod.uk.gomp <- SSModelDynamicGompertz$new(
   Y = Yuk, q = q.uk, sea.period = 7,
-  start.date = est.start.uk, end.date = est.end.uk
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
 )
 res.uk.gomp <- estimate(mod.uk.gomp)
 ```
@@ -1208,8 +1319,9 @@ res.uk.gomp <- estimate(mod.uk.gomp)
 ```{r uk-lead}
 n.lag.uk <- 14
 mod.uk.lead <- SSModelLeadingIndicator$new(
-  Y = ukitaly, n.lag = n.lag.uk, sea.period = 7,
-  start.date = est.start.uk, end.date = est.end.uk
+  Y = ukitaly_idx, n.lag = n.lag.uk, sea.period = 7,
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
 )
 res.uk.lead <- estimate(mod.uk.lead)
 ```
@@ -1217,14 +1329,14 @@ res.uk.lead <- estimate(mod.uk.lead)
 ```{r fig-uk-compare, fig.cap = "Figure 17: Comparison of dynamic Gompertz and leading-indicator forecasts, UK daily cases."}
 tsgc::plot_compare_forecast(
   list(res.uk.gomp, res.uk.lead),
-  actual = ukitaly[, "UK"],
+  actual = Yuk,
   n.ahead = n.forecasts.uk
 )
 ```
 
 ```{r fig-uk-holdout, fig.cap = "Figure 18: Accuracy of the leading-indicator forecast, UK daily cases."}
 tsgc::plot_holdout(
-  res.uk.lead, Y = ukitaly, n.ahead = n.forecasts.uk,
+  res.uk.lead, Y = ukitaly_idx, n.ahead = n.forecasts.uk,
   title = "Accuracy: leading-indicator forecast of UK cases",
   series.name = "UK cases"
 )
@@ -1250,27 +1362,30 @@ cv_models <- list()
 
 cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
   Y = Yuk, q = q.uk, sea.period = 7,
-  start.date = est.start.uk, end.date = est.end.uk
+  start = est.start.uk, end = est.end.uk,
+  calendar = ukitaly_cal
 )
 
 cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
   Y = Yuk, sea.period = 7,
-  start.date = est.start.uk, end.date = est.end.uk, ar1 = TRUE
+  start = est.start.uk, end = est.end.uk, ar1 = TRUE,
+  calendar = ukitaly_cal
 )
 
 for (i in c(7, 10, 14, 16, 18, 21)) {
   cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
-    Y = ukitaly, sea.period = 7,
-    start.date = est.start.uk, end.date = est.end.uk, n.lag = i
+    Y = ukitaly_idx, sea.period = 7,
+    start = est.start.uk, end = est.end.uk, n.lag = i,
+    calendar = ukitaly_cal
   )
 }
 ```
 
 ```{r cv-run}
 cross_val(
-  Y = ukitaly,
+  Y = ukitaly_idx,
   model_list = cv_models,
-  est.end.date = est.end.uk,
+  est.end = est.end.uk,
   criterion = "smape",
   n.ahead = 14,
   n.estimate = 5,
@@ -1288,40 +1403,50 @@ models at different lags. The best-performing lags in this window are
 typically found in the mid-teens, consistent with a lead of roughly two
 to two-and-a-half weeks from Italy to the UK over this period.
 
-## Extensions: non-epdimeological applications and alternative data frequencies
+## Extensions: non-epidemiological applications and alternative data frequencies
 
 The package is not restricted to daily epidemic data. The same
 state-space machinery can be applied to quarterly, monthly, or annual
 data when the underlying series is cumulative and exhibits saturation;
 what changes with the sampling frequency is only the interpretation of
-the time index, forecast horizon, lag length, and seasonal period, not
-the underlying estimation procedure. For example, the quarterly Nintendo
-sales data can be used with a seasonal period of 4 and a lagged leading
-indicator, while monthly trading-app downloads can be treated in the
-same way with a seasonal period of 12.
+the integer position, forecast horizon, lag length, and seasonal period,
+not the underlying estimation procedure. For example, the quarterly
+Nintendo sales data can be used with a seasonal period of 4 and a lagged
+leading indicator, while monthly trading-app downloads can be treated in
+the same way with a seasonal period of 12. In both cases, `idx_calendar`
+carries the quarterly/monthly step size and unit, and `idx_to_pos()`
+still translates calendar dates to the integer positions that
+`start`/`end`/`n.lag` require.
 
 ```{r freq-quarterly}
 data(nintendo_sales, package = "tsgc")
 
-y_q <- nintendo_sales[, c("wii", "switch_all")]
+y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
 
-n.lag.q <- round(
-  (zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4")) * 4
+nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
+nintendo_cal <- idx_calendar(
+  anchor = as.Date(zoo::index(y_q_xts)[1]),
+  anchor_pos = 1L,
+  amount = 1, unit = "quarters",
+  posixct = TRUE
 )
 
+n.lag.q <- idx_to_pos(nintendo_cal, "2017-01-01") - idx_to_pos(nintendo_cal, "2006-10-01")
+
 mod.q <- SSModelLeadingIndicator$new(
-  Y = y_q,
+  Y = nintendo_idx,
   sea.period = 4,
   n.lag = n.lag.q,
-  start.date = zoo::as.yearqtr("2017 Q1"),
-  end.date = zoo::as.yearqtr("2019 Q4")
+  start = idx_to_pos(nintendo_cal, "2017-01-01"),
+  end = idx_to_pos(nintendo_cal, "2019-10-01"),
+  calendar = nintendo_cal
 )
 res.q <- estimate(mod.q)
 ```
 
 ```{r fig-freq-q, fig.cap = "Figure 19: Log forecasts of quarterly Switch sales, using Wii sales as a leading indicator."}
 tsgc::plot_log_forecast(
-  res.q, Y = y_q, n.ahead = 8,
+  res.q, Y = nintendo_idx, n.ahead = 8,
   title = "Log forecasts of Switch sales"
 )
 ```
@@ -1329,18 +1454,25 @@ tsgc::plot_log_forecast(
 ```{r freq-monthly}
 data(etrading_apps, package = "tsgc")
 
-y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+y_m_xts <- etrading_apps[, c("DEGIRO", "AvaTrade")]
 
-n.lag.m <- round(
-  (zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017)) * 12
+etrading_idx <- idx_series(zoo::coredata(y_m_xts), start = 1L)
+etrading_cal <- idx_calendar(
+  anchor = as.Date(zoo::index(y_m_xts)[1]),
+  anchor_pos = 1L,
+  amount = 1, unit = "months",
+  posixct = TRUE
 )
 
+n.lag.m <- idx_to_pos(etrading_cal, "2017-07-01") - idx_to_pos(etrading_cal, "2017-01-01")
+
 mod.m <- SSModelLeadingIndicator$new(
-  Y = y_m,
+  Y = etrading_idx,
   sea.period = 12,
   n.lag = n.lag.m,
-  start.date = zoo::as.yearmon(2017.5),
-  end.date = zoo::as.yearmon(2021 + 1 / 12)
+  start = idx_to_pos(etrading_cal, "2017-07-01"),
+  end = idx_to_pos(etrading_cal, "2021-02-01"),
+  calendar = etrading_cal
 )
 res.m <- estimate(mod.m)
 ```
@@ -1456,12 +1588,21 @@ between $\delta_t$ and $\gamma_t$, as well as the covariances between
 $\nu_{1,t},\nu_{2,t},\ldots,\nu_{s^*,t}$, are permitted to be non-zero
 and come directly from $P_{r+1}$.
 
-# Appendix: Supplying future external regressors from a CSV file
+# Appendix: Supplying future external regressors
 
 For models that include external regressors, forecasts are conditional
-on future values of those regressors. These values can be supplied from
-a CSV file. The following example illustrates the required CSV structure
-using an inline text block for reproducibility. In practice, the data
+on future values of those regressors. In this version of the package
+those future values are supplied as an `idx_series`, set directly on
+the fields of a fitted `FilterResults`/`FilterResultsLI` object
+(`xpred.new` for `SSModelDynamicGompertz`, or `xpred_lead.new`/
+`xpred_targ.new` for `SSModelLeadingIndicator`), rather than through the
+`supply_xpred.new()` helper used previously. If the future regressor
+values originate in a CSV file with a `Date` column, the same
+`xts_to_idx()` conversion used elsewhere in this vignette applies: read
+the CSV, convert the date column, coerce to `xts`, and then convert to
+`idx_series` using the model's existing calendar so that the resulting
+positions line up correctly. The following example illustrates this
+using an inline text block for reproducibility; in practice the data
 would normally be read directly from a CSV file.
 
 ```{r xpred-csv-example, eval = F}
@@ -1494,14 +1635,22 @@ gauteng_weather_future_csv <- read.csv(
 gauteng_weather_future_csv$Date <-
   as.Date(gauteng_weather_future_csv$Date)
 
-# Convert the data frame to the xts format expected by tsgc.
-gauteng_weather_future_xts <- xts(
+# Convert the data frame to xts first...
+gauteng_weather_future_xts <- xts::xts(
   gauteng_weather_future_csv[, -1],
   order.by = gauteng_weather_future_csv$Date
 )
 
-# Supply the future regressors to the fitted model.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+# ...then to an idx_series, anchored on the fitted model's own calendar
+# so that the resulting positions line up with res_weather$calendar.
+gauteng_weather_future_idx <- xts_to_idx(
+  gauteng_weather_future_xts,
+  start.pos = idx_to_pos(res_weather$calendar,
+                         zoo::index(gauteng_weather_future_xts)[1])
+)$series
+
+# Supply the future regressors directly on the fitted results object.
+res_weather$xpred.new <- gauteng_weather_future_idx
 ```
 
 In practice, users would normally read the future regressor values
@@ -1519,17 +1668,111 @@ gauteng_weather_future_csv <- read.csv(
 gauteng_weather_future_csv$Date <-
   as.Date(gauteng_weather_future_csv$Date)
 
-# Convert to xts format.
-gauteng_weather_future_xts <- xts(
+# Convert to xts, then to idx_series on the model's calendar.
+gauteng_weather_future_xts <- xts::xts(
   gauteng_weather_future_csv[, -1],
   order.by = gauteng_weather_future_csv$Date
 )
+gauteng_weather_future_idx <- xts_to_idx(
+  gauteng_weather_future_xts,
+  start.pos = idx_to_pos(res_weather$calendar,
+                         zoo::index(gauteng_weather_future_xts)[1])
+)$series
 
-# Supply the future regressors to the fitted model.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+# Supply the future regressors directly on the fitted results object.
+res_weather$xpred.new <- gauteng_weather_future_idx
 ```
 
 Once the future regressors have been supplied, subsequent forecasts from
 the fitted model are conditional on these external regressor values.
 
-While this example is specifically for exogenous predictors, it can be extended to CSV files containing the target data in the same way.
+While this example is specifically for exogenous predictors supplied to
+a `SSModelDynamicGompertz` fit, the same `xts_to_idx()`/field-assignment
+pattern extends to `xpred_lead.new` and `xpred_targ.new` on a
+`SSModelLeadingIndicator` fit, as demonstrated for the England
+cases-hospitalisations example above.
+
+# Appendix: Controlling the plot x-axis with `idx_axis_opts()`
+
+Every plotting function in this section so far has left its `axis`
+argument unset, which defaults to `mode = "auto"`: real calendar dates
+if the calendar has `posixct = TRUE` (as in almost every example
+above), otherwise plain integer positions. `idx_axis_opts()` lets you
+override this per plot, and applies uniformly across every
+`plot.*`/`plot_*` function in the package. To keep the comparison
+clear, this section reuses a single plot - the Gauteng fourteen-day
+new-cases forecast from Figure 3 - and simply varies `axis`.
+
+```{r axis-showcase-setup}
+showcase_axis_plot <- function(axis = NULL) {
+  tsgc::plot_forecast(
+    res = res,
+    n.ahead = n.forecasts,
+    confidence.level = confidence.level,
+    plt.start = tail(res$index, 1) - plt.length,
+    series.name = "cases",
+    axis = axis
+  )
+}
+```
+
+## `mode = "date"` (the default here, since `gauteng_cal$posixct = TRUE`)
+
+Real calendar dates on the x-axis - this is what `axis = NULL` already
+produced in Figure 3.
+
+```{r fig-axis-date, fig.cap = "Real calendar dates (mode = \"date\")."}
+showcase_axis_plot(idx_axis_opts(mode = "date"))
+```
+
+## `mode = "position"`
+
+The raw integer `idx_series` position, ignoring the calendar entirely.
+
+```{r fig-axis-position, fig.cap = "Raw integer positions (mode = \"position\")."}
+showcase_axis_plot(idx_axis_opts(mode = "position"))
+```
+
+## `mode = "steps"`
+
+Steps from the calendar's anchor position
+(`position - anchor_pos`). Since `gauteng_cal` has an `anchor_name`
+set (`"first recorded case"`, added earlier when the calendar was
+built), the axis label uses it automatically.
+
+```{r fig-axis-steps, fig.cap = "Steps from the anchor (mode = \"steps\")."}
+showcase_axis_plot(idx_axis_opts(mode = "steps"))
+```
+
+## `mode = "time_since"`
+
+The pattern-weighted calendar offset from the anchor, expressed in
+`calendar$unit`s rather than a raw step count - here "days since first
+recorded case". For a daily series with no gaps this is numerically
+identical to `"steps"`, but it diverges for series with an irregular
+`pattern` (e.g. business days) or a non-day `unit` (e.g. quarters,
+months), and it also works for `posixct = TRUE` calendars where it can
+be more readable than a real date.
+
+```{r fig-axis-time-since, fig.cap = "Time since the anchor, in calendar units (mode = \"time_since\")."}
+showcase_axis_plot(idx_axis_opts(mode = "time_since"))
+```
+
+## Adding an info box
+
+Setting `info_box = TRUE` (on any of the modes above) appends a
+caption summarising the calendar: the anchor (and its name, if set),
+the step size/unit, and the pattern. `pattern_n` truncates a long
+pattern to its first `n` values; by default the full pattern is
+shown.
+
+```{r fig-axis-infobox, fig.cap = "Steps from anchor, with an info box summarising the calendar."}
+showcase_axis_plot(idx_axis_opts(mode = "steps", info_box = TRUE))
+```
+
+If the info box's pattern were long (e.g. a business-day calendar with
+weekends skipped), `pattern_n` keeps the caption readable:
+
+```{r fig-axis-infobox-truncated, fig.cap = "Info box with pattern truncated to its first 3 values via pattern_n."}
+showcase_axis_plot(idx_axis_opts(mode = "steps", info_box = TRUE, pattern_n = 3))
+```
