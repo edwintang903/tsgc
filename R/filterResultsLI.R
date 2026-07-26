@@ -293,9 +293,9 @@ FilterResultsLI <- setRefClass(
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
           if (is.xts(xpred_lead.new)){
-            lagged_lead <- lag(xpred_lead.new, n.lag)
-            fc_dates <- seq(end.date, by = "day", length.out = n.ahead + 1L)[-1]
-            xpred_lead.new.subset <- lagged_lead[fc_dates]
+            new_xpred_lag<-lag(xpred_lead.new,n.lag)
+            new_index<-which.max(index(new_xpred_lag)==end.date)
+            xpred_lead.new.subset<-new_xpred_lag[(new_index+1):(new_index+n.ahead)]
             if (any(!complete.cases(xpred_lead.new.subset)) ||
                 nrow(xpred_lead.new.subset) != n.ahead){
               stop("xpred_lead.new does not cover the required forecast dates.")
@@ -308,8 +308,8 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is.xts(xpred_targ.new)){
-            fc_dates <- seq(end.date, by = "day", length.out = n.ahead + 1L)[-1]
-            xpred_targ.new.subset <- xpred_targ.new[fc_dates]
+            new_index<-which.max(index(xpred_targ.new)==end.date)
+            xpred_targ.new.subset<-xpred_targ.new[(new_index+1):(new_index+n.ahead)]
             if (any(!complete.cases(xpred_targ.new.subset)) ||
                 nrow(xpred_targ.new.subset) != n.ahead){
               stop("xpred_targ.new does not cover the required forecast dates.")
