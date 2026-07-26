@@ -863,7 +863,7 @@ in Figure 5.
 
 ```{r calc_rt}
 gen_int <- 4
-r.t <- estimate_r0(res, gen_int, ndays = 7)
+r.t <- estimate_r0(res, gen_int, n.ahead = 7)
 ```
 
 ```{r fig-5, echo = FALSE, fig.cap = "Figure 5: Reproduction numbers for the 7-day period to 3 May 2021, for Gauteng province in South Africa."}
