@@ -209,7 +209,7 @@ idx_add_info_box <- function(p, calendar, axis) {
 #' @returns A \code{ggplot2} plot.
 #'
 #' @importFrom ggplot2 ggplot geom_line aes labs theme element_text
-#' @importFrom ggplot2 scale_y_continuous
+#' @importFrom ggplot2 scale_y_continuous scale_color_manual theme_bw element_blank
 #'
 #' @export
 plot.SSModelDynamicGompertz <- function(x, title = NULL,
@@ -256,7 +256,7 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
     )
   if (MA_period > 1) {
     p <- p + geom_line(aes(y = Centered.MA, colour = "Centered MA"), linewidth = 1) + 
-      scale_colour_manual(values = c("Centered MA" = "red"))
+      scale_color_manual(values = c("Centered MA" = "red"))
   }
   idx_add_info_box(p, calendar, axis)
 }
