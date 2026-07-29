@@ -514,7 +514,11 @@ from calendar-time data: the former converts an `xts`/`Date`-indexed
 series into an `idx_series` plus a matching `idx_calendar` in one step,
 and the latter translates a calendar date back into the integer
 position `idx_series` expects for `start`/`end`/`reinit.idx`. Both are
-demonstrated in the Illustration section below.
+demonstrated in the Illustration section below. Every calendar used in
+this vignette has a step size that is a single, uniform `amount`/`unit`
+pair; `idx_calendar` also supports compound and heterogeneous step
+sizes for series that need them, described in the Appendices
+"Compound calendar steps" and "Heterogeneous repeating cycles" below.
 
 The `SSModelDynamicGompertz` class allows the model to be estimated for
 a new wave without losing information from prior waves. It will accept
@@ -1753,3 +1757,121 @@ weekends skipped), `pattern_n` keeps the caption readable:
 ```{r fig-axis-infobox-truncated, fig.cap = "Info box with pattern truncated to its first 3 values via pattern_n."}
 showcase_axis_plot(idx_axis_opts(mode = "steps", info_box = TRUE, pattern_n = 3))
 ```
+# Appendix: Compound calendar steps with `idx_step()` and `idx_calendar_step()`
+
+Every calendar used elsewhere in this vignette is built with the
+primary `idx_calendar()` constructor, whose step size is a single
+`amount`/`unit` pair (e.g. `amount = 1, unit = "days"`, or `amount = 1,
+unit = "quarters"`). This covers the common case where the step
+between consecutive `idx_series` positions is a whole multiple of one
+calendar unit. Some series, however, are genuinely spaced by a
+combination of units that a single `amount`/`unit` pair cannot
+express - for example, a reporting system that timestamps quarterly
+figures a few seconds after the quarter boundary, so that the step is
+"one quarter plus three seconds". `idx_step()` builds this kind of
+compound step, and `idx_calendar_step()` is the `idx_calendar`
+constructor that takes one.
+
+```{r appendix-idx-step}
+qtr_step <- idx_step(quarters = 1, seconds = 3)
+qtr_step
+
+cal_step <- idx_calendar_step(
+  anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+  step = qtr_step,
+  posixct = TRUE
+)
+idx_to_date(cal_step, 1:4)
+```
+
+`idx_to_pos()` inverts this exactly as it does for the primary
+constructor. A compound step has no single `amount` to divide by, so
+rather than the closed-form calculation used for `idx_calendar()`
+calendars, the position is instead located by a binary search on the
+number of steps from the anchor:
+
+```{r appendix-idx-step-inverse}
+idx_to_pos(cal_step, idx_to_date(cal_step, 4))
+```
+
+Any component of an `idx_step` (`years`, `quarters`, `months`,
+`weeks`, `days`, `hours`, `minutes`, `seconds`) left at its default of
+`0` is simply omitted from the step, so `idx_step(days = 1)` is
+equivalent to the `amount = 1, unit = "days"` pairs used throughout
+the main text. `idx_step_add()` is the lower-level function that
+applies a given number of whole steps to an anchor date directly, and
+is what an `idx_calendar_step()`-built calendar uses internally to
+convert positions to dates; it is not usually called directly by
+users of the package; it is available for cases where a step needs
+to be applied outside of an `idx_calendar` altogether.
+
+# Appendix: Heterogeneous repeating cycles with `multi_step_pattern()` and `idx_calendar_multi_step()`
+
+The `pattern` argument of `idx_calendar()`/`idx_calendar_step()`
+handles a repeating cycle of *different multiples* of one step - e.g.
+a business-day calendar, where four single-day steps (Mon-Thu) are
+followed by a three-day step over the weekend. That still assumes
+every step in the cycle is the same *kind* of step, just scaled
+differently. Some data instead cycle through genuinely different
+kinds of steps - for example, "three days, three days, then one
+month, repeating". `multi_step_pattern()` describes this kind of
+cycle as a sequence of `idx_step` objects, and
+`idx_calendar_multi_step()` is the `idx_calendar` constructor that
+uses it.
+
+```{r appendix-multi-step}
+cal_multi <- idx_calendar_multi_step(
+  anchor = as.Date("2024-01-01"),
+  multi_step = multi_step_pattern(
+    idx_step(days = 3), idx_step(days = 3), idx_step(months = 1)
+  ),
+  posixct = TRUE
+)
+idx_to_date(cal_multi, 1:6)
+```
+
+Because the slots in a `multi_step_pattern` can mix calendar-relative
+(e.g. months) and fixed-duration (e.g. days) components, there is no
+closed-form way to collapse the whole cycle into a single numeric
+offset. `idx_to_date()` instead walks one slot at a time from the
+anchor position, and `idx_to_pos()`'s inverse walks the same cycle in
+reverse:
+
+```{r appendix-multi-step-inverse}
+idx_to_pos(cal_multi, "2024-02-07")
+```
+
+This makes `idx_calendar_multi_step()` calendars more expensive to
+convert than the other two constructors - each position takes time
+proportional to its distance from the anchor, rather than constant
+time - so it is best reserved for genuinely irregular step sequences
+that the `pattern` argument of the other two constructors cannot
+express. The `"time_since"` axis mode described in the previous
+appendix is also unavailable for this calendar: a `multi_step_pattern`
+has no single `amount` to express an offset in, so `mode = "steps"`
+or `mode = "date"` should be used instead.
+
+# Appendix: Non-calendar `idx_calendar` anchors and `idx_offset_to_pos()`
+
+Not every `idx_series` needs a genuine calendar interpretation. An
+`idx_calendar`'s `anchor` can be any single reference point, not just
+a `Date`/`POSIXct` - for example, a plain numeric count of
+picoseconds since the start of an experiment. `idx_offset_to_pos()`
+is the inverse operation for this case: given a value already
+expressed in the anchor's own units, it returns the integer
+`idx_series` position that corresponds to it - the counterpart of
+`idx_to_pos()`, which instead expects a calendar date.
+
+```{r appendix-offset-to-pos}
+cal_ps <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 2.5,
+                       unit = "picoseconds")
+idx_offset_to_pos(cal_ps, 12.5)
+```
+
+None of the examples elsewhere in this vignette need
+`idx_offset_to_pos()`, since every series used above has a genuine
+`Date`/`POSIXct` calendar and so uses `idx_to_pos()` instead; it is
+included here for completeness, for applications - e.g. raw
+instrumentation data with no calendar meaning - where `idx_series`
+positions are still worth translating to and from the anchor's own
+numeric scale.

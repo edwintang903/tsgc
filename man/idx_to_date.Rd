@@ -33,10 +33,28 @@ e.g. not every month has the same number of days) and genuinely require
 this calendar-aware stepping to land on the correct date (respecting
 month-end/DST rules) rather than a fixed number of days.
 
-Otherwise (\code{posixct = FALSE}, a non-Date/POSIXct anchor, or a unit
-outside the standard eight) the conversion falls back to plain numeric
-offset arithmetic: it multiplies the pattern-weighted step offset (see
+\code{cal$anchor} may also be a \code{zoo} \code{yearqtr} or
+\code{yearmon}, for series that are naturally indexed at quarterly or
+monthly resolution rather than daily.
+
+Internally, every \code{idx_calendar} (whether built via the primary
+\code{amount}/\code{unit} constructor or via
+\code{\link{idx_calendar_step}}) carries a compound \code{cal$step}
+(see \code{\link{idx_step}}), and calendar-aware stepping is delegated
+uniformly to \code{\link{idx_step_add}}. This is what allows steps that
+mix calendar-relative and fixed-duration components, e.g. "3 seconds
+after each quarter" or "a month and 13 seconds" - a single
+\code{amount}/\code{unit} pair cannot express these, but a compound
+\code{idx_step} can.
+
+Otherwise (\code{posixct = FALSE}, or a non-Date/POSIXct/yearqtr/yearmon
+anchor) the conversion falls back to plain numeric offset arithmetic: it
+multiplies the pattern-weighted step offset (see
 \code{\link{idx_calendar_offset}}) by \code{cal$amount} and adds the
 result to \code{cal$anchor}. This supports arbitrary non-calendar units
-(e.g. picoseconds) uniformly.
+(e.g. picoseconds) uniformly, but is not available for calendars built
+via \code{\link{idx_calendar_step}} with \code{posixct = FALSE}, since
+those have no single \code{amount} to multiply by (see
+\code{\link{idx_calendar_step}}); such calendars require
+\code{posixct = TRUE}.
 }

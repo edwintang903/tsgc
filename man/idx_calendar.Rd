@@ -2,7 +2,7 @@
 % Please edit documentation in R/idx_calendar.R
 \name{idx_calendar}
 \alias{idx_calendar}
-\title{Calendar translation layer for \code{idx_series}}
+\title{Construct an \code{idx_calendar}}
 \usage{
 idx_calendar(
   anchor,
