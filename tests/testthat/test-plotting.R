@@ -170,6 +170,20 @@ test_that("plot(model) methods work with a non-posixct calendar (Gompertz and Le
   expect_no_error(plot(model_li, axis = idx_axis_opts(mode = "steps")))
 })
 
+test_that("plot.SSModelDynamicGompertz preserves Date x values for a calendar-aware axis", {
+  data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng)
+  model <- SSModelDynamicGompertz$new(
+    Y = get_timeframe(conv$series, conv$series$start, conv$series$start + 49),
+    q = 0.005,
+    calendar = conv$calendar
+  )
+
+  p <- plot(model)
+  expect_s3_class(p$data$x, "Date")
+  expect_no_error(ggplot2::ggplot_build(p))
+})
+
 test_that("plot_forecast() and plot_log_forecast() work with a non-posixct calendar, all axis modes", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng)

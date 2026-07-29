@@ -282,11 +282,8 @@ test_that("idx_to_date: posixct=TRUE + POSIXct anchor + standard sub-day unit us
                       amount = 1, unit = "hours", posixct = TRUE)
   out <- idx_to_date(cal, 1:5)
   expected <- seq(anchor, by = "hour", length.out = 5)
-  # Compare by underlying instant (numeric seconds since epoch), not by
-  # class/attributes: idx_to_date()'s vapply(..., FUN.VALUE = cal$anchor[1])
-  # does not preserve the POSIXct class or tzone through coercion, even
-  # though the represented time instants are correct.
-  expect_equal(as.numeric(out), as.numeric(expected))
+  expect_equal(out, expected)
+  expect_s3_class(out, "POSIXct")
 })
 
 test_that("idx_to_date: calendar-aware stepping covers the five Date-compatible standard units for a Date anchor (contrast case)", {
@@ -297,6 +294,7 @@ test_that("idx_to_date: calendar-aware stepping covers the five Date-compatible 
     out <- idx_to_date(cal, 1:3)
     expected <- seq(as.Date("2024-01-01"), by = sub("s$", "", u), length.out = 3)
     expect_equal(out, expected, info = paste("unit =", u))
+    expect_s3_class(out, "Date")
   }
 })
 
@@ -311,9 +309,8 @@ test_that("idx_to_date: calendar-aware stepping covers the sub-day standard unit
                         amount = 1, unit = u, posixct = TRUE)
     out <- idx_to_date(cal, 1:3)
     expected <- seq(anchor, by = by_strings[[u]], length.out = 3)
-    # Compare by underlying instant, not strict object equality - see the
-    # tzone-attribute note in the single-unit "hours" test above.
-    expect_equal(as.numeric(out), as.numeric(expected), info = paste("unit =", u))
+    expect_equal(out, expected, info = paste("unit =", u))
+    expect_s3_class(out, "POSIXct")
   }
 })
 

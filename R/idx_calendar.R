@@ -271,9 +271,18 @@ idx_to_date <- function(cal, pos) {
            " steps is not supported for calendar-aware (posixct) offsets.")
     }
     step <- as.integer(round(step))
-    vapply(step, function(s) {
+    if (length(step) == 0L) {
+      return(cal$anchor[FALSE])
+    }
+    # vapply() simplifies Date/POSIXct values to their underlying numeric
+    # representation.  Combine the scalar results through their class-aware
+    # c() methods instead so plotting code receives the date-time class that
+    # matches the selected ggplot scale.
+    out <- do.call(c, lapply(step, function(s) {
       seq(cal$anchor, by = paste(s, by_unit), length.out = 2)[2]
-    }, FUN.VALUE = cal$anchor[1])
+    }))
+    names(out) <- names(step)
+    out
   } else {
     cal$anchor + offset * cal$amount
   }
