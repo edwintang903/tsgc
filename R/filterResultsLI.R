@@ -523,7 +523,7 @@ FilterResultsLI <- setRefClass(
       
       sea_mat <- idx_values(sea)
       d.eval <- data.frame(
-        Actual = idx_values(newTarg_validation[common_pos]),
+        Actual = as.numeric(idx_values(newTarg_validation[common_pos])),
         Forecast = sea_mat[match(common_pos, idx_positions(sea)), 1],
         lwr = sea_mat[match(common_pos, idx_positions(sea)), 2],
         upr = sea_mat[match(common_pos, idx_positions(sea)), 3]

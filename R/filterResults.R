@@ -545,7 +545,7 @@ FilterResults <- setRefClass(
       
       d.eval <- data.frame(
         pos = common_pos,
-        Actual = idx_values(filtered_y_eval_diff[common_pos]),
+        Actual = as.numeric(idx_values(filtered_y_eval_diff[common_pos])),
         Forecast = forecast_mat[match(common_pos, forecast_pos), 1],
         lwr = forecast_mat[match(common_pos, forecast_pos), 2],
         upr = forecast_mat[match(common_pos, forecast_pos), 3]

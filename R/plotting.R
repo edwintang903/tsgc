@@ -992,8 +992,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   
   common_pos <- intersect(idx_positions(y.eval.diff), idx_positions(y.hat.ci))
   d.eval <- data.frame(
-    Actual = idx_values(y.eval.diff[common_pos]),
-    Forecast = as.matrix(idx_values(y.hat.ci[common_pos]))[, 1]
+    Actual = as.numeric(idx_values(y.eval.diff[common_pos])),
+    Forecast = as.numeric(as.matrix(idx_values(y.hat.ci[common_pos]))[, 1])
   )
   d.eval <- stats::na.omit(d.eval)
   
@@ -1057,8 +1057,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   
   common_pos <- intersect(idx_positions(actual), idx_positions(sea))
   compare <- data.frame(
-    Actual = idx_values(actual[common_pos]),
-    Forecast = as.matrix(idx_values(sea[common_pos]))[, 1]
+    Actual = as.numeric(idx_values(actual[common_pos])),
+    Forecast = as.numeric(as.matrix(idx_values(sea[common_pos]))[, 1])
   )
   
   if (any(compare$Actual == 0)) {
