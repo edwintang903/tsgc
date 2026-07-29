@@ -96,6 +96,17 @@ idx_resolve_axis <- function(axis, calendar) {
   if (mode %in% c("steps", "time_since", "date") && !is_idx_calendar(calendar)) {
     stop("axis mode '", mode, "' requires a calendar; none was supplied.")
   }
+  if (mode == "time_since" && is_idx_calendar(calendar) && !is.null(calendar$multi_step)) {
+    stop("axis mode 'time_since' is not supported for a calendar built via ",
+         "idx_calendar_multi_step(): its steps cycle through heterogeneous ",
+         "idx_step units that cannot be collapsed into a single numeric ",
+         "offset. Use mode = 'steps' or 'date' instead.")
+  }
+  if (mode == "time_since" && is_idx_calendar(calendar) && is.na(calendar$amount)) {
+    stop("axis mode 'time_since' is not supported for a calendar built via ",
+         "idx_calendar_step(): it has no single 'amount' to express the ",
+         "offset in. Use mode = 'steps' or 'date' instead.")
+  }
   axis$mode <- mode
   axis
 }
@@ -127,6 +138,20 @@ idx_x_scale <- function(calendar = NULL, axis = NULL) {
     if (inherits(calendar$anchor, "POSIXct")) {
       ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"),
                                 breaks = scales::breaks_pretty(n = 8))
+    } else if (inherits(calendar$anchor, "yearqtr")) {
+      # idx_to_date() returns a plain numeric (fractional-year) vector for
+      # yearqtr/yearmon anchors, not a Date/POSIXct, so there is no
+      # scale_x_yearqtr(); format the continuous breaks as "YYYY Qn"
+      # instead via zoo's as.yearqtr.
+      ggplot2::scale_x_continuous(
+        breaks = scales::breaks_pretty(n = 8),
+        labels = function(v) as.character(zoo::as.yearqtr(v))
+      )
+    } else if (inherits(calendar$anchor, "yearmon")) {
+      ggplot2::scale_x_continuous(
+        breaks = scales::breaks_pretty(n = 8),
+        labels = function(v) as.character(zoo::as.yearmon(v))
+      )
     } else {
       ggplot2::scale_x_date(labels = scales::date_format("%d %b %y"),
                             breaks = scales::breaks_pretty(n = 8))
@@ -144,28 +169,66 @@ idx_x_lab <- function(calendar = NULL, axis = NULL) {
          date       = "Date",
          position   = "Position",
          steps      = paste0("Steps from ", idx_anchor_label(calendar)),
+         # idx_resolve_axis() already rejects time_since for step/multi_step
+         # calendars (calendar$unit is NA_character_ for those), so
+         # calendar$unit is always a real unit string by the time we get here.
          time_since = paste0("Time since ", idx_anchor_label(calendar), " (", calendar$unit, ")")
   )
 }
 
 #' @keywords internal
 #' @noRd
+idx_step_label <- function(step) {
+  stopifnot(is_idx_step(step))
+  parts <- vapply(names(step), function(nm) {
+    if (!isTRUE(all.equal(step[[nm]], 0))) paste(step[[nm]], nm) else NA_character_
+  }, character(1))
+  paste(parts[!is.na(parts)], collapse = ", ")
+}
+
+#' @keywords internal
+#' @noRd
 idx_info_box_caption <- function(calendar, axis) {
   if (is.null(axis) || !isTRUE(axis$info_box) || !is_idx_calendar(calendar)) return(NULL)
+  
+  anchor_line <- if (!is.null(calendar$anchor_name)) {
+    paste0("Anchor: ", calendar$anchor_name, " (", format(calendar$anchor), ")")
+  } else {
+    paste0("Anchor: ", format(calendar$anchor))
+  }
+  
+  if (!is.null(calendar$multi_step)) {
+    # multi_step_pattern calendars have no single amount/unit or numeric
+    # pattern - describe each slot's idx_step instead.
+    step_lines <- vapply(seq_along(calendar$multi_step), function(i) {
+      paste0("  [", i, "] ", idx_step_label(calendar$multi_step[[i]]))
+    }, character(1))
+    return(paste(
+      anchor_line,
+      paste0("Step: multi_step_pattern (", length(calendar$multi_step), " slots)"),
+      paste(step_lines, collapse = "\n"),
+      sep = "\n"
+    ))
+  }
+  
+  step_str <- if (is.na(calendar$amount)) {
+    # Built via idx_calendar_step(): a compound idx_step, not a single
+    # amount/unit pair.
+    idx_step_label(calendar$step)
+  } else {
+    paste(calendar$amount, calendar$unit)
+  }
+  
   pat <- calendar$pattern
   pat_str <- if (!is.null(axis$pattern_n) && length(pat) > axis$pattern_n) {
     paste0(paste(pat[seq_len(axis$pattern_n)], collapse = ", "), ", ...")
   } else {
     paste(pat, collapse = ", ")
   }
-  anchor_line <- if (!is.null(calendar$anchor_name)) {
-    paste0("Anchor: ", calendar$anchor_name, " (", format(calendar$anchor), ")")
-  } else {
-    paste0("Anchor: ", format(calendar$anchor))
-  }
+  
   paste(
     anchor_line,
-    paste0("Step: ", calendar$amount, " ", calendar$unit),
+    paste0("Step: ", step_str),
     paste0("Pattern: ", pat_str),
     sep = "\n"
   )

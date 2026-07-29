@@ -76,6 +76,90 @@ test_that("idx_to_date handles month/quarter/year units exactly (variable-length
   expect_equal(out, seq(as.Date("2024-01-31"), by = "month", length.out = 3))
 })
 
+test_that("idx_to_date supports a yearqtr anchor with unit = 'quarters'", {
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 1, unit = "quarters", posixct = TRUE)
+  out <- idx_to_date(cal, 1:4)
+  expect_equal(out, zoo::as.yearqtr("2024 Q1") + 0:3 * 0.25)
+  expect_true(inherits(out, "yearqtr"))
+})
+
+test_that("idx_to_date supports a yearqtr anchor with unit = 'years'", {
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 1, unit = "years", posixct = TRUE)
+  out <- idx_to_date(cal, 1:3)
+  expect_equal(out, zoo::as.yearqtr("2024 Q1") + 0:2)
+})
+
+test_that("idx_to_date supports a yearmon anchor with unit = 'months'", {
+  cal <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                      amount = 1, unit = "months", posixct = TRUE)
+  out <- idx_to_date(cal, 1:5)
+  expect_equal(out, zoo::as.yearmon("2024-01") + 0:4 * (1/12))
+  expect_true(inherits(out, "yearmon"))
+})
+
+test_that("idx_to_date supports a yearmon anchor with unit = 'years'", {
+  cal <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                      amount = 1, unit = "years", posixct = TRUE)
+  out <- idx_to_date(cal, 1:3)
+  expect_equal(out, zoo::as.yearmon("2024-01") + 0:2)
+})
+
+test_that("idx_to_date respects amount for yearqtr/yearmon anchors (e.g. every 2 quarters)", {
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 2, unit = "quarters", posixct = TRUE)
+  out <- idx_to_date(cal, 1:3)
+  expect_equal(out, zoo::as.yearqtr("2024 Q1") + c(0, 2, 4) * 0.25)
+})
+
+test_that("idx_to_date rejects a 'months' unit for a yearqtr anchor", {
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 1, unit = "months", posixct = TRUE)
+  expect_error(idx_to_date(cal, 1:3), "not supported")
+})
+
+test_that("idx_to_date rejects a 'quarters' unit for a yearmon anchor", {
+  cal <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                      amount = 1, unit = "quarters", posixct = TRUE)
+  expect_error(idx_to_date(cal, 1:3), "not supported")
+})
+
+test_that("idx_to_date rejects a sub-resolution unit (days) for yearqtr/yearmon anchors", {
+  cal_qtr <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                          amount = 1, unit = "days", posixct = TRUE)
+  cal_mon <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                          amount = 1, unit = "days", posixct = TRUE)
+  expect_error(idx_to_date(cal_qtr, 1:3), "not supported")
+  expect_error(idx_to_date(cal_mon, 1:3), "not supported")
+})
+
+test_that("idx_to_date falls back to plain arithmetic for yearqtr/yearmon anchors when posixct = FALSE", {
+  cal_qtr <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                          amount = 1, unit = "quarters", posixct = FALSE)
+  cal_mon <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                          amount = 1, unit = "months", posixct = FALSE)
+  # Plain arithmetic: yearqtr/yearmon are numeric under the hood (fractional
+  # years), so anchor + offset * amount happens to still land close to the
+  # right value here, but goes through the generic branch, not the
+  # calendar-aware one.
+  expect_equal(idx_to_date(cal_qtr, 1:3), zoo::as.yearqtr("2024 Q1") + 0:2)
+  expect_equal(idx_to_date(cal_mon, 1:3), zoo::as.yearmon("2024-01") + 0:2)
+})
+
+test_that("idx_to_date respects a repeating pattern for a yearqtr anchor", {
+  # 4-quarter cycle where the 3rd slot (Q3) has weight 2 instead of 1,
+  # i.e. stepping onto/past that slot advances calendar time by 2 quarters.
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 1, unit = "quarters",
+                      pattern = c(1, 1, 2, 1), pattern_start = 1L,
+                      posixct = TRUE)
+  out <- idx_to_date(cal, 1:4)
+  # Pattern-weighted offsets from idx_calendar_offset() at positions 1:4
+  # (pattern_start = 1, pattern = 1,1,2,1) are 0, 1, 2, 4.
+  expect_equal(out, zoo::as.yearqtr("2024 Q1") + c(0, 1, 2, 4) * 0.25)
+})
+
 test_that("idx_to_date falls back to plain arithmetic when posixct is FALSE even with a Date anchor", {
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                       amount = 1, unit = "days", posixct = FALSE)
@@ -139,15 +223,196 @@ test_that("idx_offset_to_pos errors when value does not fall on a whole step bou
   expect_error(idx_offset_to_pos(cal, 1), "whole step boundary")
 })
 
-test_that("idx_to_date and idx_to_pos round-trip through xts_to_idx for a real dataset", {
-  data(gauteng, package = "tsgc")
-  conv <- xts_to_idx(gauteng)
-  expect_true(is_idx_series(conv$series))
-  expect_true(is_idx_calendar(conv$calendar))
-  
-  first_date <- zoo::index(gauteng)[1]
-  expect_equal(idx_to_date(conv$calendar, conv$series$start), first_date)
-  expect_equal(idx_to_pos(conv$calendar, first_date), conv$series$start)
+test_that("idx_step constructs with defaults and validates fields", {
+  s <- idx_step(days = 1)
+  expect_true(is_idx_step(s))
+  expect_equal(s$days, 1)
+  expect_equal(s$years, 0)
+  expect_error(idx_step(), "non-zero")
+  expect_error(idx_step(days = -1), "days")
+  expect_error(idx_step(seconds = c(1, 2)), "seconds")
+})
+
+test_that("idx_step_needs_posixct is TRUE only when hours/minutes/seconds are set", {
+  expect_false(idx_step_needs_posixct(idx_step(months = 1)))
+  expect_true(idx_step_needs_posixct(idx_step(seconds = 3)))
+  expect_true(idx_step_needs_posixct(idx_step(quarters = 1, seconds = 3)))
+})
+
+test_that("print.idx_step does not error and omits zero fields", {
+  s <- idx_step(months = 1, seconds = 13)
+  expect_no_error(print(s))
+})
+
+test_that("idx_step_add applies a compound step (quarters + seconds) to a POSIXct anchor", {
+  anchor <- as.POSIXct("2024-01-01 00:00:03", tz = "UTC")
+  s <- idx_step(quarters = 1, seconds = 3)
+  out <- idx_step_add(anchor, s, 0:3)
+  # Each field is scaled by n independently: n quarters (calendar-aware)
+  # plus n * 3 seconds (cumulative, not a one-time nudge).
+  expect_equal(out[1], anchor)
+  expect_equal(out[2], as.POSIXct("2024-04-01 00:00:06", tz = "UTC"))
+  expect_equal(out[3], as.POSIXct("2024-07-01 00:00:09", tz = "UTC"))
+  expect_equal(out[4], as.POSIXct("2024-10-01 00:00:12", tz = "UTC"))
+})
+
+test_that("idx_step_add applies a compound step (months + seconds) to a POSIXct anchor", {
+  anchor <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
+  s <- idx_step(months = 1, seconds = 13)
+  out <- idx_step_add(anchor, s, 0:2)
+  expect_equal(out[1], anchor)
+  expect_equal(out[2], as.POSIXct("2024-02-01 00:00:13", tz = "UTC"))
+  expect_equal(out[3], as.POSIXct("2024-03-01 00:00:26", tz = "UTC"))
+})
+
+test_that("idx_step_add keeps components independent rather than normalizing (months + days)", {
+  anchor <- as.Date("2024-01-01")
+  s <- idx_step(months = 1, days = 31)
+  out <- idx_step_add(anchor, s, 1)
+  # "One month, then 31 days" - not simplified/normalized to two months.
+  expect_equal(out, as.Date("2024-02-01") + 31)
+})
+
+test_that("idx_step_add errors when a sub-day component is used with a yearqtr/yearmon anchor", {
+  s <- idx_step(quarters = 1, seconds = 3)
+  expect_error(idx_step_add(zoo::as.yearqtr("2024 Q1"), s, 1), "yearqtr/yearmon")
+})
+
+test_that("idx_step_add errors for a 'months' component on a yearqtr anchor, and vice versa", {
+  expect_error(idx_step_add(zoo::as.yearqtr("2024 Q1"), idx_step(months = 1), 1), "yearqtr")
+  expect_error(idx_step_add(zoo::as.yearmon("2024-01"), idx_step(quarters = 1), 1), "yearmon")
+})
+
+test_that("idx_step_add handles negative n (stepping backward)", {
+  anchor <- as.Date("2024-03-01")
+  s <- idx_step(months = 1)
+  out <- idx_step_add(anchor, s, -2)
+  expect_equal(out, as.Date("2024-01-01"))
+})
+
+test_that("idx_calendar_step constructs a calendar with a compound step and NA amount/unit", {
+  cal <- idx_calendar_step(
+    anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+    step = idx_step(quarters = 1, seconds = 3), posixct = TRUE
+  )
+  expect_true(is_idx_calendar(cal))
+  expect_true(is.na(cal$amount))
+  expect_true(is_idx_step(cal$step))
+})
+
+test_that("idx_calendar_step errors when step is not an idx_step", {
+  expect_error(idx_calendar_step(anchor = as.Date("2024-01-01"), step = "not a step"), "idx_step")
+})
+
+test_that("idx_to_date delegates to idx_step_add for an idx_calendar_step calendar", {
+  cal <- idx_calendar_step(
+    anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+    step = idx_step(quarters = 1, seconds = 3), posixct = TRUE
+  )
+  out <- idx_to_date(cal, 1:4)
+  expect_equal(out[1], as.POSIXct("2024-01-01 00:00:03", tz = "UTC"))
+  expect_equal(out[4], as.POSIXct("2024-10-01 00:00:12", tz = "UTC"))
+})
+
+test_that("idx_to_date errors for an idx_calendar_step calendar with posixct = FALSE (no single amount to fall back to)", {
+  cal <- idx_calendar_step(anchor = as.Date("2024-01-01"),
+                           step = idx_step(months = 1, days = 1), posixct = FALSE)
+  expect_error(idx_to_date(cal, 1:3), "no single 'amount'")
+})
+
+test_that("idx_calendar's primary constructor still builds an equivalent internal idx_step", {
+  cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                      amount = 1, unit = "months", posixct = TRUE)
+  expect_true(is_idx_step(cal$step))
+  expect_equal(cal$step$months, 1)
+  expect_null(cal$multi_step)
+})
+
+test_that("multi_step_pattern constructs from idx_steps and validates its arguments", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  expect_true(is_multi_step_pattern(msp))
+  expect_equal(length(msp), 3)
+  expect_error(multi_step_pattern(), "at least one")
+  expect_error(multi_step_pattern(idx_step(days = 1), "not a step"), "idx_step objects")
+})
+
+test_that("print.multi_step_pattern does not error", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(months = 1))
+  expect_no_error(print(msp))
+})
+
+test_that("idx_calendar_multi_step constructs and validates pattern_start", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), multi_step = msp, posixct = TRUE)
+  expect_true(is_idx_calendar(cal))
+  expect_true(is_multi_step_pattern(cal$multi_step))
+  expect_error(
+    idx_calendar_multi_step(anchor = as.Date("2024-01-01"), multi_step = msp,
+                            pattern_start = 4L, posixct = TRUE),
+    "pattern_start"
+  )
+  expect_error(
+    idx_calendar_multi_step(anchor = as.Date("2024-01-01"), multi_step = "not a pattern"),
+    "multi_step_pattern"
+  )
+})
+
+test_that("idx_to_date walks a multi_step_pattern (3 days, 3 days, 1 month) forward correctly", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                 multi_step = msp, posixct = TRUE)
+  out <- idx_to_date(cal, 1:5)
+  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-01-07",
+                              "2024-02-07", "2024-02-10")))
+})
+
+test_that("idx_to_date walks a multi_step_pattern backward correctly (inverse of forward)", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-02-10"), anchor_pos = 5L,
+                                 multi_step = msp, posixct = TRUE)
+  out <- idx_to_date(cal, 1:5)
+  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-01-07",
+                              "2024-02-07", "2024-02-10")))
+})
+
+test_that("idx_to_date respects pattern_start for a multi_step_pattern calendar", {
+  # Same 3-slot cycle, but anchor_pos sits at the 2nd slot (i.e. the step
+  # out of anchor is the second 'days=3' step, not the first).
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                 multi_step = msp, pattern_start = 2L, posixct = TRUE)
+  out <- idx_to_date(cal, 1:4)
+  # pos1 = anchor; pos2 = +3 days (slot 2); pos3 = +1 month (slot 3);
+  # pos4 = +3 days (slot 1, wrapped).
+  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-02-04", "2024-02-07")))
+})
+
+test_that("idx_to_date errors for a multi_step_pattern calendar with posixct = FALSE", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), multi_step = msp, posixct = FALSE)
+  expect_error(idx_to_date(cal, 1:3), "posixct = TRUE")
+})
+
+test_that("idx_calendar's existing numeric pattern mechanism is unaffected by multi_step_pattern support", {
+  cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                      amount = 1, unit = "days",
+                      pattern = c(1, 1, 1, 1, 3), pattern_start = 1L,
+                      posixct = TRUE)
+  expect_null(cal$multi_step)
+  out <- idx_to_date(cal, 1:6)
+  expect_equal(out, as.Date(c("2024-01-01", "2024-01-02", "2024-01-03",
+                              "2024-01-04", "2024-01-05", "2024-01-08")))
+})
+
+
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+expect_true(is_idx_series(conv$series))
+expect_true(is_idx_calendar(conv$calendar))
+
+first_date <- zoo::index(gauteng)[1]
+expect_equal(idx_to_date(conv$calendar, conv$series$start), first_date)
+expect_equal(idx_to_pos(conv$calendar, first_date), conv$series$start)
 })
 test_that("idx_axis_opts constructs with defaults and validates mode", {
   ax <- idx_axis_opts()

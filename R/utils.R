@@ -3,44 +3,261 @@ utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model", "x
 #' @importFrom utils tail
 NULL
 
+#' @title Detect the shortest repeating step pattern in a calendar index
+#'
+#' @description Internal helper for \code{\link{xts_to_idx}}. Given a
+#' sorted, unique vector of \code{Date}/\code{POSIXct}/\code{yearqtr}/
+#' \code{yearmon} values, finds a single \code{amount}/\code{unit} pair -
+#' searched across the full unit ladder \code{years}, \code{quarters},
+#' \code{months}, \code{weeks}, \code{days}, \code{hours}, \code{minutes},
+#' \code{seconds} - such that every gap between consecutive values is a
+#' whole-number multiple of it, then finds the shortest repeating cycle of
+#' those multiples (e.g. business days -> unit \code{"days"}, cycle
+#' \code{c(1, 1, 1, 1, 3)}). \code{years}/\code{quarters}/\code{months} are
+#' calendar-relative (variable length in days/seconds), so - for
+#' \code{Date}/\code{POSIXct} indices - these are checked via calendar-aware
+#' whole-month counting (mirroring \code{\link{idx_to_pos}}), not via a
+#' fixed-duration ratio; \code{weeks} through \code{seconds} are
+#' fixed-duration and checked via a plain ratio. The largest unit that
+#' fits is preferred (e.g. a quarterly index is reported as
+#' \code{amount = 1, unit = "quarters"}, not \code{amount = 91,
+#' unit = "days"}), since that is what a person building the equivalent
+#' \code{idx_calendar} by hand would write.
+#'
+#' This is deliberately conservative: it only recognises a single
+#' \code{amount}/\code{unit} pair (scaled by an integer vector
+#' \code{pattern}), not the more general compound \code{idx_step}/
+#' \code{multi_step_pattern} constructors - those still require manual
+#' construction via \code{\link{idx_calendar_step}}/
+#' \code{\link{idx_calendar_multi_step}}. Returns \code{NULL} (rather than
+#' erroring) if no such single-unit pattern fits.
+#'
+#' @param idx A sorted, unique vector of length >= 2, of class \code{Date},
+#' \code{POSIXct}, \code{yearqtr}, or \code{yearmon}.
+#' @param max_pattern_len Maximum repeating-cycle length to search for.
+#' Defaults to \code{7} (enough for business-day-style weekly cycles);
+#' raising this is rarely useful and slows detection on long, irregular
+#' indices, since every candidate length up to it is checked.
+#'
+#' @returns \code{NULL}, or a list with elements \code{amount}, \code{unit},
+#' \code{pattern} (integer vector) suitable for passing to
+#' \code{\link{idx_calendar}}.
+#' @keywords internal
+#' @noRd
+idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
+  if (length(idx) < 2) return(NULL)
+  
+  is_yearqtr <- inherits(idx, "yearqtr")
+  is_yearmon <- inherits(idx, "yearmon")
+  
+  # Finds the shortest repeating cycle in a vector of positive whole-unit
+  # gap multiples; shared by every unit branch below.
+  find_pattern <- function(mult) {
+    if (any(mult <= 0) || !isTRUE(all.equal(mult, round(mult)))) return(NULL)
+    mult <- round(mult)
+    m <- length(mult)
+    cap <- min(max_pattern_len, m)
+    for (plen in seq_len(cap)) {
+      if (m %% plen != 0) next
+      candidate <- mult[seq_len(plen)]
+      reps <- matrix(mult, nrow = plen)
+      if (all(apply(reps, 2, function(col) isTRUE(all.equal(col, candidate))))) {
+        return(as.integer(candidate))
+      }
+    }
+    NULL
+  }
+  
+  if (is_yearqtr || is_yearmon) {
+    # yearqtr/yearmon are fractional-year numerics with a natural base
+    # unit (0.25 or 1/12 of a year); try that unit, then the coarser
+    # years unit (an amount = 4 quarters/12 months cycle is really just
+    # "years").
+    base_step <- if (is_yearqtr) 0.25 else (1 / 12)
+    native_unit <- if (is_yearqtr) "quarters" else "months"
+    gaps <- diff(as.numeric(idx))
+    
+    years_mult <- gaps / 1
+    pat <- find_pattern(years_mult)
+    if (!is.null(pat)) return(list(amount = 1, unit = "years", pattern = pat))
+    
+    native_mult <- gaps / base_step
+    pat <- find_pattern(native_mult)
+    if (!is.null(pat)) return(list(amount = 1, unit = native_unit, pattern = pat))
+    
+    return(NULL)
+  }
+  
+  # Date/POSIXct: try calendar-relative units first (largest to smallest),
+  # since those are what a human would actually write for e.g. a monthly
+  # or quarterly Date index (as opposed to reporting it in raw days). Only
+  # attempted when idx has no time-of-day component to lose - a POSIXct
+  # value with a non-midnight time cannot be represented by a plain
+  # calendar-month step at all (idx_step's months/quarters/years
+  # components have no time-of-day, consistent with idx_to_date()).
+  no_time_of_day <- if (inherits(idx, "POSIXct")) {
+    all(format(idx, "%H:%M:%S") == "00:00:00")
+  } else {
+    TRUE
+  }
+  if (no_time_of_day) {
+    ymd <- as.Date(idx)
+    ym <- as.integer(format(ymd, "%Y")) * 12L + (as.integer(format(ymd, "%m")) - 1L)
+    months_gaps <- diff(ym)
+    # A Date index only carries calendar-relative meaning if every value
+    # falls on the first of its month (otherwise "whole months apart" is
+    # ambiguous - e.g. the 15th of consecutive months vs. the 31st).
+    on_month_start <- all(as.integer(format(ymd, "%d")) == 1L)
+    if (on_month_start && all(months_gaps > 0)) {
+      for (per_year in c(1, 4, 12)) {
+        unit <- switch(as.character(per_year), "1" = "years", "4" = "quarters", "12" = "months")
+        step_months <- 12 / per_year
+        pat <- find_pattern(months_gaps / step_months)
+        if (!is.null(pat)) return(list(amount = 1, unit = unit, pattern = pat))
+      }
+    }
+  }
+  
+  # Fixed-duration units: work in whole seconds so Date and POSIXct share
+  # one code path (a Date's "seconds" are just days * 86400).
+  secs <- if (inherits(idx, "POSIXct")) as.numeric(idx) else as.numeric(idx) * 86400
+  gap_secs <- diff(secs)
+  if (any(gap_secs <= 0)) return(NULL)
+  
+  candidate_units <- list(weeks = 86400 * 7, days = 86400, hours = 3600,
+                          minutes = 60, seconds = 1)
+  for (nm in names(candidate_units)) {
+    u <- candidate_units[[nm]]
+    ratios <- gap_secs / u
+    if (all(abs(ratios - round(ratios)) < 1e-6)) {
+      pat <- find_pattern(ratios)
+      if (!is.null(pat)) return(list(amount = 1, unit = nm, pattern = pat))
+    }
+  }
+  NULL
+}
+
 #' @title Convert an \code{xts}/\code{zoo} object to an \code{idx_series}
 #'
 #' @description Converts a calendar-indexed \code{xts} or \code{zoo} object
-#' with a regular daily frequency (no gaps) into an \code{\link{idx_series}},
-#' together with an \code{\link{idx_calendar}} describing how to translate
-#' back to calendar time. This is the standard entry point for bringing
-#' calendar-indexed data (the user's own \code{xts}/\code{zoo}/data frame
-#' data, or one of the package's bundled datasets) into the
-#' \code{idx_series}-based analysis functions.
+#' into an \code{\link{idx_series}}, together with an
+#' \code{\link{idx_calendar}} describing how to translate back to calendar
+#' time. This is the standard entry point for bringing calendar-indexed
+#' data (the user's own \code{xts}/\code{zoo}/data frame data, or one of
+#' the package's bundled datasets) into the \code{idx_series}-based
+#' analysis functions.
 #'
-#' @param x An \code{xts} or \code{zoo} object with a daily, gap-free index.
+#' By default (\code{detect = TRUE}), the step size and any repeating gap
+#' pattern are auto-detected from \code{x}'s index via
+#' \code{\link{idx_detect_calendar_pattern}} (searching the full unit
+#' ladder years/quarters/months/weeks/days/hours/minutes/seconds), so
+#' callers do not need to work out \code{amount}/\code{unit}/\code{pattern}
+#' themselves for common cases: a plain daily/weekly/etc. index, a
+#' business-day index (weekends skipped), a monthly/quarterly/yearly
+#' \code{Date} index, or a \code{yearqtr}/\code{yearmon} index. This only
+#' recognises a single \code{amount}/\code{unit} pair (optionally repeated
+#' via an integer vector \code{pattern}); it does not attempt to detect
+#' compound (\code{idx_step}) or heterogeneous (\code{multi_step_pattern})
+#' calendars - build those manually via \code{\link{idx_calendar_step}}/
+#' \code{\link{idx_calendar_multi_step}} if needed. If detection fails
+#' (the index has no such regular pattern, e.g. genuinely irregular gaps),
+#' \code{xts_to_idx} raises an error explaining why, rather than silently
+#' falling back to an incorrect calendar; pass \code{detect = FALSE} (and
+#' set \code{amount}/\code{unit} yourself) for indices detection can't
+#' handle.
+#'
+#' @param x An \code{xts} or \code{zoo} object with a \code{Date},
+#' \code{POSIXct}, \code{yearqtr}, or \code{yearmon} index of at least 2
+#' rows (needed to detect a step size), and no duplicate index values.
 #' @param start.pos Integer position that the first row of \code{x} should
 #' be assigned. Use this to align \code{x} with another, already-converted
 #' \code{idx_series} that starts at a different calendar date - e.g.
 #' \code{start.pos = idx_to_pos(other_cal, zoo::index(x)[1])}. Defaults to
 #' \code{1L}.
+#' @param detect A single logical. If \code{TRUE} (default), auto-detect
+#' \code{amount}/\code{unit}/\code{pattern} from \code{x}'s index (see
+#' Description). If \code{FALSE}, use \code{amount}/\code{unit} as
+#' supplied (previous behaviour; defaults to \code{amount = 1,
+#' unit = "days"} to match this function's original hardcoded assumption).
+#' @param amount,unit Used only when \code{detect = FALSE}; passed straight
+#' through to \code{\link{idx_calendar}}.
 #'
 #' @returns A list with two elements: \code{series}, an \code{idx_series}
 #' holding \code{x}'s values, and \code{calendar}, an \code{idx_calendar}
 #' anchoring \code{series}'s positions to \code{x}'s original dates.
 #'
 #' @examples
+#' # Daily data - detected automatically.
 #' x <- xts::xts(cumsum(rpois(30, 5)) + 1, order.by = Sys.Date() - 29:0)
 #' conv <- xts_to_idx(x)
 #' conv$series
 #' conv$calendar
 #'
+#' # Business-day data (weekends skipped) - pattern detected automatically.
+#' bdays <- seq(as.Date("2024-01-01"), by = "day", length.out = 40)
+#' bdays <- bdays[!weekdays(bdays) %in% c("Saturday", "Sunday")]
+#' xb <- xts::xts(cumsum(rpois(length(bdays), 5)) + 1, order.by = bdays)
+#' conv_b <- xts_to_idx(xb)
+#' conv_b$calendar
+#'
+#' # Monthly Date index - detected as amount = 1, unit = "months" (not days).
+#' months <- seq(as.Date("2024-01-01"), by = "month", length.out = 24)
+#' xm <- xts::xts(cumsum(rpois(24, 5)) + 1, order.by = months)
+#' conv_m <- xts_to_idx(xm)
+#' conv_m$calendar
+#'
 #' @importFrom xts xts
 #' @importFrom zoo index coredata
 #'
 #' @export
-xts_to_idx <- function(x, start.pos = 1L) {
+xts_to_idx <- function(x, start.pos = 1L, detect = TRUE, amount = 1, unit = "days") {
+  idx <- index(x)
+  if (anyDuplicated(idx)) {
+    stop("xts_to_idx: x's index contains duplicate values.")
+  }
+  ord <- order(idx)
+  if (is.unsorted(ord)) {
+    idx <- idx[ord]
+    x <- x[ord]
+  }
+  
+  if (isTRUE(detect)) {
+    if (length(idx) < 2) {
+      stop("xts_to_idx: detect = TRUE requires at least 2 rows to detect a ",
+           "step size; pass detect = FALSE with an explicit amount/unit ",
+           "for single-row data.")
+    }
+    if (!inherits(idx, c("Date", "POSIXct", "yearqtr", "yearmon"))) {
+      stop("xts_to_idx: detect = TRUE requires a Date/POSIXct/yearqtr/",
+           "yearmon index; got class ", paste(class(idx), collapse = "/"), ".")
+    }
+    detected <- idx_detect_calendar_pattern(idx)
+    if (is.null(detected)) {
+      stop("xts_to_idx: could not detect a regular single-unit step ",
+           "pattern in x's index (gaps are irregular, or the repeating ",
+           "cycle is longer than idx_detect_calendar_pattern's default ",
+           "search length). Pass detect = FALSE and build the ",
+           "idx_calendar yourself (idx_calendar_step()/",
+           "idx_calendar_multi_step() for compound/heterogeneous steps).")
+    }
+    return(list(
+      series = idx_series(coredata(x), start = start.pos),
+      calendar = idx_calendar(
+        anchor = idx[1],
+        anchor_pos = start.pos,
+        amount = detected$amount, unit = detected$unit,
+        pattern = detected$pattern,
+        posixct = TRUE
+      )
+    ))
+  }
+  
   list(
     series = idx_series(coredata(x), start = start.pos),
     calendar = idx_calendar(
-      anchor = index(x)[1],
+      anchor = idx[1],
       anchor_pos = start.pos,
-      amount = 1, unit = "days",
+      amount = amount, unit = unit,
       posixct = TRUE
     )
   )
@@ -48,32 +265,60 @@ xts_to_idx <- function(x, start.pos = 1L) {
 
 #' @title Translate a calendar date to an \code{idx_series} integer position
 #'
-#' @description Inverse of \code{\link{idx_to_date}}'s calendar-aware
-#' branch: converts a calendar date into the integer position (relative to
-#' \code{cal}) that corresponds to it. Intended for locating estimation
-#' start/end dates, or for aligning a second series to an already-converted
-#' \code{idx_series} (see \code{\link{xts_to_idx}}). Requires a
-#' calendar-anchored \code{cal} (\code{cal$posixct = TRUE} and a
-#' \code{Date}/\code{POSIXct} \code{cal$anchor}); use
+#' @description Inverse of \code{\link{idx_to_date}}: converts a calendar
+#' date into the integer position (relative to \code{cal}) that corresponds
+#' to it. Intended for locating estimation start/end dates, or for aligning
+#' a second series to an already-converted \code{idx_series} (see
+#' \code{\link{xts_to_idx}}). Requires a calendar-anchored \code{cal}
+#' (\code{cal$posixct = TRUE} and a \code{Date}/\code{POSIXct}/
+#' \code{yearqtr}/\code{yearmon} \code{cal$anchor}); use
 #' \code{\link{idx_offset_to_pos}} instead for non-calendar (e.g.
 #' sub-second/arbitrary numeric) calendars.
 #'
-#' For the calendar-relative units \code{"months"}, \code{"quarters"},
-#' \code{"years"}, the position is found by counting whole calendar steps
-#' between \code{cal$anchor} and \code{date} (the inverse of the
-#' calendar-aware stepping used by \code{\link{idx_to_date}}), rather than
-#' via a fixed-length difference - a quarter is not a fixed number of days.
-#' For the fixed-duration units \code{"seconds"}, \code{"minutes"},
-#' \code{"hours"}, \code{"days"}, \code{"weeks"}, positions are computed as
-#' a plain time difference scaled by \code{cal$amount}; this is exact for
-#' these units. Either way this ignores any \code{pattern} (i.e. exact only
-#' for \code{pattern = 1}; only appropriate for simple, evenly spaced
-#' calendars).
+#' \code{cal} may be built via any of the three \code{idx_calendar}
+#' constructors:
+#' \itemize{
+#'   \item The primary \code{\link{idx_calendar}} constructor (a single
+#'   \code{amount}/\code{unit} pair). For the calendar-relative units
+#'   \code{"months"}, \code{"quarters"}, \code{"years"}, the position is
+#'   found by counting whole calendar steps between \code{cal$anchor} and
+#'   \code{date} (the inverse of the calendar-aware stepping used by
+#'   \code{\link{idx_to_date}}), rather than via a fixed-length difference -
+#'   a quarter is not a fixed number of days. For the fixed-duration units
+#'   \code{"seconds"}, \code{"minutes"}, \code{"hours"}, \code{"days"},
+#'   \code{"weeks"}, positions are computed as a plain time difference
+#'   scaled by \code{cal$amount}; this is exact for these units. Either way
+#'   this ignores any \code{pattern} (i.e. exact only for
+#'   \code{pattern = 1}; only appropriate for simple, evenly spaced
+#'   calendars). This branch is O(1).
+#'   \item \code{\link{idx_calendar_step}} (a compound \code{idx_step}) and
+#'   \code{\link{idx_calendar_multi_step}} (a \code{multi_step_pattern})
+#'   calendars have no single \code{amount}/\code{unit} pair to invert in
+#'   closed form in general, so \code{date} is instead located by search:
+#'   \code{idx_calendar_step} calendars repeat one compound \code{idx_step}
+#'   every position, and \code{\link{idx_step_add}} is strictly monotonic
+#'   in the step count, so this uses an O(log distance) binary search;
+#'   \code{idx_calendar_multi_step} calendars cycle through heterogeneous
+#'   steps that cannot be searched this way, so this walks one step at a
+#'   time from \code{cal$anchor_pos} instead, an O(distance) linear walk.
+#'   Both are exact, and both ignore any numeric \code{pattern} (a
+#'   \code{multi_step_pattern} calendar has no numeric \code{pattern} to
+#'   ignore in the first place - it uses \code{pattern_start} only as the
+#'   \code{multi_step} slot index).
+#' }
+#'
+#' A \code{yearqtr}/\code{yearmon} \code{cal$anchor} is only valid together
+#' with \code{cal$unit} of \code{"quarters"}/\code{"months"} respectively
+#' (matching \code{\link{idx_step_add}}'s restriction that these anchors
+#' have no sub-quarter/sub-month resolution); \code{date} is coerced to the
+#' same class as \code{cal$anchor} and whole-step boundaries are found via
+#' fractional-year arithmetic, consistent with \code{\link{idx_to_date}}.
 #'
 #' @param cal An \code{idx_calendar} object with \code{posixct = TRUE} and a
-#' \code{Date}/\code{POSIXct} \code{anchor}.
+#' \code{Date}/\code{POSIXct}/\code{yearqtr}/\code{yearmon} \code{anchor}.
 #' @param date A single date/time. For \code{cal$unit} of \code{"months"},
-#' \code{"quarters"}, or \code{"years"}, coerced via \code{as.Date}. For all
+#' \code{"quarters"}, or \code{"years"}, coerced via \code{as.Date} (or to
+#' \code{yearqtr}/\code{yearmon}, matching \code{cal$anchor}). For all
 #' other units, coerced via \code{as.POSIXct} if \code{cal$anchor} is
 #' \code{POSIXct}, or \code{as.Date} otherwise - so a character string with
 #' a time-of-day component (e.g. \code{"2024-01-01 13:30:00"}) is preserved
@@ -87,16 +332,63 @@ xts_to_idx <- function(x, start.pos = 1L) {
 #'                      amount = 1, unit = "days", posixct = TRUE)
 #' idx_to_pos(cal, "2024-01-10")
 #'
+#' # A multi_step_pattern calendar (walked, not closed-form).
+#' cal_ms <- idx_calendar_multi_step(
+#'   anchor = as.Date("2024-01-01"),
+#'   multi_step = multi_step_pattern(idx_step(days = 3), idx_step(days = 3),
+#'                                    idx_step(months = 1)),
+#'   posixct = TRUE
+#' )
+#' idx_to_pos(cal_ms, "2024-02-07")
+#'
 #' @export
 idx_to_pos <- function(cal, date) {
-  calendar_step_unit <- cal$unit %in% c("months", "quarters", "years")
-  is_calendar_anchor <- inherits(cal$anchor, "Date") || inherits(cal$anchor, "POSIXct")
+  is_yearqtr_anchor <- inherits(cal$anchor, "yearqtr")
+  is_yearmon_anchor <- inherits(cal$anchor, "yearmon")
+  is_date_posix_anchor <- inherits(cal$anchor, "Date") || inherits(cal$anchor, "POSIXct")
+  is_calendar_anchor <- is_date_posix_anchor || is_yearqtr_anchor || is_yearmon_anchor
   
   if (!isTRUE(cal$posixct) || !is_calendar_anchor) {
     stop("idx_to_pos: cal is not a calendar-anchored (posixct) idx_calendar ",
-         "(cal$anchor is not a Date/POSIXct, or cal$posixct is FALSE). ",
-         "For non-calendar anchors, use idx_offset_to_pos() with a plain ",
-         "numeric offset instead of a date.")
+         "(cal$anchor is not a Date/POSIXct/yearqtr/yearmon, or cal$posixct ",
+         "is FALSE). For non-calendar anchors, use idx_offset_to_pos() with ",
+         "a plain numeric offset instead of a date.")
+  }
+  
+  if (!is.null(cal$multi_step)) {
+    return(idx_multi_step_date_to_offset(cal, date))
+  }
+  if (is.na(cal$amount)) {
+    # Built via idx_calendar_step(): a single compound idx_step repeated
+    # every position. idx_step_add(anchor, step, n) is strictly monotonic
+    # in n (every idx_step field is non-negative and at least one is
+    # non-zero), so - unlike the general multi_step case - this can be
+    # inverted by binary search on n directly, in O(log distance) rather
+    # than walking one hop at a time.
+    return(idx_step_date_to_offset(cal, date))
+  }
+  
+  calendar_step_unit <- cal$unit %in% c("months", "quarters", "years")
+  
+  if (is_yearqtr_anchor || is_yearmon_anchor) {
+    if (is_yearqtr_anchor && cal$unit != "quarters") {
+      stop("idx_to_pos: a yearqtr cal$anchor requires cal$unit = 'quarters'.")
+    }
+    if (is_yearmon_anchor && cal$unit != "months") {
+      stop("idx_to_pos: a yearmon cal$anchor requires cal$unit = 'months'.")
+    }
+    date <- if (is_yearqtr_anchor) zoo::as.yearqtr(date) else zoo::as.yearmon(date)
+    # yearqtr/yearmon are stored internally as fractional years, so the
+    # number of quarters/months between two of them is an exact multiple
+    # of 0.25/(1/12) of the numeric difference - mirrors idx_step_add()'s
+    # fractional-year stepping for these classes.
+    per_step <- if (is_yearqtr_anchor) 0.25 else (1 / 12)
+    steps <- (as.numeric(date) - as.numeric(cal$anchor)) / per_step
+    if (!isTRUE(all.equal(steps, round(steps)))) {
+      stop("idx_to_pos: date does not fall on a whole ", cal$unit,
+           " boundary relative to cal$anchor.")
+    }
+    return(as.integer(cal$anchor_pos + round(steps / cal$amount)))
   }
   
   if (calendar_step_unit) {
