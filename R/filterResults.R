@@ -367,7 +367,7 @@ FilterResults <- setRefClass(
       y.hat <- idx_series(
         as.matrix(rbind(y.t.t, y.hat.kfas)),
         start = positions[1])
-      colnames(y.hat$data)<-c("y.hat","y.hat.upr","y.hat.lwr")
+      colnames(y.hat$data)<-c("y.hat","y.hat.lwr","y.hat.upr")
       
       i.level <- grep("level", colnames(att(model_output)))
       level.t.t <- idx_series(as.numeric(att(model_output)[, i.level]), start = positions[1])

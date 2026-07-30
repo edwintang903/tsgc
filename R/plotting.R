@@ -978,6 +978,13 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
 #' @noRd
 .plot_holdout_gompertz <- function(res, Y, n.ahead, confidence.level, series.name, title, caption, axis = NULL) {
   calendar <- res$calendar
+  if (!is_idx_series(Y)) {
+    stop("Y must be an idx_series object.")
+  }
+  if (idx_ncol(Y) != 1) {
+    stop("Y must be a single-column idx_series (subset a multi-column ",
+         "series to the target column before passing it here).")
+  }
   estimation.end <- tail(res$index, 1)
   if (idx_range(Y)[2] <= estimation.end) {
     stop("Y must extend beyond the estimation end position to provide a holdout sample analysis.")
@@ -1187,6 +1194,15 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   df_forecasts <- do.call(rbind, prediction_list)
   
   if (!is.null(actual)) {
+    if (!is_idx_series(actual)) {
+      stop("actual must be NULL or an idx_series object.")
+    }
+    if (idx_ncol(actual) != 1) {
+      stop("actual must be a single-column idx_series (e.g. subset a ",
+           "multi-column series to the target column before passing it ",
+           "here); a multi-column actual produces a differently-shaped ",
+           "data frame than the per-model forecasts and cannot be combined.")
+    }
     actual.diff <- idx_diff(actual, 1L)
     end.pos <- tail(results[[1]]$index, 1)
     keep <- idx_positions(actual.diff)[idx_positions(actual.diff) > end.pos]
