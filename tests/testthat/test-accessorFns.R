@@ -146,7 +146,7 @@ test_that("gety.hat() extracts predictions from predict_all output", {
   yhat <- gety.hat(preds)
   
   expect_true(is_idx_series(yhat))
-  expect_equal(colnames(idx_values(yhat)), c("y.hat", "y.hat.upr", "y.hat.lwr"))
+  expect_equal(colnames(idx_values(yhat)), c("y.hat", "y.hat.lwr", "y.hat.upr"))
   expect_equal(length(yhat), 7)
   expect_true(is.numeric(idx_values(yhat)[, "y.hat"]))
   expect_true(is.numeric(idx_values(yhat)[, "y.hat.upr"]))

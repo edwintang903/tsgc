@@ -42,7 +42,7 @@ analysis functions.
 
 By default (\code{detect = TRUE}), the step size and any repeating gap
 pattern are auto-detected from \code{x}'s index via
-\code{\link{idx_detect_calendar_pattern}} (searching the full unit
+\code{idx_detect_calendar_pattern} (searching the full unit
 ladder years/quarters/months/weeks/days/hours/minutes/seconds), so
 callers do not need to work out \code{amount}/\code{unit}/\code{pattern}
 themselves for common cases: a plain daily/weekly/etc. index, a

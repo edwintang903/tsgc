@@ -178,16 +178,6 @@ idx_x_lab <- function(calendar = NULL, axis = NULL) {
 
 #' @keywords internal
 #' @noRd
-idx_step_label <- function(step) {
-  stopifnot(is_idx_step(step))
-  parts <- vapply(names(step), function(nm) {
-    if (!isTRUE(all.equal(step[[nm]], 0))) paste(step[[nm]], nm) else NA_character_
-  }, character(1))
-  paste(parts[!is.na(parts)], collapse = ", ")
-}
-
-#' @keywords internal
-#' @noRd
 idx_info_box_caption <- function(calendar, axis) {
   if (is.null(axis) || !isTRUE(axis$info_box) || !is_idx_calendar(calendar)) return(NULL)
   

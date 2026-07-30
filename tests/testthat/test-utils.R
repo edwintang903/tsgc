@@ -15,6 +15,105 @@ test_that("xts_to_idx honours a custom start.pos for alignment", {
   expect_equal(conv$calendar$anchor_pos, 100L)
 })
 
+test_that("xts_to_idx detects a plain daily pattern", {
+  x <- xts::xts(cumsum(rpois(30, 5)) + 1, order.by = as.Date("2024-01-01") + 0:29)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$amount, 1)
+  expect_equal(conv$calendar$unit, "days")
+  expect_equal(conv$calendar$pattern, 1)
+  expect_true(conv$calendar$posixct)
+})
+
+test_that("xts_to_idx detects a business-day pattern (weekends skipped)", {
+  # idx_detect_calendar_pattern()'s find_pattern() only recognises a cycle
+  # length that evenly divides the number of gaps, so the number of
+  # business days must be chosen accordingly: 2024-01-01 is a Monday, and
+  # 41 business days (Mon 1 Jan through Mon 4 Mar) gives exactly 40 gaps,
+  # a whole multiple of the 5-day Mon-Fri cycle length.
+  bdays <- seq(as.Date("2024-01-01"), by = "day", length.out = 60)
+  bdays <- bdays[!weekdays(bdays) %in% c("Saturday", "Sunday")][1:41]
+  x <- xts::xts(cumsum(rpois(length(bdays), 5)) + 1, order.by = bdays)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$unit, "days")
+  expect_equal(conv$calendar$pattern, c(1, 1, 1, 1, 3))
+})
+
+test_that("xts_to_idx detects a monthly Date index as amount=1, unit='months'", {
+  months <- seq(as.Date("2024-01-01"), by = "month", length.out = 24)
+  x <- xts::xts(cumsum(rpois(24, 5)) + 1, order.by = months)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$amount, 1)
+  expect_equal(conv$calendar$unit, "months")
+})
+
+test_that("xts_to_idx detects a quarterly Date index as amount=1, unit='quarters'", {
+  qtrs <- seq(as.Date("2024-01-01"), by = "quarter", length.out = 12)
+  x <- xts::xts(cumsum(rpois(12, 5)) + 1, order.by = qtrs)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$unit, "quarters")
+})
+
+test_that("xts_to_idx detects a yearly Date index as amount=1, unit='years'", {
+  yrs <- seq(as.Date("2024-01-01"), by = "year", length.out = 8)
+  x <- xts::xts(cumsum(rpois(8, 5)) + 1, order.by = yrs)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$unit, "years")
+})
+
+test_that("xts_to_idx detects a yearqtr index", {
+  qtrs <- zoo::as.yearqtr("2020 Q1") + 0:9 * 0.25
+  x <- xts::xts(cumsum(rpois(10, 5)) + 1, order.by = qtrs)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$unit, "quarters")
+  expect_true(inherits(conv$calendar$anchor, "yearqtr"))
+})
+
+test_that("xts_to_idx detects a yearmon index", {
+  mons <- zoo::as.yearmon("2020-01") + 0:11 * (1/12)
+  x <- xts::xts(cumsum(rpois(12, 5)) + 1, order.by = mons)
+  conv <- xts_to_idx(x)
+  expect_equal(conv$calendar$unit, "months")
+  expect_true(inherits(conv$calendar$anchor, "yearmon"))
+})
+
+test_that("xts_to_idx errors on an irregular index when detect = TRUE", {
+  # A handful of gaps trivially "repeats" (the whole gap vector is its own
+  # length-m cycle), so use enough gaps that no cycle length up to
+  # idx_detect_calendar_pattern()'s default max_pattern_len (7) evenly
+  # tiles them - this is genuinely irregular from the detector's point of view.
+  gaps <- c(1, 2, 1, 6, 1, 3, 2, 5, 1, 1, 4, 2)
+  irregular_dates <- as.Date("2024-01-01") + c(0, cumsum(gaps))
+  x <- xts::xts(seq_along(irregular_dates), order.by = irregular_dates)
+  expect_error(xts_to_idx(x), "could not detect")
+})
+
+test_that("xts_to_idx errors on duplicate index values", {
+  d <- as.Date("2024-01-01") + c(0, 1, 1, 2)
+  x <- xts::xts(1:4, order.by = d)
+  expect_error(xts_to_idx(x), "duplicate")
+})
+
+test_that("xts_to_idx sorts an out-of-order index before conversion", {
+  d <- as.Date("2024-01-01") + c(2, 0, 1)
+  x <- xts::xts(c(30, 10, 20), order.by = d)
+  conv <- xts_to_idx(x)
+  expect_equal(as.numeric(idx_values(conv$series)), c(10, 20, 30))
+  expect_equal(conv$calendar$anchor, as.Date("2024-01-01"))
+})
+
+test_that("xts_to_idx with detect = FALSE uses the supplied amount/unit rather than detecting", {
+  x <- xts::xts(1:5, order.by = as.Date("2024-01-01") + 0:4)
+  conv <- xts_to_idx(x, detect = FALSE, amount = 3, unit = "hours")
+  expect_equal(conv$calendar$amount, 3)
+  expect_equal(conv$calendar$unit, "hours")
+  expect_equal(conv$calendar$pattern, 1)
+})
+
+test_that("xts_to_idx detect = TRUE errors with fewer than 2 rows", {
+  x <- xts::xts(1, order.by = as.Date("2024-01-01"))
+  expect_error(xts_to_idx(x), "at least 2 rows")
+})
+
 test_that("df2ldl produces expected numerical output", {
   data(england, package = "tsgc")
   conv <- xts_to_idx(england$cum_cases)

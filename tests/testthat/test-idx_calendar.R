@@ -167,9 +167,14 @@ test_that("idx_to_date falls back to plain arithmetic when posixct is FALSE even
   expect_equal(out, as.Date("2024-01-01") + 0:2)
 })
 
-test_that("idx_to_date errors on non-integer number of calendar-unit steps", {
+test_that("idx_to_date errors on non-integer number of calendar-unit steps (fractional pattern weights)", {
+  # idx_calendar_offset() pattern-weights the integer step count; a
+  # fractional pattern can therefore produce a non-integer offset even
+  # though pos itself is a whole integer position.
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
-                      amount = 2.5, unit = "days", posixct = TRUE)
+                      amount = 1, unit = "days",
+                      pattern = c(0.5, 1.5), pattern_start = 1L,
+                      posixct = TRUE)
   expect_error(idx_to_date(cal, 2), "non-integer")
 })
 
@@ -208,6 +213,56 @@ test_that("idx_to_pos treats a month/quarter/year date at calendar-month granula
 test_that("idx_to_pos errors for a non-calendar-anchored idx_calendar", {
   cal <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 1, unit = "days")
   expect_error(idx_to_pos(cal, "2024-01-10"), "not a calendar-anchored")
+})
+
+test_that("idx_to_pos is the inverse of idx_to_date for a yearqtr anchor", {
+  cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
+                      amount = 1, unit = "quarters", posixct = TRUE)
+  expect_equal(idx_to_pos(cal, zoo::as.yearqtr("2024 Q4")), 4L)
+  expect_equal(idx_to_pos(cal, "2024 Q1"), 1L)
+})
+
+test_that("idx_to_pos is the inverse of idx_to_date for a yearmon anchor", {
+  cal <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
+                      amount = 1, unit = "months", posixct = TRUE)
+  expect_equal(idx_to_pos(cal, zoo::as.yearmon("2024-05")), 5L)
+})
+
+test_that("idx_to_pos: (via idx_step_date_to_offset) binary-searches the inverse of an idx_calendar_step calendar", {
+  cal <- idx_calendar_step(
+    anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+    step = idx_step(quarters = 1, seconds = 3), anchor_pos = 1L, posixct = TRUE
+  )
+  expect_equal(idx_to_pos(cal, as.POSIXct("2024-01-01 00:00:03", tz = "UTC")), 1L)
+  expect_equal(idx_to_pos(cal, as.POSIXct("2024-10-01 00:00:12", tz = "UTC")), 4L)
+})
+
+test_that("idx_to_pos: idx_step_date_to_offset errors when date is not on a step boundary", {
+  cal <- idx_calendar_step(anchor = as.Date("2024-01-01"),
+                           step = idx_step(months = 1), anchor_pos = 1L, posixct = TRUE)
+  expect_error(idx_to_pos(cal, as.Date("2024-01-15")), "whole step boundary")
+})
+
+test_that("idx_to_pos: idx_step_date_to_offset handles negative offsets (date before anchor)", {
+  cal <- idx_calendar_step(anchor = as.Date("2024-06-01"),
+                           step = idx_step(months = 1), anchor_pos = 10L, posixct = TRUE)
+  expect_equal(idx_to_pos(cal, as.Date("2024-01-01")), 5L)
+})
+
+test_that("idx_to_pos: (via idx_multi_step_date_to_offset) walks the inverse of a multi_step_pattern calendar forward and backward", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                 multi_step = msp, posixct = TRUE)
+  expect_equal(idx_to_pos(cal, as.Date("2024-01-07")), 3L)
+  expect_equal(idx_to_pos(cal, as.Date("2024-02-10")), 5L)
+  expect_equal(idx_to_pos(cal, as.Date("2024-01-01")), 1L)
+})
+
+test_that("idx_to_pos: idx_multi_step_date_to_offset errors when date does not fall on a step boundary", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                 multi_step = msp, posixct = TRUE)
+  expect_error(idx_to_pos(cal, as.Date("2024-01-02")), "step boundary")
 })
 
 test_that("idx_offset_to_pos is the inverse of plain-arithmetic idx_to_date", {
@@ -366,13 +421,35 @@ test_that("idx_to_date walks a multi_step_pattern (3 days, 3 days, 1 month) forw
                               "2024-02-07", "2024-02-10")))
 })
 
-test_that("idx_to_date walks a multi_step_pattern backward correctly (inverse of forward)", {
+test_that("idx_to_date walks a multi_step_pattern backward from a later anchor", {
+  # Stepping backward from anchor_pos undoes the slot immediately before
+  # the current slot pointer (see idx_multi_step_offset_to_date's slot
+  # bookkeeping), so - with pattern_start = 1 (the default) - walking
+  # backward from position 5 does NOT retrace the same slot sequence as
+  # the forward walk from position 1 in the sibling test above; it walks
+  # slots 3, 2, 1, 3 (months-1, days-3, days-3, months-1) undone in turn.
   msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
   cal <- idx_calendar_multi_step(anchor = as.Date("2024-02-10"), anchor_pos = 5L,
                                  multi_step = msp, posixct = TRUE)
   out <- idx_to_date(cal, 1:5)
-  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-01-07",
-                              "2024-02-07", "2024-02-10")))
+  expect_equal(out, as.Date(c("2023-12-04", "2024-01-04", "2024-01-07",
+                              "2024-01-10", "2024-02-10")))
+})
+
+test_that("idx_to_date walks a multi_step_pattern backward as the exact inverse of the forward walk, when pattern_start is set to match", {
+  # To make the backward walk retrace the forward walk's slots exactly,
+  # pattern_start must identify the slot whose step leads OUT of
+  # anchor_pos in the forward direction - i.e. one slot before where the
+  # forward-from-position-1 walk would be pointing after reaching position 5.
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
+  cal_fwd <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                     multi_step = msp, posixct = TRUE)
+  fwd <- idx_to_date(cal_fwd, 1:5)
+  
+  cal_bwd <- idx_calendar_multi_step(anchor = as.Date("2024-02-10"), anchor_pos = 5L,
+                                     multi_step = msp, pattern_start = 2L, posixct = TRUE)
+  out <- idx_to_date(cal_bwd, 1:5)
+  expect_equal(out, fwd)
 })
 
 test_that("idx_to_date respects pattern_start for a multi_step_pattern calendar", {
@@ -405,15 +482,17 @@ test_that("idx_calendar's existing numeric pattern mechanism is unaffected by mu
 })
 
 
-data(gauteng, package = "tsgc")
-conv <- xts_to_idx(gauteng)
-expect_true(is_idx_series(conv$series))
-expect_true(is_idx_calendar(conv$calendar))
-
-first_date <- zoo::index(gauteng)[1]
-expect_equal(idx_to_date(conv$calendar, conv$series$start), first_date)
-expect_equal(idx_to_pos(conv$calendar, first_date), conv$series$start)
+test_that("xts_to_idx round-trips a real dataset's anchor date through idx_to_date/idx_to_pos", {
+  data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng)
+  expect_true(is_idx_series(conv$series))
+  expect_true(is_idx_calendar(conv$calendar))
+  
+  first_date <- zoo::index(gauteng)[1]
+  expect_equal(idx_to_date(conv$calendar, conv$series$start), first_date)
+  expect_equal(idx_to_pos(conv$calendar, first_date), conv$series$start)
 })
+
 test_that("idx_axis_opts constructs with defaults and validates mode", {
   ax <- idx_axis_opts()
   expect_s3_class(ax, "idx_axis_opts")
@@ -809,6 +888,25 @@ test_that("idx_x_scale: explicit mode='date' on a posixct=FALSE calendar chooses
 test_that("idx_x_scale: explicit mode='date' does not error for a numeric (non-Date/POSIXct) posixct=FALSE anchor", {
   cal <- idx_calendar(anchor = 0, posixct = FALSE)
   expect_no_error(idx_x_scale(cal, idx_axis_opts(mode = "date")))
+})
+
+test_that("idx_info_box_caption: formats a multi_step_pattern calendar by describing each step slot", {
+  msp <- multi_step_pattern(idx_step(days = 3), idx_step(months = 1))
+  cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                                 multi_step = msp, posixct = TRUE,
+                                 anchor_name = "launch")
+  cap <- idx_info_box_caption(cal, idx_axis_opts(mode = "steps", info_box = TRUE))
+  expect_true(grepl("Anchor: launch", cap, fixed = TRUE))
+  expect_true(grepl("multi_step_pattern \\(2 slots\\)", cap))
+  expect_true(grepl("\\[1\\] 3 days", cap))
+  expect_true(grepl("\\[2\\] 1 months", cap))
+})
+
+test_that("idx_info_box_caption: formats an idx_calendar_step (compound step, NA amount) calendar via idx_step_label", {
+  cal <- idx_calendar_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
+                           step = idx_step(months = 1, days = 5), posixct = TRUE)
+  cap <- idx_info_box_caption(cal, idx_axis_opts(mode = "steps", info_box = TRUE))
+  expect_true(grepl("Step: 1 months, 5 days", cap))
 })
 
 test_that("idx_info_box_caption: NULL when info_box is FALSE/unset or there is no calendar, regardless of posixct", {

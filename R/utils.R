@@ -1,6 +1,7 @@
 utils::globalVariables(c("Date", "Rt", "lower", "upper", "forecast", "model", "x", "Centered.MA"))
 
-#' @importFrom utils tail
+#' @importFrom utils head tail
+#' @importFrom stats setNames
 NULL
 
 #' @title Detect the shortest repeating step pattern in a calendar index
@@ -58,11 +59,17 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
     m <- length(mult)
     cap <- min(max_pattern_len, m)
     for (plen in seq_len(cap)) {
-      if (m %% plen != 0) next
       candidate <- mult[seq_len(plen)]
-      reps <- matrix(mult, nrow = plen)
-      if (all(apply(reps, 2, function(col) isTRUE(all.equal(col, candidate))))) {
-        return(as.integer(candidate))
+      full_cycles <- mult[seq_len(m - m %% plen)]
+      reps <- matrix(full_cycles, nrow = plen)
+      ok <- all(apply(reps, 2, function(col) isTRUE(all.equal(col, candidate))))
+      if (ok) {
+        remainder <- m %% plen
+        if (remainder > 0) {
+          tail_part <- mult[(m - remainder + 1L):m]
+          ok <- isTRUE(all.equal(tail_part, candidate[seq_len(remainder)]))
+        }
+        if (ok) return(as.integer(candidate))
       }
     }
     NULL
@@ -149,7 +156,7 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
 #'
 #' By default (\code{detect = TRUE}), the step size and any repeating gap
 #' pattern are auto-detected from \code{x}'s index via
-#' \code{\link{idx_detect_calendar_pattern}} (searching the full unit
+#' \code{idx_detect_calendar_pattern} (searching the full unit
 #' ladder years/quarters/months/weeks/days/hours/minutes/seconds), so
 #' callers do not need to work out \code{amount}/\code{unit}/\code{pattern}
 #' themselves for common cases: a plain daily/weekly/etc. index, a

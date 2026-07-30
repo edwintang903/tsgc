@@ -1,3 +1,66 @@
+#' @title Canonical form of a calendar unit string
+#'
+#' @description Internal helper. Recognises the eight standard calendar
+#' units - seconds, minutes, hours, days, weeks, months, quarters, years
+#' (singular or plural, case-insensitive) - and returns their canonical
+#' singular and plural forms. Returns \code{NULL} for any other unit
+#' string. This is the single source of truth for unit-name recognition,
+#' used both to build an \code{\link{idx_step}} from a plain
+#' \code{amount}/\code{unit} pair (see \code{\link{idx_calendar}}) and to
+#' map a unit to the \code{by} string expected by
+#' \code{seq.Date}/\code{seq.POSIXt} (see \code{\link{idx_calendar_by_unit}}).
+#'
+#' @param unit A single string.
+#' @returns \code{NULL} if \code{unit} is not one of the eight standard
+#' units, otherwise a list with elements \code{plural} (matching an
+#' \code{idx_step} field name, e.g. \code{"seconds"}) and \code{singular}
+#' (matching a \code{seq.Date}/\code{seq.POSIXt} \code{by} unit, e.g.
+#' \code{"sec"}).
+#' @keywords internal
+#' @noRd
+idx_canonical_unit <- function(unit) {
+  u <- tolower(unit)
+  switch(u,
+         second = , seconds = list(plural = "seconds", singular = "sec"),
+         minute = , minutes = list(plural = "minutes", singular = "min"),
+         hour = , hours = list(plural = "hours", singular = "hour"),
+         day = , days = list(plural = "days", singular = "day"),
+         week = , weeks = list(plural = "weeks", singular = "week"),
+         month = , months = list(plural = "months", singular = "month"),
+         quarter = , quarters = list(plural = "quarters", singular = "quarter"),
+         year = , years = list(plural = "years", singular = "year"),
+         NULL
+  )
+}
+
+#' @title Classify an anchor's calendar kind
+#'
+#' @description Internal helper. Determines which of the four supported
+#' anchor kinds (\code{yearqtr}, \code{yearmon}, \code{Date}/\code{POSIXct},
+#' or none of the above - e.g. a plain number) \code{anchor} is, in one
+#' place. Used everywhere an \code{idx_step}/\code{idx_calendar} function
+#' needs to branch on anchor kind, instead of each site re-deriving the
+#' same set of \code{inherits()} checks independently.
+#'
+#' @param anchor An anchor value (see \code{\link{idx_calendar}}).
+#' @returns A list with logical elements \code{is_yearqtr},
+#' \code{is_yearmon}, \code{is_posixct} (\code{TRUE} for \code{POSIXct}
+#' only), \code{is_date_posix} (\code{TRUE} for \code{Date} or
+#' \code{POSIXct}), and \code{is_calendar} (\code{TRUE} if any of
+#' \code{is_yearqtr}/\code{is_yearmon}/\code{is_date_posix} is
+#' \code{TRUE}).
+#' @keywords internal
+#' @noRd
+idx_anchor_kind <- function(anchor) {
+  is_yearqtr <- inherits(anchor, "yearqtr")
+  is_yearmon <- inherits(anchor, "yearmon")
+  is_posixct <- inherits(anchor, "POSIXct")
+  is_date_posix <- inherits(anchor, "Date") || is_posixct
+  list(is_yearqtr = is_yearqtr, is_yearmon = is_yearmon,
+       is_posixct = is_posixct, is_date_posix = is_date_posix,
+       is_calendar = is_yearqtr || is_yearmon || is_date_posix)
+}
+
 #' @title A compound calendar step
 #'
 #' @description \code{idx_step} describes the size of a single step between
@@ -86,16 +149,31 @@ idx_step_needs_posixct <- function(step) {
              function(nm) !isTRUE(all.equal(step[[nm]], 0)), logical(1)))
 }
 
+#' @title Human-readable label for an \code{idx_step}
+#'
+#' @description Internal helper. Builds the "N unit, N unit, ..." label
+#' used both by \code{\link{print.idx_step}} and by the plotting layer's
+#' calendar info box (see \code{idx_info_box_caption()} in plotting.R),
+#' listing only the non-zero components of \code{step}.
+#'
+#' @param step An \code{idx_step} object.
+#' @returns A single string, e.g. \code{"1 quarters, 3 seconds"}.
+#' @keywords internal
+#' @noRd
+idx_step_label <- function(step) {
+  stopifnot(is_idx_step(step))
+  parts <- vapply(names(step), function(nm) {
+    if (!isTRUE(all.equal(step[[nm]], 0))) paste(step[[nm]], nm) else NA_character_
+  }, character(1))
+  paste(parts[!is.na(parts)], collapse = ", ")
+}
+
 #' @title Print an \code{idx_step}
 #' @param x An \code{idx_step} object.
 #' @param ... Unused.
 #' @export
 print.idx_step <- function(x, ...) {
-  parts <- vapply(names(x), function(nm) {
-    if (!isTRUE(all.equal(x[[nm]], 0))) paste(x[[nm]], nm) else NA_character_
-  }, character(1))
-  parts <- parts[!is.na(parts)]
-  cat("<idx_step> ", paste(parts, collapse = ", "), "\n", sep = "")
+  cat("<idx_step> ", idx_step_label(x), "\n", sep = "")
   invisible(x)
 }
 
@@ -124,9 +202,10 @@ idx_step_add <- function(anchor, step, n) {
   stopifnot(is_idx_step(step))
   n <- as.integer(round(n))
   
-  is_yearqtr <- inherits(anchor, "yearqtr")
-  is_yearmon <- inherits(anchor, "yearmon")
-  is_date_posix <- inherits(anchor, "Date") || inherits(anchor, "POSIXct")
+  kind <- idx_anchor_kind(anchor)
+  is_yearqtr <- kind$is_yearqtr
+  is_yearmon <- kind$is_yearmon
+  is_date_posix <- kind$is_date_posix
   
   if (idx_step_needs_posixct(step)) {
     if (is_yearqtr || is_yearmon) {
@@ -264,6 +343,43 @@ print.multi_step_pattern <- function(x, ...) {
 }
 
 
+#' @title Validate fields common to all \code{idx_calendar} constructors
+#'
+#' @description Internal helper. Validates \code{anchor_name},
+#' \code{anchor_pos}, \code{pattern_start} (against a supplied cycle
+#' length), and \code{posixct} - the four fields checked identically by
+#' \code{\link{idx_calendar}}, \code{\link{idx_calendar_step}}, and
+#' \code{\link{idx_calendar_multi_step}}, regardless of which of
+#' \code{amount}/\code{unit}, \code{step}, or \code{multi_step} the
+#' constructor otherwise takes. Stops with an informative error if any
+#' check fails; returns \code{NULL} (invisibly) otherwise.
+#'
+#' @param anchor_name,anchor_pos,pattern_start,posixct As in
+#' \code{\link{idx_calendar}}.
+#' @param cycle_len A single positive integer: the length of the cycle
+#' \code{pattern_start} must index into (\code{length(pattern)} for
+#' \code{\link{idx_calendar}}/\code{\link{idx_calendar_step}}, or
+#' \code{length(multi_step)} for \code{\link{idx_calendar_multi_step}}).
+#' @keywords internal
+#' @noRd
+idx_calendar_validate_common <- function(anchor_name, anchor_pos, pattern_start,
+                                         posixct, cycle_len) {
+  if (!is.null(anchor_name) && (length(anchor_name) != 1 || !is.character(anchor_name))) {
+    stop("anchor_name must be NULL or a single string.")
+  }
+  if (length(anchor_pos) != 1 || !isTRUE(all.equal(anchor_pos, as.integer(anchor_pos)))) {
+    stop("anchor_pos must be a single integer.")
+  }
+  if (length(pattern_start) != 1 || !isTRUE(all.equal(pattern_start, as.integer(pattern_start))) ||
+      pattern_start < 1 || pattern_start > cycle_len) {
+    stop("pattern_start must be a single integer between 1 and ", cycle_len, ".")
+  }
+  if (length(posixct) != 1 || !is.logical(posixct) || is.na(posixct)) {
+    stop("posixct must be a single logical (TRUE/FALSE).")
+  }
+  invisible(NULL)
+}
+
 #' @title Construct an \code{idx_calendar}
 #'
 #' @description \code{idx_calendar} describes how to translate the integer
@@ -361,12 +477,6 @@ print.multi_step_pattern <- function(x, ...) {
 idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
                          pattern = 1, pattern_start = 1L, posixct = FALSE,
                          anchor_name = NULL) {
-  if (!is.null(anchor_name) && (length(anchor_name) != 1 || !is.character(anchor_name))) {
-    stop("anchor_name must be NULL or a single string.")
-  }
-  if (length(anchor_pos) != 1 || !isTRUE(all.equal(anchor_pos, as.integer(anchor_pos)))) {
-    stop("anchor_pos must be a single integer.")
-  }
   if (length(amount) != 1 || !is.numeric(amount) || !is.finite(amount) || amount <= 0) {
     stop("amount must be a single positive, finite number.")
   }
@@ -376,32 +486,15 @@ idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
   if (!is.numeric(pattern) || length(pattern) < 1 || any(!is.finite(pattern)) || any(pattern <= 0)) {
     stop("pattern must be a numeric vector of one or more positive, finite values.")
   }
-  if (length(pattern_start) != 1 || !isTRUE(all.equal(pattern_start, as.integer(pattern_start))) ||
-      pattern_start < 1 || pattern_start > length(pattern)) {
-    stop("pattern_start must be a single integer between 1 and length(pattern).")
-  }
-  if (length(posixct) != 1 || !is.logical(posixct) || is.na(posixct)) {
-    stop("posixct must be a single logical (TRUE/FALSE).")
-  }
+  idx_calendar_validate_common(anchor_name, anchor_pos, pattern_start, posixct,
+                               cycle_len = length(pattern))
   # Build the canonical compound-step representation from the single
   # amount/unit pair, so idx_to_date only ever has to deal with one kind
   # of step object (idx_step), whether it came from this primary
   # constructor or from idx_calendar_step().
-  step_field <- tolower(unit)
-  step_field <- switch(
-    step_field,
-    second = , seconds = "seconds",
-    minute = , minutes = "minutes",
-    hour = , hours = "hours",
-    day = , days = "days",
-    week = , weeks = "weeks",
-    month = , months = "months",
-    quarter = , quarters = "quarters",
-    year = , years = "years",
-    NA_character_
-  )
-  step_obj <- if (!is.na(step_field)) {
-    args <- setNames(list(amount), step_field)
+  canonical <- idx_canonical_unit(unit)
+  step_obj <- if (!is.null(canonical)) {
+    args <- setNames(list(amount), canonical$plural)
     do.call(idx_step, args)
   } else {
     NULL
@@ -458,22 +551,11 @@ idx_calendar_step <- function(anchor, step, anchor_pos = 1L, pattern = 1,
   if (!is_idx_step(step)) {
     stop("step must be an idx_step object; see idx_step().")
   }
-  if (!is.null(anchor_name) && (length(anchor_name) != 1 || !is.character(anchor_name))) {
-    stop("anchor_name must be NULL or a single string.")
-  }
-  if (length(anchor_pos) != 1 || !isTRUE(all.equal(anchor_pos, as.integer(anchor_pos)))) {
-    stop("anchor_pos must be a single integer.")
-  }
   if (!is.numeric(pattern) || length(pattern) < 1 || any(!is.finite(pattern)) || any(pattern <= 0)) {
     stop("pattern must be a numeric vector of one or more positive, finite values.")
   }
-  if (length(pattern_start) != 1 || !isTRUE(all.equal(pattern_start, as.integer(pattern_start))) ||
-      pattern_start < 1 || pattern_start > length(pattern)) {
-    stop("pattern_start must be a single integer between 1 and length(pattern).")
-  }
-  if (length(posixct) != 1 || !is.logical(posixct) || is.na(posixct)) {
-    stop("posixct must be a single logical (TRUE/FALSE).")
-  }
+  idx_calendar_validate_common(anchor_name, anchor_pos, pattern_start, posixct,
+                               cycle_len = length(pattern))
   structure(
     list(
       anchor = anchor,
@@ -542,19 +624,8 @@ idx_calendar_multi_step <- function(anchor, multi_step, anchor_pos = 1L,
   if (!is_multi_step_pattern(multi_step)) {
     stop("multi_step must be a multi_step_pattern object; see multi_step_pattern().")
   }
-  if (!is.null(anchor_name) && (length(anchor_name) != 1 || !is.character(anchor_name))) {
-    stop("anchor_name must be NULL or a single string.")
-  }
-  if (length(anchor_pos) != 1 || !isTRUE(all.equal(anchor_pos, as.integer(anchor_pos)))) {
-    stop("anchor_pos must be a single integer.")
-  }
-  if (length(pattern_start) != 1 || !isTRUE(all.equal(pattern_start, as.integer(pattern_start))) ||
-      pattern_start < 1 || pattern_start > length(multi_step)) {
-    stop("pattern_start must be a single integer between 1 and length(multi_step).")
-  }
-  if (length(posixct) != 1 || !is.logical(posixct) || is.na(posixct)) {
-    stop("posixct must be a single logical (TRUE/FALSE).")
-  }
+  idx_calendar_validate_common(anchor_name, anchor_pos, pattern_start, posixct,
+                               cycle_len = length(multi_step))
   structure(
     list(
       anchor = anchor,
@@ -757,15 +828,13 @@ idx_multi_step_date_to_offset <- function(cal, date) {
   ms <- cal$multi_step
   plen <- length(ms)
   
-  is_yearqtr <- inherits(cal$anchor, "yearqtr")
-  is_yearmon <- inherits(cal$anchor, "yearmon")
-  is_posixct <- inherits(cal$anchor, "POSIXct")
+  kind <- idx_anchor_kind(cal$anchor)
   
-  date <- if (is_yearqtr) {
+  date <- if (kind$is_yearqtr) {
     zoo::as.yearqtr(date)
-  } else if (is_yearmon) {
+  } else if (kind$is_yearmon) {
     zoo::as.yearmon(date)
-  } else if (is_posixct) {
+  } else if (kind$is_posixct) {
     as.POSIXct(date, tz = format(cal$anchor, "%Z"))
   } else {
     as.Date(date)
@@ -846,15 +915,13 @@ idx_multi_step_date_to_offset <- function(cal, date) {
 #' @noRd
 idx_step_date_to_offset <- function(cal, date) {
   step <- cal$step
-  is_yearqtr <- inherits(cal$anchor, "yearqtr")
-  is_yearmon <- inherits(cal$anchor, "yearmon")
-  is_posixct <- inherits(cal$anchor, "POSIXct")
+  kind <- idx_anchor_kind(cal$anchor)
   
-  date <- if (is_yearqtr) {
+  date <- if (kind$is_yearqtr) {
     zoo::as.yearqtr(date)
-  } else if (is_yearmon) {
+  } else if (kind$is_yearmon) {
     zoo::as.yearmon(date)
-  } else if (is_posixct) {
+  } else if (kind$is_posixct) {
     as.POSIXct(date, tz = format(cal$anchor, "%Z"))
   } else {
     as.Date(date)
@@ -956,10 +1023,7 @@ idx_step_date_to_offset <- function(cal, date) {
 idx_to_date <- function(cal, pos) {
   stopifnot(is_idx_calendar(cal))
   
-  is_date_posix_anchor <- inherits(cal$anchor, "Date") || inherits(cal$anchor, "POSIXct")
-  is_yearqtr_anchor <- inherits(cal$anchor, "yearqtr")
-  is_yearmon_anchor <- inherits(cal$anchor, "yearmon")
-  is_calendar_anchor <- is_date_posix_anchor || is_yearqtr_anchor || is_yearmon_anchor
+  is_calendar_anchor <- idx_anchor_kind(cal$anchor)$is_calendar
   
   if (!is.null(cal$multi_step)) {
     if (!isTRUE(cal$posixct) || !is_calendar_anchor) {
@@ -1005,18 +1069,8 @@ idx_to_date <- function(cal, pos) {
 #' @keywords internal
 #' @noRd
 idx_calendar_by_unit <- function(unit) {
-  u <- tolower(unit)
-  switch(u,
-         second = , seconds = "sec",
-         minute = , minutes = "min",
-         hour = , hours = "hour",
-         day = , days = "day",
-         week = , weeks = "week",
-         month = , months = "month",
-         quarter = , quarters = "quarter",
-         year = , years = "year",
-         NULL
-  )
+  canonical <- idx_canonical_unit(unit)
+  if (is.null(canonical)) NULL else canonical$singular
 }
 
 registerS3method("print", "idx_calendar", print.idx_calendar)
