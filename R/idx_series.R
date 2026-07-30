@@ -171,6 +171,47 @@ idx_positions <- function(x) {
   idx_series(newdata, start = min(i))
 }
 
+#' @title First observations of an \code{idx_series}
+#'
+#' @description Returns the first \code{n} observations of \code{x}, in
+#' position order. Unlike indexing \code{x} directly with \code{[}, \code{n}
+#' is a count of observations (as for \code{utils::head}), not a set of
+#' absolute positions, so \code{head(x, 6)} always returns the first six
+#' observations regardless of \code{x$start}.
+#'
+#' @param x An \code{idx_series} object.
+#' @param n Number of observations to return from the start of \code{x}.
+#'   Default \code{6L}. If \code{n} exceeds \code{length(x)}, the full
+#'   series is returned.
+#' @param ... Unused.
+#' @returns An \code{idx_series} of length \code{min(n, length(x))}.
+#' @export
+head.idx_series <- function(x, n = 6L, ...) {
+  n <- min(n, length(x))
+  if (n < 1L) stop("head.idx_series: n must select at least one observation.")
+  x[idx_positions(x)[seq_len(n)]]
+}
+
+#' @title Last observations of an \code{idx_series}
+#'
+#' @description Returns the last \code{n} observations of \code{x}, in
+#' position order. As with \code{\link{head.idx_series}}, \code{n} is a
+#' count of observations, not a set of absolute positions.
+#'
+#' @param x An \code{idx_series} object.
+#' @param n Number of observations to return from the end of \code{x}.
+#'   Default \code{6L}. If \code{n} exceeds \code{length(x)}, the full
+#'   series is returned.
+#' @param ... Unused.
+#' @returns An \code{idx_series} of length \code{min(n, length(x))}.
+#' @export
+tail.idx_series <- function(x, n = 6L, ...) {
+  n <- min(n, length(x))
+  if (n < 1L) stop("tail.idx_series: n must select at least one observation.")
+  pos <- idx_positions(x)
+  x[utils::tail(pos, n)]
+}
+
 #' @title Print an \code{idx_series}
 #' @param x An \code{idx_series} object.
 #' @param ... Unused.
@@ -311,6 +352,8 @@ idx_rbind <- function(x, y) {
 registerS3method("length", "idx_series", length.idx_series)
 registerS3method("[", "idx_series", `[.idx_series`)
 registerS3method("print", "idx_series", print.idx_series)
+registerS3method("head", "idx_series", head.idx_series)
+registerS3method("tail", "idx_series", tail.idx_series)
 registerS3method("as.numeric", "idx_series", as.numeric.idx_series)
 registerS3method("as.double", "idx_series", as.double.idx_series)
 registerS3method("as.matrix", "idx_series", as.matrix.idx_series)

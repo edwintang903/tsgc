@@ -46,6 +46,15 @@
 #    8.5 Annual: 3DS (Gompertz)
 #    8.6 Annual: Wii->3DS (leading indicator)
 #
+# 9. Appendix: Controlling the Plot X-Axis with idx_axis_opts()
+#    - mode = "date" / "position" / "steps" / "time_since"
+#    - info_box, pattern_n
+#
+# 10. Appendix: Compound and Heterogeneous Calendar Steps
+#     10.1 idx_step() / idx_calendar_step(): a single compound step
+#     10.2 multi_step_pattern() / idx_calendar_multi_step(): heterogeneous cycles
+#     10.3 idx_offset_to_pos(): non-calendar idx_calendar anchors
+#
 # ==========================================
 #
 # This version of the script works with `idx_series` (integer-position
@@ -1265,9 +1274,13 @@ p <- tsgc::plot_holdout(
 ); print(p)
 
 # Plot the Gompertz and leading-indicator forecasts together for visual comparison.
+# actual must be the single UK column (Yuk), not the full two-column
+# ukitaly_idx: plot_compare_forecast()'s actual.diff is built assuming a
+# univariate series, and a two-column series here causes an rbind()
+# column-count mismatch when combining forecasts with the actual values.
 tsgc::plot_compare_forecast(
   list(res_uk_gomp1, res_uk_lead1), 
-  actual = ukitaly_idx
+  actual = Yuk
 )
 
 # -----------------------------
@@ -1774,6 +1787,198 @@ p <- tsgc::plot_holdout(
 )
 print(p)
 save_plot(p, "3ds_sales_lead_holdout.png")
+
+#' 
+#' # 9. Appendix: Controlling the Plot X-Axis with `idx_axis_opts()`
+#' 
+#' Every plotting function used above leaves its `axis` argument unset,
+#' which defaults to `mode = "auto"`: real calendar dates if the
+#' calendar has `posixct = TRUE` (true of every calendar built in this
+#' script), otherwise plain integer positions. `idx_axis_opts()` lets
+#' you override this per plot, and applies uniformly across every
+#' `plot.*`/`plot_*` function in the package. To keep the comparison
+#' clear, this section reuses a single plot - the Gauteng fourteen-day
+#' new-cases forecast from Section 2 - and simply varies `axis`.
+#' 
+
+## ---- 9.0 Axis showcase helper ----
+# n.forecasts/plt.length are reset here to the Section 2 (Gauteng)
+# values, since later sections reassign them for other frequencies.
+n.forecasts <- n.forecasts.default
+plt.length  <- plt.length.default
+
+# A small wrapper so each axis mode below re-renders the same underlying
+# forecast plot, varying only the `axis` argument.
+showcase_axis_plot <- function(axis = NULL) {
+  tsgc::plot_forecast(
+    res = res_q, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+    plt.start = tail(res_q$index, 1) - plt.length,
+    series.name = "cases", axis = axis
+  )
+}
+
+## ---- 9.1 mode = "date" (the default here) ----
+# Real calendar dates, since gauteng_cal$posixct = TRUE.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "date"))
+save_plot(p, "axis_mode_date.png")
+
+## ---- 9.2 mode = "position" ----
+# Raw integer idx_series positions, with no calendar translation at all.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "position"))
+save_plot(p, "axis_mode_position.png")
+
+## ---- 9.3 mode = "steps" ----
+# Steps from the calendar's anchor (here, days since the anchor position).
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "steps"))
+save_plot(p, "axis_mode_steps.png")
+
+## ---- 9.4 mode = "time_since" ----
+# The pattern-weighted calendar offset from the anchor, expressed in
+# calendar$unit's rather than a raw step count - here "days since first
+# recorded case". For a daily series with no gaps this is numerically
+# identical to "steps", but it diverges for series with an irregular
+# pattern (e.g. business days) or a non-day unit (e.g. quarters, months).
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "time_since"))
+save_plot(p, "axis_mode_time_since.png")
+
+## ---- 9.5 Adding an info box ----
+# Setting info_box = TRUE (on any of the modes above) appends a caption
+# summarising the calendar: the anchor (and its name, if set), the step
+# size/unit, and the pattern.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "steps", info_box = TRUE))
+save_plot(p, "axis_mode_steps_infobox.png")
+
+# pattern_n truncates a long pattern to its first n values in the info
+# box caption; by default the full pattern is shown. Not very useful for
+# Gauteng's plain daily pattern, but essential for keeping the caption
+# readable with, e.g., a business-day calendar.
+p <- showcase_axis_plot(
+  tsgc::idx_axis_opts(mode = "steps", info_box = TRUE, pattern_n = 3)
+)
+save_plot(p, "axis_mode_steps_infobox_truncated.png")
+
+#' 
+#' # 10. Appendix: Compound and Heterogeneous Calendar Steps
+#' 
+#' Every calendar used in Sections 2-8 is built with the primary
+#' `idx_calendar()` constructor, whose step size is a single
+#' `amount`/`unit` pair (e.g. `amount = 1, unit = "days"`, or
+#' `amount = 1, unit = "quarters"`). This covers the common case where
+#' the step between consecutive `idx_series` positions is a whole
+#' multiple of one calendar unit. Some series, however, are genuinely
+#' spaced by a combination of units that a single `amount`/`unit` pair
+#' cannot express, or by a cycle of different *kinds* of steps
+#' altogether. The two subsections below illustrate these cases, plus
+#' the non-calendar anchor case handled by `idx_offset_to_pos()`.
+#' 
+
+#' 
+#' ## 10.1 `idx_step()` and `idx_calendar_step()`
+#' 
+#' `idx_step()` builds a compound step out of any combination of
+#' years/quarters/months/weeks/days/hours/minutes/seconds - for example,
+#' a reporting system that timestamps quarterly figures a few seconds
+#' after the quarter boundary, so the step is "one quarter plus three
+#' seconds". `idx_calendar_step()` is the `idx_calendar` constructor
+#' that takes such a step.
+#' 
+
+## ---- 10.1 Compound step: idx_step() / idx_calendar_step() ----
+qtr_step <- tsgc::idx_step(quarters = 1, seconds = 3)
+qtr_step
+
+cal_step <- tsgc::idx_calendar_step(
+  anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+  step = qtr_step,
+  posixct = TRUE
+)
+tsgc::idx_to_date(cal_step, 1:4)
+
+# idx_to_pos() inverts this exactly as it does for the primary
+# constructor. A compound step has no single amount to divide by, so
+# rather than the closed-form calculation used for idx_calendar()
+# calendars, the position is instead located by a binary search on the
+# number of steps from the anchor.
+tsgc::idx_to_pos(cal_step, tsgc::idx_to_date(cal_step, 4))
+
+# Any component of an idx_step left at its default of 0 is simply
+# omitted from the step, so idx_step(days = 1) is equivalent to the
+# amount = 1, unit = "days" pairs used throughout this script.
+# idx_step_add() is the lower-level function that applies a given
+# number of whole steps to an anchor date directly; it is what an
+# idx_calendar_step()-built calendar uses internally, and is not
+# usually called directly by users of the package.
+
+#' 
+#' ## 10.2 `multi_step_pattern()` and `idx_calendar_multi_step()`
+#' 
+#' The `pattern` argument of `idx_calendar()`/`idx_calendar_step()`
+#' handles a repeating cycle of *different multiples* of one step - e.g.
+#' a business-day calendar, where four single-day steps (Mon-Thu) are
+#' followed by a three-day step over the weekend. That still assumes
+#' every step in the cycle is the same *kind* of step, just scaled
+#' differently. Some data instead cycle through genuinely different
+#' kinds of steps - for example, "three days, three days, then one
+#' month, repeating". `multi_step_pattern()` describes this kind of
+#' cycle as a sequence of `idx_step` objects, and
+#' `idx_calendar_multi_step()` is the `idx_calendar` constructor that
+#' uses it.
+#' 
+
+## ---- 10.2 Heterogeneous cycle: multi_step_pattern() / idx_calendar_multi_step() ----
+cal_multi <- tsgc::idx_calendar_multi_step(
+  anchor = as.Date("2024-01-01"),
+  multi_step = tsgc::multi_step_pattern(
+    tsgc::idx_step(days = 3), tsgc::idx_step(days = 3), tsgc::idx_step(months = 1)
+  ),
+  posixct = TRUE
+)
+tsgc::idx_to_date(cal_multi, 1:6)
+
+# Because the slots in a multi_step_pattern can mix calendar-relative
+# (e.g. months) and fixed-duration (e.g. days) components, there is no
+# closed-form way to collapse the whole cycle into a single numeric
+# offset. idx_to_date() instead walks one slot at a time from the
+# anchor position, and idx_to_pos()'s inverse walks the same cycle in
+# reverse.
+tsgc::idx_to_pos(cal_multi, "2024-02-07")
+
+# This makes idx_calendar_multi_step() calendars more expensive to
+# convert than the other two constructors - each position takes time
+# proportional to its distance from the anchor, rather than constant
+# time - so it is best reserved for genuinely irregular step sequences
+# that the pattern argument of the other two constructors cannot
+# express. The "time_since" axis mode from Section 9 is also
+# unavailable for this calendar: a multi_step_pattern has no single
+# amount to express an offset in, so mode = "steps" or mode = "date"
+# should be used instead.
+
+#' 
+#' ## 10.3 Non-calendar `idx_calendar` anchors and `idx_offset_to_pos()`
+#' 
+#' Not every `idx_series` needs a genuine calendar interpretation. An
+#' `idx_calendar`'s `anchor` can be any single reference point, not just
+#' a `Date`/`POSIXct` - for example, a plain numeric count of
+#' picoseconds since the start of an experiment. `idx_offset_to_pos()`
+#' is the inverse operation for this case: given a value already
+#' expressed in the anchor's own units, it returns the integer
+#' `idx_series` position that corresponds to it - the counterpart of
+#' `idx_to_pos()`, which instead expects a calendar date.
+#' 
+
+## ---- 10.3 Non-calendar anchor: idx_offset_to_pos() ----
+cal_ps <- tsgc::idx_calendar(
+  anchor = 0, anchor_pos = 1L, amount = 2.5, unit = "picoseconds"
+)
+tsgc::idx_offset_to_pos(cal_ps, 12.5)
+
+# None of the calendars used elsewhere in this script need
+# idx_offset_to_pos(), since every series used above has a genuine
+# Date/POSIXct calendar and so uses idx_to_pos() instead; it is
+# included here for completeness, for applications - e.g. raw
+# instrumentation data with no calendar meaning - where idx_series
+# positions are still worth translating to and from the anchor's own
+# numeric scale.
 
 #' 
 #' # Wrap-up
