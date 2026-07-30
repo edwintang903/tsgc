@@ -595,8 +595,10 @@ Forecast accuracy can be evaluated with a variety of scale-dependent and
 scale-free measures. In the notation of the package, the mean absolute
 percentage error is
 $$\mathrm{MAPE}=\frac{100}{n}\sum_{t=1}^n \left|\frac{y_t-\hat y_t}{y_t}\right|,$$
-while the symmetric MAPE is defined as
-$$\mathrm{sMAPE}=\frac{100}{n}\sum_{t=1}^n \frac{2|y_t-\hat y_t|}{|y_t|+|\hat y_t|},$$
+while the symmetric MAPE, as implemented in the package (scaled 0-100
+rather than the more common 0-200 convention that includes a factor of 2
+in the numerator), is defined as
+$$\mathrm{sMAPE}=\frac{100}{n}\sum_{t=1}^n \frac{|y_t-\hat y_t|}{|y_t|+|\hat y_t|},$$
 and the mean absolute error and root mean squared error are given by
 $$\mathrm{MAE}=\frac{1}{n}\sum_{t=1}^n |y_t-\hat y_t|, \qquad \mathrm{RMSE}=\sqrt{\frac{1}{n}\sum_{t=1}^n (y_t-\hat y_t)^2}.$$
 sMAPE is reported as the primary percentage-based comparison measure in
@@ -898,18 +900,21 @@ colnames(d2.df) <- c("Date", "smoothed.slope",
 d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
 
 trigger.df <- d2.df %>%
-  mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
+  mutate(prev_smoothed.slope = dplyr::lag(smoothed.slope)) %>%
   filter((smoothed.slope > sd.smoothed.slope.2 &
             prev_smoothed.slope < sd.smoothed.slope.2))
-# Triggered on May 01 when smoothed slope > 2* sd(smoothed slope)
+# In this dataset, trigger.df resolves to 1 May (verify via trigger.df$Date
+# after running -- this comment describes typical output, not an assumption
+# the code relies on).
 
 reinit_zero.df <- d2.df %>%
-  mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
+  mutate(prev_smoothed.slope = dplyr::lag(smoothed.slope)) %>%
   filter(Date < min(trigger.df$Date) &
            (smoothed.slope > 0 & prev_smoothed.slope < 0)) %>%
   arrange(desc(Date)) %>%
   slice(1)
-# Reinitialisation on April 21
+# In this dataset, reinit_zero.df resolves to 21 April, used directly as
+# reinit.dates below (verify via reinit_zero.df$Date after running).
 
 # Create plot
 ggplot(data = d2.df,
@@ -951,10 +956,12 @@ ggplot(data = d2.df,
         plot.title = element_text(face = "bold"))
 ```
 
-The date for reinitialization is set accordingly.
+The date for reinitialization is set accordingly, taken directly from
+`reinit_zero.df` computed above rather than hard-coded, so the restart
+date used below is traceable to the trigger diagnostic in Figure 6.
 
 ```{r set_reinit_date}
-reinit.dates = "2021-04-21"
+reinit.dates <- format(reinit_zero.df$Date[1], "%Y-%m-%d")
 ```
 
 ### Estimating the reinitialized model

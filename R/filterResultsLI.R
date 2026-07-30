@@ -294,7 +294,10 @@ FilterResultsLI <- setRefClass(
         if (xpred_logical[1]){
           if (is.xts(xpred_lead.new)){
             new_xpred_lag<-lag(xpred_lead.new,n.lag)
-            new_index<-which.max(index(new_xpred_lag)==end.date)
+            new_index<-match(end.date, index(new_xpred_lag))
+            if (is.na(new_index)){
+              stop("xpred_lead.new: end.date not found in the supplied regressor index. Check that dates/classes align (e.g. Date vs POSIXct).")
+            }
             xpred_lead.new.subset<-new_xpred_lag[(new_index+1):(new_index+n.ahead)]
             if (any(!complete.cases(xpred_lead.new.subset)) ||
                 nrow(xpred_lead.new.subset) != n.ahead){
@@ -308,7 +311,10 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is.xts(xpred_targ.new)){
-            new_index<-which.max(index(xpred_targ.new)==end.date)
+            new_index<-match(end.date, index(xpred_targ.new))
+            if (is.na(new_index)){
+              stop("xpred_targ.new: end.date not found in the supplied regressor index. Check that dates/classes align (e.g. Date vs POSIXct).")
+            }
             xpred_targ.new.subset<-xpred_targ.new[(new_index+1):(new_index+n.ahead)]
             if (any(!complete.cases(xpred_targ.new.subset)) ||
                 nrow(xpred_targ.new.subset) != n.ahead){
@@ -845,6 +851,8 @@ FilterResultsLI <- setRefClass(
       }
       
       mape.sea <- mean(100*(abs(compare$Actual - compare$Forecast)/compare$Actual)) %>% round(2)
+      # NB. smape = 100*|A-F|/(A+F), scaled 0-100 -- HALF the scale of the
+      # more common sMAPE definition, 200*|A-F|/(A+F), scaled 0-200.
       smape<-mean(100*(abs(compare$Actual - compare$Forecast)/(compare$Actual+compare$Forecast))) %>% round(2)
       mae<-abs(compare$Actual - compare$Forecast) %>% mean %>% signif(digits=3)
       rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2)) %>% signif(digits=3)
@@ -878,7 +886,7 @@ FilterResultsLI <- setRefClass(
         ggplot2::geom_ribbon(data = ci_plot, aes(x = Date, ymin = lower, ymax = upper),linetype = 0, linewidth = 0, fill = "#AA2045",
                              alpha = 0.1) +
         labs(x = "Date", y = paste("New",series.name), title = title,
-             subtitle = paste("MAPE: ",mape.sea,"%; SMAPE: ",smape,"%; MAE: ", mae,"; RMSE: ", rmse,".", sep="")) +
+             subtitle = paste("MAPE: ",mape.sea,"%; sMAPE (0-100 scale): ",smape,"%; MAE: ", mae,"; RMSE: ", rmse,".", sep="")) +
         theme_economist_white(gray_bg = FALSE, base_size = 14) +
         theme(legend.title = element_blank()) +
         theme(
@@ -916,12 +924,17 @@ FilterResultsLI <- setRefClass(
       
       mape.sea <- 100*(abs(compare$Actual - compare$Forecast)/compare$Actual) %>%
         mean
+      # NB. smape = 100*|A-F|/(A+F), scaled 0-100 -- HALF the scale of the
+      # more common sMAPE definition, 200*|A-F|/(A+F), scaled 0-200. The
+      # $smape key name is kept for backward compatibility with existing
+      # callers; use $smape_scale to check/report which convention is in use.
       smape<-mean(100*(abs(compare$Actual - compare$Forecast)/(compare$Actual+compare$Forecast)))
       mae<-abs(compare$Actual - compare$Forecast) %>% mean
       rmse<-sqrt(mean((compare$Actual - compare$Forecast)^2))
       coverage<-100*sum(and(sea[,2]<=compare$Actual, sea[,3]>=compare$Actual))/n.ahead
       
-      return(list(mape=mape.sea, smape=smape, mae=mae, rmse=rmse, coverage=coverage))
+      return(list(mape=mape.sea, smape=smape, 
+                  mae=mae, rmse=rmse, coverage=coverage))
     }
   )
 )

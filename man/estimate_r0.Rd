@@ -15,9 +15,11 @@ estimate_r0(
 \arguments{
 \item{res}{A \code{FilterResults} object, obtained from \code{estimate()} method.}
 
-\item{gen_int}{Generation interval in days}
+\item{gen_int}{Assumed generation interval in days (not estimated from the data).}
 
-\item{ndays}{Number of days to plot, counting from the end of estimation timeframe.}
+\item{ndays}{Number of most recent days to return/plot, counting back from the
+end of the estimation timeframe. This truncates the R_t series to its last
+\code{ndays} values; it does not smooth or average the growth signal.}
 
 \item{show_plot}{A logical value indicating whether to show the plot of R0}
 
@@ -27,7 +29,11 @@ estimate_r0(
 Graph of estimated Rt and forecast intervals.
 }
 \description{
-Reproduction number is estimated based on the method described in Harvey and Kattuman (2021).
+Reproduction number is estimated based on the method described
+in Harvey and Kattuman (2021), via R_t = exp(g_y,t * gen_int), where g_y,t
+is the model's estimated daily log-growth rate and gen_int is an assumed
+(not estimated) generation interval. Results should be checked for
+sensitivity to the assumed gen_int.
 }
 \examples{
 library(tsgc)

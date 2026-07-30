@@ -6,6 +6,11 @@
 # ========
 # Contents
 # ========
+# 0. Overview, Model Equations & Data Provenance
+#    - One-page results summary
+#    - Model equations and assumptions
+#    - Data provenance and package pinning
+#
 # 1. Setup & Utilities
 #    - Parameters, libraries, theme, directories, helpers
 #
@@ -46,7 +51,84 @@
 #    8.5 Annual: 3DS (Gompertz)
 #    8.6 Annual: Wii→3DS (leading indicator)
 #
+# 9. Limitations, Diagnostics & Exported-File Notes
+#    - Illustrative vs retrospective vs operational forecasts
+#    - Cross-validation scope and interval calibration
+#    - Convergence/residual diagnostics checklist
+#    - Exported CSV file labelling
+#
 # ==========================================
+
+#' 
+#' # 0. Overview, Model Equations & Data Provenance
+#' 
+#' ## 0.1 One-page results summary
+#' 
+#' | Example | Frequency | Model | Estimation window | Horizon |
+#' |---|---|---|---|---|
+#' | Gauteng cases (free q / fixed q=0.005) | Daily | Dynamic Gompertz | 2021-02-01 to 2021-05-03 | 14d |
+#' | Gauteng cases + weather (q=0.005, fixed to match holdout) | Daily | Dynamic Gompertz + xpred | 2021-02-01 to 2021-05-03 | 14d |
+#' | England hospital admissions (+ weather) | Daily | Leading indicator (+ xpred) | 2021-04-30 to 2021-07-24 | 14d |
+#' | UK-Italy Case 1 / Case 2 | Daily | Gompertz vs leading indicator | 2020-02-25 to 2020-04-01 / 04-15 | 14d |
+#' | Wii / Plus500 / DEGIRO-AvaTrade | Quarterly / Monthly | Gompertz / leading indicator | see relevant section | 4 |
+#' | 3DS / Wii->3DS (annual, Q4-dated) | Annual | Gompertz / leading indicator | 2011-12 to 2018-12 | 2y |
+#' 
+#' Fill in forecast/accuracy figures for each row from this run's own
+#' output (`results/Tables`); figures are intentionally omitted here since
+#' they depend on run-specific data vintage. Read this table alongside the
+#' limitations in Section 9 -- several rows (the annual examples in
+#' particular) are illustrative, not empirically validated, forecasts.
+#' 
+#' ## 0.2 Model equations and assumptions
+#' 
+#' **Dynamic Gompertz model** (Sections 2-3, 5, 8.1, 8.3, 8.5): models the
+#' log-growth rate of a cumulative series as a locally-linear trend in a
+#' state-space form, following Harvey & Kattuman (2021), "A farewell to R:
+#' time-series models for tracking and forecasting epidemics", Journal of
+#' the Royal Society Interface, 18. <http://doi.org/10.1098/rsif.2021.0179>.
+#' 
+#' - `q` is the signal-to-noise ratio governing how much the slope state
+#'   drifts period to period. It can be estimated freely or fixed; **the
+#'   value used must be reported alongside every table or forecast**,
+#'   since free-q and fixed-q fits are different models (see the corrected
+#'   `model_weather` specification in Section 3, which now fixes
+#'   `q = q.default` to match its paired holdout model).
+#' - `xpred` regressors enter as an `SSMregression` component. When
+#'   supplying future values via `supply_xpred.new()`, the model performs
+#'   a **date match** between the regressor series' index and the forecast
+#'   origin (`end.date`), not a positional/row-number match. Confirm index
+#'   classes agree (e.g. `Date` vs `POSIXct`) between the model's own
+#'   dates and the supplied regressor series.
+#' 
+#' **Leading-indicator model** (Sections 6-7, 8.2, 8.4, 8.6): a bivariate
+#' extension in which a lead series' lagged values inform the target
+#' series' state, with the lag length `n.lag` specified by the user (see
+#' Section 7.2 on lag selection, and Section 9 on its validation scope).
+#' 
+#' **Reproduction number, R_t** (Section 4): computed as
+#' \(R_t = \exp(g_{y,t} \cdot \text{gen\_int})\), where \(g_{y,t}\) is the
+#' fitted daily log-growth rate and `gen_int` (default 4 days) is an
+#' **assumed**, not estimated, generation interval. `ndays` controls how
+#' many of the most recent daily R_t values are returned/plotted -- it is
+#' a truncation parameter, not a smoothing window. See the `gen_int`
+#' sensitivity table added in Section 4.2.
+#' 
+#' ## 0.3 Data provenance and package pinning
+#' 
+#' All series used below (`gauteng`, `gauteng_weather_2021`, `england`,
+#' `england_weather_2021`, `nintendo_sales`, `etrading_apps`, and the
+#' Italy comparison series) are built-in datasets shipped with the `tsgc`
+#' package itself, used as-is except for the column subsetting and
+#' frequency conversions documented at each point of use (e.g. the
+#' Q4/year-end conversion of `nintendo_sales` in Section 8.5).
+#' 
+#' This document requires `tsgc 2.0.0`. For a fully pinned replication,
+#' record here: the exact repository URL and commit SHA used, the
+#' installation command (e.g.
+#' `remotes::install_github("<org>/tsgc", ref = "<commit-sha>")`), and an
+#' `renv.lock` capturing the full dependency graph (`KFAS`, `dplyr`,
+#' `xts`, etc.), not just `tsgc` itself.
+#' 
 
 #' 
 #' # 1. Setup & Utilities
@@ -71,7 +153,7 @@ FIG_WIDTH    <- 10
 FIG_HEIGHT   <- 7
 FIG_DPI      <- 300
 CONF_LEVEL   <- 0.68  # Coverage proportion for plotted/exported uncertainty intervals.
-                      # 0.68: ~one-standard-error interval under Gaussian assumptions.
+# 0.68: ~one-standard-error interval under Gaussian assumptions.
 
 # Core analysis parameters 
 # The default 14-step horizon is used repeatedly for the daily examples unless a later section overrides it.
@@ -81,10 +163,16 @@ plt.length.default  <- 30
 
 # Reproduction Number (R_t) parameters
 # These epidemiological assumptions are used only when translating growth dynamics into R_t.
-gen_int <- 4   # assumed generation interval, how many days between infection in one case 
-               # and secondary infections.
-ndays   <- 7   # Number of days used to smooth/aggregate the growth signal when estimating R_t.
-               # A 7-day window helps reduce daily reporting noise in COVID case data.
+gen_int <- 4   # Assumed generation interval (days between infection in one case and
+# secondary infections). R_t = exp(g_y,t * gen_int), where g_y,t is the
+# estimated daily log-growth rate. This is an assumption, not an estimate;
+# results should be checked for sensitivity to this value (see below).
+ndays   <- 7   # Number of most recent daily R_t estimates to return/plot.
+# NB. estimate_r0() computes R_t for every day in the sample and then
+# takes tail(..., ndays): this truncates to the last `ndays` days, it
+# does NOT smooth or average the growth signal. Any noise reduction in
+# the daily case data happens upstream, in the Gompertz model's own
+# smoothing of the growth-rate state -- not from this parameter.
 
 
 # Default estimation window used in Section 2
@@ -475,7 +563,7 @@ p <- tsgc::plot_holdout(
 ); print(p)
 
 if (SAVE_TABLES) {
-# Export the baseline Gauteng forecast and filtered-state results as documented CSV files.
+  # Export the baseline Gauteng forecast and filtered-state results as documented CSV files.
   write_results_clear(
     res = res_q,
     res.dir = tables_dir,
@@ -534,9 +622,17 @@ head(gauteng_weather_est)
 
 # Fit a Dynamic Gompertz model with weather regressors
 # Fit the Gompertz model with weather regressors included through xpred.
+# NB. q is fixed at q.default here so that this full-sample specification
+# matches the holdout specification (model_q_xpred_holdout, Section 3.1.4),
+# which also fixes q = q.default. Estimating q freely in one and fixing it
+# in the other would make the forecast and the holdout-accuracy table
+# describe two different models rather than the same model evaluated two
+# ways. If a free-q comparison is wanted, add it as a clearly separate,
+# additionally-labelled specification rather than substituting it here.
 model_weather <- tsgc::SSModelDynamicGompertz(
   Y          = cumulative_cases,
   xpred      = gauteng_weather_est,
+  q          = q.default,
   start.date = est.start.1,
   end.date   = est.end.1
 )
@@ -700,9 +796,9 @@ print(p)
 #' 
 #' # 4. Reproduction Number (R_t)
 #' 
-#' Map Gompertz estimates to effective reproduction numbers 
-#' using a specified generation interval (4 days),  
-#' smoothed over a 7-day window.
+#' Map Gompertz estimates to effective reproduction numbers using 
+#' R_t = exp(g_y,t * gen_int), an assumed generation interval (4 days), 
+#' reporting the most recent 7 daily estimates.
 #' 
 #' ## 4.1 Transform Gompertz estimates to R_t
 #' 
@@ -711,13 +807,35 @@ print(p)
 # Convert fitted Gompertz dynamics into an implied reproduction-number path using the assumed generation interval.
 # Estimate the implied reproduction number from the fixed-q Gauteng model.
 r.t <- tsgc::estimate_r0(res_q, gen_int, ndays)
+
+# ---- 4.2 Sensitivity of R_t to the assumed generation interval ----
+# gen_int is an epidemiological assumption, not something estimated from
+# these data, so R_t should be checked for sensitivity to it rather than
+# reported only at a single assumed value.
+gen_int_sensitivity <- c(3, 4, 5, 6)
+r.t_sensitivity <- lapply(gen_int_sensitivity, function(g) {
+  out <- tsgc::estimate_r0(res_q, g, ndays)
+  names(out) <- c("Date", "Rt", "Rt_lower", "Rt_upper")
+  out$gen_int <- g
+  out
+})
+r.t_sensitivity_df <- do.call(rbind, r.t_sensitivity)
+print(r.t_sensitivity_df)
+
+if (SAVE_TABLES) {
+  write.csv(
+    r.t_sensitivity_df, row.names = FALSE,
+    file = file.path(tables_dir, "gauteng_gompertz_q005_rt_gen_int_sensitivity.csv")
+  )
+  message("Saved gauteng_gompertz_q005_rt_gen_int_sensitivity.csv")
+}
 if (SAVE_TABLES) {
   names(r.t) <- c(
     "Date", "Rt",
     paste0("Rt_lower_", confidence_suffix(CONF_LEVEL)),
     paste0("Rt_upper_", confidence_suffix(CONF_LEVEL))
   )
-# Save the R_t table for later use in reports or supplementary material.
+  # Save the R_t table for later use in reports or supplementary material.
   write.csv(r.t, row.names = FALSE, 
             file = file.path(tables_dir, "gauteng_gompertz_q005_rt.csv"))
   message("Saved gauteng_gompertz_q005_rt.csv")
@@ -870,9 +988,13 @@ save_plot(p_trigger, "gauteng_cases_gomp_q005_reinit_trigger.png")
 
 ## ---- 5.2 Reinitialisation Estimation & Forecasts ----
 # Refit the Gauteng model with a reinitialisation date and compare forecasts with and without reinitialisation.
-# Set reinit date (could also take from trigger.df/reinit_zero.df)
-# This chosen date starts the model state afresh for the later wave.
-reinit.date <- as.Date("2021-04-21")
+# Derive reinit.date from reinit_zero.df (Section 5.1) rather than hard-coding
+# it, so the chosen restart date is traceable to the trigger diagnostic above.
+if (nrow(reinit_zero.df) != 1) {
+  stop("reinit_zero.df did not yield exactly one candidate reset date; inspect trigger.df/reinit_zero.df from Section 5.1.")
+}
+reinit.date <- reinit_zero.df$Date[1]
+message("Reinitialisation date derived from trigger diagnostic: ", reinit.date)
 
 # Fit the dynamic Gompertz model with reinitialisation activated at the selected date.
 model_reinit <- tsgc::SSModelDynamicGompertz(  
@@ -997,7 +1119,7 @@ p <- tsgc::plot_holdout(
 
 if (SAVE_TABLES) {
   write_results_clear(
-# Export the England leading-indicator forecast and filtered-state outputs as CSV files.
+    # Export the England leading-indicator forecast and filtered-state outputs as CSV files.
     res = res_eng,
     res.dir = tables_dir,
     n.ahead = n.forecasts,
@@ -1191,7 +1313,7 @@ cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz(
 
 # Model 3–6: Leading Indicator with different n.lags, from 1-21
 for (i in 1:21) {
-# Add leading-indicator candidates over a grid of lag choices.
+  # Add leading-indicator candidates over a grid of lag choices.
   cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator(
     Y = tsgc::ukitaly, start.date = est.start, 
     end.date = est.end, n.lag = i
@@ -1546,21 +1668,52 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 # Aggregate quarterly Nintendo data to annual frequency and fit an annual Gompertz model.
 # Use a two-year forecast horizon and annualised yearmon dates for the annual model.
 n.forecasts <- 2
-est.start.y <- zoo::as.yearmon(2011)
-est.end.y   <- zoo::as.yearmon(2018)
+# NB. dates below use December (Q4) to match the year-end dating of the
+# annual series constructed below (yearly_nintendo_dates); as.yearmon(2011)
+# would default to January and misalign with the December-dated observations.
+est.start.y <- zoo::as.yearmon("2011-12")
+est.end.y   <- zoo::as.yearmon("2018-12")
 
-# Convert quarterly to yearly (sample every 4th)
-# Subsample quarterly Nintendo sales to annual observations.
-yearly_nintendo      <- nintendo_sales[4 * (1:19), 
+# Convert quarterly to yearly: take the Q4 (year-end) observation of each year.
+# nintendo_sales holds CUMULATIVE sales, so a calendar-year snapshot is the
+# year-end level, not a sum of quarters (summing cumulative values would
+# double-count).
+# Row indices are derived from the actual row labels (e.g. "2005 Q4") rather
+# than assumed from a hard-coded start quarter. Confirmed: nintendo_sales
+# starts at 2004 Q4, not 2005 Q1 -- so `4 * (1:19)` selects 2005 Q3, 2006 Q3,
+# ..., i.e. Q3-to-Q3 values mislabeled as annual/January. Deriving the index
+# from row labels avoids re-introducing that bug if the data's start quarter
+# ever changes.
+# Row indices are derived from the actual time index (a `yearqtr`, via
+# zoo::index()) rather than assumed from a hard-coded start quarter.
+# NB. nintendo_sales is an xts object, so rownames() is empty -- its labels
+# live in the yearqtr index, not in character rownames. Confirmed:
+# nintendo_sales starts at 2004 Q4, not 2005 Q1 -- so `4 * (1:19)` selects
+# 2005 Q3, 2006 Q3, ..., i.e. Q3-to-Q3 values mislabeled as annual/January.
+# Matching directly against the yearqtr index avoids re-introducing that bug
+# if the data's start quarter ever changes.
+target_years <- 2005:2023
+nintendo_idx <- zoo::index(nintendo_sales)
+target_yearqtrs <- zoo::as.yearqtr(paste0(target_years, " Q4"))
+yearly_nintendo_idx <- match(target_yearqtrs, nintendo_idx)
+if (any(is.na(yearly_nintendo_idx))) {
+  stop("Could not find a Q4 observation for every year in 2005:2023 in nintendo_sales; ",
+       "inspect zoo::index(nintendo_sales) and adjust target_years/matching.")
+}
+# Subsample quarterly Nintendo sales to true calendar year-end (Q4) observations.
+yearly_nintendo      <- nintendo_sales[yearly_nintendo_idx, 
                                        c("wii", "3ds")]
+# Label with December of each year, since these are year-end (Q4) snapshots,
+# not January/annual-average values.
+yearly_nintendo_dates <- zoo::as.yearmon(paste0(target_years, "-12"))
 # Build annual xts series for 3DS and the wider Nintendo sales panel.
 threeds_xts          <- xts::xts(
   zoo::coredata(yearly_nintendo[, "3ds"]), 
-  order.by = zoo::yearmon(2005:2023)
+  order.by = yearly_nintendo_dates
 )
 yearly_nintendo_xts  <- xts::xts(
   zoo::coredata(yearly_nintendo), 
-  order.by = zoo::yearmon(2005:2023)
+  order.by = yearly_nintendo_dates
 )
 
 # Fit an annual dynamic Gompertz model to 3DS sales.
@@ -1648,6 +1801,92 @@ p <- tsgc::plot_holdout(
 print(p)
 save_plot(p, "3ds_sales_lead_holdout.png")
 
+#' 
+#' # 9. Limitations, Diagnostics & Exported-File Notes
+#' 
+#' ## 9.1 Illustrative vs. retrospective vs. operational forecasts
+#' 
+#' Not all examples above represent the same evidentiary standard:
+#' 
+#' - **Operational-style validation** (closest to a genuine real-time
+#'   test): the Gauteng and England daily holdout evaluations, where the
+#'   model is estimated up to a cutoff and evaluated against genuinely
+#'   subsequent observations. Even here, the weather-regressor holdout
+#'   uses **realised** future weather (an oracle/conditional forecast),
+#'   not an archived weather forecast available at the time.
+#' - **Retrospective/conditional forecasts**: any example where the
+#'   "future" regressor values (e.g. weather) are the actual realised
+#'   values rather than what would have been available at the forecast
+#'   origin. These demonstrate the model's conditional forecasting
+#'   mechanics, not its unconditional real-world accuracy.
+#' - **API/illustrative demonstrations, not empirical validation**: the
+#'   quarterly, monthly, and especially annual examples (Wii, Plus500,
+#'   DEGIRO->AvaTrade, 3DS, Wii->3DS). Sample sizes here are small by
+#'   construction -- the annual leading-indicator and Gompertz examples
+#'   validate on only 2 holdout points. These sections should be read as
+#'   "here is how to call the function," not "here is evidence the model
+#'   works well at annual frequency."
+#' 
+#' ## 9.2 Cross-validation scope
+#' 
+#' The lag-selection cross-validation (Section 7.2) tests multiple lag
+#' candidates on a small number of closely-spaced origins with overlapping
+#' 14-day horizons, then selects the best lag on those same folds -- this
+#' has no held-out outer evaluation and no naive/persistence benchmark. If
+#' a later case study uses a different lag than the cross-validation
+#' winner, that deviation should be explained explicitly; otherwise use
+#' the CV-selected lag. The selection procedure should be validated
+#' against an outer holdout or a nested rolling-origin scheme, with naive
+#' benchmarks included, before its result is treated as a tuned
+#' hyperparameter rather than a demonstration.
+#' 
+#' ## 9.3 Interval calibration
+#' 
+#' Reported coverage rates can vary widely across examples. Nominal 68%
+#' intervals that are poorly calibrated in either direction (too narrow or
+#' too wide, as seen when comparing across the examples in this document)
+#' suggest the uncertainty quantification should not be taken at face
+#' value without further diagnostic work (Section 9.4).
+#' 
+#' ## 9.4 Convergence, boundary, and residual diagnostics checklist
+#' 
+#' For each headline model above (Gauteng fixed-q, England leading
+#' indicator, England + weather), before relying on its output, check:
+#' 
+#' - **Convergence**: did `tsgc::estimate()`'s optimiser converge without
+#'   warnings? Note the number of iterations if available.
+#' - **Boundary estimates**: is the estimated `q` at or near 0 (a boundary
+#'   of the parameter space)? This is common in Gompertz-curve fits and
+#'   affects the validity of standard-error-based inference on `q`.
+#' - **Residual diagnostics**: standardised residual plots, and at
+#'   minimum a check for residual autocorrelation (e.g. Ljung-Box) and
+#'   heteroskedasticity.
+#' - **Warnings**: warnings should be visible during model fitting and
+#'   validation, and suppressed individually -- with a documented reason
+#'   -- only after the underlying issue is understood, rather than
+#'   suppressed globally.
+#' 
+#' ## 9.5 Exported file labelling
+#' 
+#' Files matching `*_filtered.csv` are generated via
+#' `predict_all(..., return.all = TRUE)` and therefore contain both
+#' filtered (in-sample) and forecast-period rows. Split these into
+#' separate `*_filtered.csv` / `*_forecast.csv` outputs, or rename the
+#' existing files to make the mixed content explicit (e.g.
+#' `*_filtered_and_forecast.csv`), so downstream users don't assume every
+#' row is an in-sample filtered estimate.
+#' 
+#' ## 9.6 sMAPE scale
+#' 
+#' Figures in this document use
+#' \(\text{sMAPE} = 100 \cdot |Actual - Forecast| / (Actual + Forecast)\),
+#' scaled 0-100. This is **half the scale** of the more common
+#' \(200 \cdot |Actual - Forecast| / (Actual + Forecast)\) (0-200)
+#' convention. This is now labelled explicitly wherever sMAPE is reported
+#' (plot subtitles read "sMAPE (0-100 scale)", and `mapes()` return lists
+#' include a `smape_scale` field) -- treat any sMAPE figure from this
+#' package as non-comparable to externally reported sMAPE values unless
+#' the scale is confirmed to match.
 #' 
 #' # Wrap-up
 message("=== Run completed. Check 'results/Tables' and 'results/Images'. ===")

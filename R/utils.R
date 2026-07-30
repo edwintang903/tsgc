@@ -137,7 +137,7 @@ add_daily_ldl <- function(data, LeadIndCol=1){
   
   data$newLead = diff(data$cLead)
   data$newTarg = diff(data$cTarg)
-
+  
   data$LDLlead = ldl$cLead
   data$LDLtarg = ldl$cTarg
   return(data)
@@ -175,10 +175,10 @@ reinitialise_dataframe <- function(dt, reinit.date) {
   }
   
   dt <- dt[(first_ind-1):length(dt),]
-
+  
   # 2. Subtract away the t-1 date data
   dt <- sweep(dt, 2, dt[1,])
-
+  
   # 3. Keep only data from t onwards.
   dt <- dt[-1,]
   return(dt)
@@ -244,10 +244,10 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
   # 1. New Cases - Delta Y
-    y.hat.diff <- res$predict_level(
-      n.ahead = n.ahead,
-      confidence.level= confidence.level,
-      sea.on = TRUE)
+  y.hat.diff <- res$predict_level(
+    n.ahead = n.ahead,
+    confidence.level= confidence.level,
+    sea.on = TRUE)
   
   write.csv(
     y.hat.diff,
@@ -278,7 +278,7 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
     row.names = index(filtered.level),
     file = file.path(res.dir, paste(prefix, "log_gr_level_filt.csv", sep=""))
   )
-
+  
   # 3. Filtered growth rate of new cases (g_{y}) - CI from standard error on
   # slope component of state covariance matrix.
   g.y.t.t <- exp(filtered.level) + filtered.slope
@@ -287,7 +287,7 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
   gy.ci <- xts(cbind(fit = g.y.t.t, prediction = ci_bounds),
                order.by = index(filtered.level))
   colnames(gy.ci)[2:3] <- c('lower', 'upper')
-
+  
   write.csv(
     gy.ci,
     row.names = index(g.y.t.t),
@@ -299,11 +299,17 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
 
 #' @title Calculate reproduction number estimates and credible intervals
 #'
-#' @description Reproduction number is estimated based on the method described in Harvey and Kattuman (2021).
+#' @description Reproduction number is estimated based on the method described 
+#' in Harvey and Kattuman (2021), via R_t = exp(g_y,t * gen_int), where g_y,t 
+#' is the model's estimated daily log-growth rate and gen_int is an assumed 
+#' (not estimated) generation interval. Results should be checked for 
+#' sensitivity to the assumed gen_int.
 #'
 #' @param res A `FilterResults` object, obtained from \code{estimate()} method.
-#' @param gen_int Generation interval in days
-#' @param ndays Number of days to plot, counting from the end of estimation timeframe.
+#' @param gen_int Assumed generation interval in days (not estimated from the data).
+#' @param ndays Number of most recent days to return/plot, counting back from the 
+#' end of the estimation timeframe. This truncates the R_t series to its last 
+#' `ndays` values; it does not smooth or average the growth signal.
 #' @param show_plot A logical value indicating whether to show the plot of R0
 #' @param title Title for the reproduction number plot. 
 #'
@@ -541,7 +547,7 @@ cross_val<-function(Y, model_list, est.end.date, n.ahead=7, n.estimate=1, gap=1,
   for (k in 1:n.estimate){
     index_num<-1
     for (model in model_list){
-#      model <- model_orig$copy()
+      #      model <- model_orig$copy()
       model$end.date<-est.end.date+(k-1)*gap
       if (inherits(model, "SSModelDynamicGompertz")){
         model$Y<-get_timeframe(Y1, model$start.date, model$end.date)
@@ -728,4 +734,3 @@ seq_dates<-function(from, resolution, to=NA, length.out=NA){
                      length.out=length.out))}
   }
 }
-
