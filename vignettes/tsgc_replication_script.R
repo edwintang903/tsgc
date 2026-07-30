@@ -212,6 +212,16 @@ write_idx_csv <- function(x, calendar, file, columns) {
     check.names = FALSE
   )
   names(out) <- c("Date", columns)
+  # Flag rows with an exact zero standard error (typically diffuse
+  # initialisation at the start of the sample) rather than exporting
+  # them silently, since a zero SE reads as false certainty.
+  se_cols <- grep("std_error|_lower_|_upper_", names(out), value = TRUE)
+  err_col <- grep("std_error", names(out), value = TRUE)
+  if (length(err_col) == 1 && any(out[[err_col]] == 0, na.rm = TRUE)) {
+    out$diffuse_flag <- out[[err_col]] == 0
+    message("Note: ", sum(out$diffuse_flag), " row(s) in ", basename(file),
+            " have zero standard error (diffuse initialisation) and are flagged.")
+  }
   write.csv(out, file = file, row.names = FALSE)
   message("Saved table: ", normalizePath(file, winslash = "/", mustWork = FALSE))
   invisible(out)
@@ -251,8 +261,16 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
   
   idx.level <- grep("level", colnames(a.t.t))[1]
   idx.slope <- grep("slope", colnames(a.t.t))[1]
-  delta.std.err <- sqrt(P.t.t[idx.level, idx.level, ])
-  gamma.std.err <- sqrt(P.t.t[idx.slope, idx.slope, ])
+  delta.var  <- P.t.t[idx.level, idx.level, ]
+  gamma.var  <- P.t.t[idx.slope, idx.slope, ]
+  delta.gamma.cov <- P.t.t[idx.level, idx.slope, ]
+  delta.std.err <- sqrt(delta.var)
+  gamma.std.err <- sqrt(gamma.var)
+  
+  # The *_filtered.csv files should contain only in-sample filtered
+  # states, not rows extending into the forecast period. Restrict to
+  # positions at or before the model's own fitted sample end.
+  filtered.end.pos <- tail(res$index, 1)
   
   delta <- idx_series(
     cbind(
@@ -262,7 +280,7 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
     start = filtered.level$start
   )
   write_idx_csv(
-    delta,
+    get_timeframe(delta, filtered.level$start, filtered.end.pos),
     calendar,
     file.path(res.dir, paste0(model_slug, "_delta_filtered.csv")),
     c("delta_log_growth_level", "delta_std_error")
@@ -276,15 +294,24 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
     start = filtered.slope$start
   )
   write_idx_csv(
-    gamma,
+    get_timeframe(gamma, filtered.slope$start, filtered.end.pos),
     calendar,
     file.path(res.dir, paste0(model_slug, "_gamma_filtered.csv")),
     c("gamma_trend_slope", "gamma_std_error")
   )
   
-  fitted.growth <- exp(idx_values(filtered.level)) + idx_values(filtered.slope)
+  # g_t = exp(delta_t) + gamma_t. Use the full first-order delta-method
+  # variance, including the delta variance and the delta-gamma
+  # covariance, not just the gamma variance:
+  #   Var(g_t) ~= exp(2*delta_t)*Pdd_t + Pgg_t + 2*exp(delta_t)*Pdg_t
+  e.delta <- exp(idx_values(filtered.level))
+  fitted.growth <- e.delta + idx_values(filtered.slope)
+  growth.var <- (e.delta^2) * as.numeric(delta.var) +
+    as.numeric(gamma.var) +
+    2 * e.delta * as.numeric(delta.gamma.cov)
+  growth.se <- sqrt(pmax(growth.var, 0))
   ci.offset <- stats::qnorm((1 - confidence.level) / 2) *
-    as.numeric(gamma.std.err) %o% c(1, -1)
+    growth.se %o% c(1, -1)
   growth.ci <- idx_series(
     cbind(
       fitted_incidence_growth_rate = as.numeric(fitted.growth),
@@ -590,6 +617,7 @@ head(gauteng_weather_est)
 model_weather <- tsgc::SSModelDynamicGompertz(
   Y          = cumulative_cases,
   xpred      = gauteng_weather_est,
+  q          = q.default,
   start      = est.start.1,
   end        = est.end.1,
   calendar   = gauteng_cal
@@ -677,8 +705,19 @@ gauteng_weather_future_idx <- xts_to_idx(
 )$series
 
 # Supply CSV-based future xpred data to the model
-# Supply the CSV-derived future regressors to the fitted model.
-res_weather$xpred.new <- gauteng_weather_future_idx
+# Keep the CSV-derived path in its own object rather than silently
+# overwriting the full-precision `gauteng_weather_future` path supplied
+# above. Verify it matches the intended scenario before using it.
+res_weather_csv <- gauteng_weather_future_idx
+stopifnot(
+  nrow(res_weather_csv) == n.forecasts,
+  isTRUE(all.equal(
+    as.numeric(res_weather_csv[, "temperature_C"]),
+    as.numeric(gauteng_weather_future[, "temperature_C"]),
+    tolerance = 0.01
+  ))
+)
+res_weather$xpred.new <- res_weather_csv
 
 # Once xpred has been supplied, the fitted model will generate forecasts
 # that are conditional on these external regressors.
@@ -865,7 +904,12 @@ summary(res_rei_base)
 # they carry their own integer positions.
 smoothed.slope.full <- idx_series(res_rei_base$output$alphahat[, "slope"],
                                   start = res_rei_base$index[1])
-smoothed.P.slope <- idx_series(res_rei_base$output$P[2, 2, -1],
+# Use the smoothed-state covariance V (not the filtered Ptt/P), so the
+# variance is matched to the smoothed alphahat estimate used above. This
+# is a retrospective diagnostic, so the smoothed pair is the right one.
+V.smoothed <- get_V(res_rei_base$output)
+i.slope <- grep("slope", colnames(res_rei_base$output$alphahat))
+smoothed.P.slope <- idx_series(V.smoothed[i.slope, i.slope, ],
                                start = res_rei_base$index[1])
 
 # Combine slope estimates, uncertainty bands, and observed series into
@@ -891,11 +935,17 @@ d2.df <- data.frame(
 )
 d2.df <- dplyr::filter(d2.df, Date >= as.Date("2020-10-06"))
 
-# Identify candidate dates where the slope signal and uncertainty satisfy the trigger rule.
+# zt = smoothed slope minus its own two-standard-error threshold, i.e.
+# the lower bound of the two-SE confidence interval around the slope.
+# A trigger is a sign change in zt itself (zt > 0, lag(zt) <= 0), not a
+# comparison of the lagged slope against the current period's threshold
+# (which is not equivalent once the standard error changes over time).
+d2.df$zt <- d2.df$smthd.slpe - d2.df$plus.sd.smthd.slpe.2
+
+# Identify candidate dates where the two-SE lower bound crosses zero.
 trigger.df <- d2.df %>%
-  dplyr::mutate(prev_smthd.slpe = dplyr::lag(smthd.slpe)) %>%
-  dplyr::filter(smthd.slpe > plus.sd.smthd.slpe.2 & 
-                  prev_smthd.slpe < plus.sd.smthd.slpe.2)
+  dplyr::mutate(prev_zt = dplyr::lag(zt)) %>%
+  dplyr::filter(zt > 0 & prev_zt <= 0)
 
 # Identify dates where the smoothed slope crosses or approaches zero, another restart diagnostic.
 reinit_zero.df <- d2.df %>%
@@ -915,13 +965,13 @@ p_trigger <-
   ggplot2::geom_line(ggplot2::aes(y = smthd.slpe, color = "Smoothed slope"), 
                      linewidth = 0.5) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe,
-                                  color = "1 SE band"), 
+                                  color = "1 SE threshold"), 
                      linewidth = 0.25) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe.1.5, 
-                                  color = "1.5 SE band"), 
+                                  color = "1.5 SE threshold"), 
                      linewidth = 0.25) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe.2, 
-                                  color = "2 SE band"), 
+                                  color = "2 SE threshold"), 
                      linewidth = 0.5) +
   ggplot2::scale_y_continuous(n.breaks = 10) +
   ggplot2::geom_hline(yintercept = 0, linetype = "solid", 
@@ -934,19 +984,23 @@ p_trigger <-
                       linewidth = 1, color = "black") +
   ggplot2::labs(
     title = "Reinitialisation trigger diagnostic for Gauteng",
-    subtitle = "Smoothed slope with 1, 1.5, and 2 standard-error bands",
+    subtitle = "Smoothed slope with 1, 1.5, and 2 standard-error lower thresholds (slope - k*se)",
     x = "Date",
     y = "Smoothed slope",
-    caption = "Thick vertical line: reset date. Dashed vertical line: 2-SE trigger date."
+    caption = paste(
+      "Thick vertical line: reset date. Dashed vertical line: 2-SE trigger date.",
+      "Reset date is selected retrospectively from one episode/origin and is",
+      "not validated as a general real-time reinitialisation rule."
+    )
   ) +
   ggplot2::scale_x_date(date_breaks = "10 days") +
   ggplot2::scale_color_manual(
     name   = "Series", 
     values = c(
       "Smoothed slope" = "red",
-      "1 SE band"      = "blue",
-      "1.5 SE band"    = "green",
-      "2 SE band"      = "black"
+      "1 SE threshold" = "blue",
+      "1.5 SE threshold" = "green",
+      "2 SE threshold" = "black"
     )
   ) +
   ggplot2::theme_light(base_size = 12) +
@@ -1675,8 +1729,10 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 #' ## 8.5 Annual: 3DS
 #' 
 #' 3DS is Nintendo's handheld console (released 2011).
-#' Here we convert quarterly global sales to annual frequency 
-#' to demonstrate annual Gompertz modelling.
+#' Here we subsample quarterly cumulative global sales to an
+#' annual-frequency series of Q3 endpoints (since the source series
+#' begins 2004 Q4) to demonstrate annual Gompertz modelling. These are
+#' Q3-to-Q3 cumulative-sales differences, not calendar-year sales.
 #' 
 #' Annual modelling with `sea.period = 0`; 
 #' forecast and evaluate 3DS annual series.
@@ -1687,21 +1743,32 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 # Use a two-year forecast horizon and annual positions for the annual model.
 n.forecasts <- 2
 
-# Subsample quarterly Nintendo sales to annual observations (every 4th quarter).
+# Subsample quarterly Nintendo sales to annual-frequency observations
+# (every 4th quarter). The series begins 2004 Q4, so rows 4*(1:19) are
+# the Q3 endpoint of each subsequent year (2005 Q3, 2006 Q3, ...), not
+# January observations. We preserve the true selected dates rather than
+# relabelling them onto a 1 January calendar, so the resulting series is
+# accurately described as annual-frequency Q3-to-Q3 cumulative sales,
+# not calendar-year sales.
+yearly_nintendo_dates <- zoo::index(nintendo_sales)[4 * (1:19)]
+stopifnot(all(format(yearly_nintendo_dates, "%m") == "07" |
+                format(yearly_nintendo_dates, "%m") == "08" |
+                format(yearly_nintendo_dates, "%m") == "09"))
 yearly_nintendo_mat <- zoo::coredata(nintendo_sales)[4 * (1:19), c("wii", "3ds")]
 
-# Build an annual idx_series/idx_calendar for the subsampled data.
+# Build an annual idx_series/idx_calendar anchored on the true first
+# selected date (a Q3 endpoint), not a fabricated 1 January date.
 yearly_nintendo_idx <- idx_series(yearly_nintendo_mat, start = 1L)
 yearly_nintendo_cal <- idx_calendar(
-  anchor = as.Date("2005-01-01"),
+  anchor = yearly_nintendo_dates[1],
   anchor_pos = 1L,
   amount = 1, unit = "years",
   posixct = TRUE
 )
 threeds_idx <- idx_series(idx_values(yearly_nintendo_idx)[, "3ds"], start = yearly_nintendo_idx$start)
 
-est.start.y <- idx_to_pos(yearly_nintendo_cal, "2011-01-01")
-est.end.y   <- idx_to_pos(yearly_nintendo_cal, "2018-01-01")
+est.start.y <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2011")], "%Y-%m-%d"))
+est.end.y   <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2018")], "%Y-%m-%d"))
 
 # Fit an annual dynamic Gompertz model to 3DS sales.
 mod_3ds <- tsgc::SSModelDynamicGompertz(  
@@ -1751,7 +1818,8 @@ save_plot(p, "3ds_sales_gomp_holdout.png")
 ## ---- 8.6 Annual-leading: Wii to 3DS (Lead) ----
 # Fit an annual leading-indicator model using Wii sales to forecast 3DS sales.
 # Compute the annual Wii-to-3DS lag.
-n.lag.y <- idx_to_pos(yearly_nintendo_cal, "2011-01-01") - idx_to_pos(yearly_nintendo_cal, "2007-01-01")
+n.lag.y <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2011")], "%Y-%m-%d")) -
+  idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2007")], "%Y-%m-%d"))
 # Fit the annual Wii-to-3DS leading-indicator model.
 mod_lead_y <- tsgc::SSModelLeadingIndicator(
   Y = yearly_nintendo_idx, sea.period = 0, n.lag = n.lag.y,

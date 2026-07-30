@@ -797,7 +797,15 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
     a
   }
   
-  vapply(pos, walk_to, FUN.VALUE = cal$anchor[1])
+  # vapply() coerces its result to the bare storage mode of FUN.VALUE
+  # and drops class attributes, so a Date/POSIXct FUN.VALUE template
+  # loses its class here, silently returning raw numeric day/second
+  # counts instead of dates. Build the result as a plain numeric vector
+  # and restore the anchor's class/attributes explicitly instead.
+  raw <- vapply(pos, function(p) unclass(walk_to(p)), FUN.VALUE = numeric(1))
+  out <- raw
+  attributes(out) <- attributes(cal$anchor)
+  out
 }
 
 #' @title Translate a calendar date to an \code{idx_series} integer position,
