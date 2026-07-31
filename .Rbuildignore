@@ -8,3 +8,4 @@
 ^Meta$
 ^.idea$
 ^\.github$
+^CHANGELOG\.md$
