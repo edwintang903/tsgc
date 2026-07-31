@@ -199,7 +199,20 @@ SSModelLeadingIndicator <- setRefClass(
         stop("Restricting the estimation timeframe to the available xpred_lead/xpred_targ data leaves gaps, which idx_series cannot represent.")
       }
       y.estimate <- get_timeframe(y.estimate, est_pos[1], tail(est_pos,1))
-      data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg")]
+      data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg"), drop = FALSE]
+      # A single (or zero) usable row after lagging/trimming leaves too
+      # little information to estimate this two-equation state-space
+      # model, and previously surfaced many calls downstream as an
+      # opaque SSModel() "Misspecified H" error rather than pointing at
+      # the real cause (an estimation window too narrow relative to
+      # n.lag, or too little overlap with xpred_lead/xpred_targ).
+      if (nrow(data_mat) < 2) {
+        stop("SSModelLeadingIndicator: only ", nrow(data_mat), " usable row(s) ",
+             "remain in the estimation window after lagging by n.lag = ", n.lag,
+             " and trimming missing/non-overlapping positions; at least 2 are ",
+             "required to estimate this model. Widen the estimation window ",
+             "(start/end) or reduce n.lag.")
+      }
       
       if (!is.null(xpred_lead)){
         xpred_lead <<- get_timeframe(xpred_lead, est_pos[1], tail(est_pos,1))

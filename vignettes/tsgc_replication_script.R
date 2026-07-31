@@ -1710,7 +1710,11 @@ cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz(
 )
 
 # Leading-indicator lag candidates
-for (i in 1:21) {
+# NOTE: the 20 lag is the minimum for two rows to be available.
+# This leaves a very thin estimation sample. One could opt to
+# use a later selection block or relax the full 7-day buffer 
+# before reporting.
+for (i in 1:20) {
   cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator(
     Y = ukitaly_idx, start = est.start, 
     end = est.end.cv, n.lag = i, calendar = ukitaly_cal
