@@ -694,7 +694,7 @@ mapes <- function(res, n.ahead, Y) {
 #' @title Estimate the reproduction number from a fitted model
 #'
 #' @description Computes the (instantaneous) reproduction number
-#' \eqn{R_t = \exp\{g_t \times \code{gen_int}\}}, where \eqn{g_t} is the
+#' \eqn{R_t = \exp\{g_t \times gen\_ int\}}, where \eqn{g_t} is the
 #' filtered or smoothed growth rate of the incidence variable \eqn{y}
 #' returned by \code{res$get_gy_ci()}, and \code{gen_int} is the mean
 #' generation interval of the disease/process being modelled (in the same
