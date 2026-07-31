@@ -769,16 +769,29 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
   ms <- cal$multi_step
   plen <- length(ms)
   
+  # idx_step_add() only promotes its *return value* to POSIXct when the
+  # step itself has a nonzero hours/minutes/seconds component
+  # (idx_step_needs_posixct()); a step built only from
+  # days/weeks/months/quarters/years leaves a plain Date anchor as a
+  # plain Date. But idx_to_date() dispatches here only when
+  # cal$posixct is TRUE, which is a caller-level promise that the
+  # *calendar's* output should always be POSIXct, independent of
+  # whether any individual step happens to need sub-day precision.
+  # So promote the anchor to POSIXct up front, before walking, rather
+  # than trying to infer the right output class after the fact from
+  # idx_step_add()'s return value (which may still be a plain Date).
+  anchor0 <- if (isTRUE(cal$posixct)) as.POSIXct(cal$anchor) else cal$anchor
+  
   # Walks from anchor_pos to a single target position, one slot-step at a
   # time, and returns the resulting date. Caches nothing across calls, by
   # design (this is a straightforward, if not maximally fast, reference
   # implementation for the general heterogeneous-step case).
   walk_to <- function(target) {
     delta <- target - cal$anchor_pos
-    if (delta == 0) return(cal$anchor)
+    if (delta == 0) return(anchor0)
     fwd <- delta > 0
     n_steps <- abs(delta)
-    a <- cal$anchor
+    a <- anchor0
     slot <- cal$pattern_start
     for (i in seq_len(n_steps)) {
       if (fwd) {
@@ -797,14 +810,17 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
     a
   }
   
-  # vapply() coerces its result to the bare storage mode of FUN.VALUE
-  # and drops class attributes, so a Date/POSIXct FUN.VALUE template
-  # loses its class here, silently returning raw numeric day/second
-  # counts instead of dates. Build the result as a plain numeric vector
-  # and restore the anchor's class/attributes explicitly instead.
+  # vapply() coerces its result to the bare storage mode of FUN.VALUE and
+  # drops class attributes, so a Date/POSIXct FUN.VALUE template loses
+  # its class here, silently returning raw numeric day/second counts
+  # instead of dates. Build the result as a plain numeric vector and
+  # restore class/attributes from anchor0 (already promoted to POSIXct
+  # above when cal$posixct is TRUE, so this is always the correct,
+  # consistent output type - not derived from idx_step_add()'s return
+  # value, which does not itself promote for date-only steps).
   raw <- vapply(pos, function(p) unclass(walk_to(p)), FUN.VALUE = numeric(1))
   out <- raw
-  attributes(out) <- attributes(cal$anchor)
+  attributes(out) <- attributes(anchor0)
   out
 }
 

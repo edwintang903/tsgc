@@ -417,8 +417,8 @@ test_that("idx_to_date walks a multi_step_pattern (3 days, 3 days, 1 month) forw
   cal <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                                  multi_step = msp, posixct = TRUE)
   out <- idx_to_date(cal, 1:5)
-  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-01-07",
-                              "2024-02-07", "2024-02-10")))
+  expect_equal(out, as.POSIXct(c("2024-01-01", "2024-01-04", "2024-01-07",
+                                 "2024-02-07", "2024-02-10"), tz = attr(out, "tzone")))
 })
 
 test_that("idx_to_date walks a multi_step_pattern backward from a later anchor", {
@@ -432,8 +432,8 @@ test_that("idx_to_date walks a multi_step_pattern backward from a later anchor",
   cal <- idx_calendar_multi_step(anchor = as.Date("2024-02-10"), anchor_pos = 5L,
                                  multi_step = msp, posixct = TRUE)
   out <- idx_to_date(cal, 1:5)
-  expect_equal(out, as.Date(c("2023-12-04", "2024-01-04", "2024-01-07",
-                              "2024-01-10", "2024-02-10")))
+  expect_equal(out, as.POSIXct(c("2023-12-04", "2024-01-04", "2024-01-07",
+                                 "2024-01-10", "2024-02-10"), tz = attr(out, "tzone")))
 })
 
 test_that("idx_to_date walks a multi_step_pattern backward as the exact inverse of the forward walk, when pattern_start is set to match", {
@@ -461,7 +461,8 @@ test_that("idx_to_date respects pattern_start for a multi_step_pattern calendar"
   out <- idx_to_date(cal, 1:4)
   # pos1 = anchor; pos2 = +3 days (slot 2); pos3 = +1 month (slot 3);
   # pos4 = +3 days (slot 1, wrapped).
-  expect_equal(out, as.Date(c("2024-01-01", "2024-01-04", "2024-02-04", "2024-02-07")))
+  expect_equal(out, as.POSIXct(c("2024-01-01", "2024-01-04", "2024-02-04", "2024-02-07"),
+                               tz = attr(out, "tzone")))
 })
 
 test_that("idx_to_date errors for a multi_step_pattern calendar with posixct = FALSE", {
@@ -967,4 +968,101 @@ test_that("idx_x_scale() falls back to a continuous scale (not scale_x_date/date
                          amount = 1, unit = "days", posixct = FALSE)
   sc <- idx_x_scale(cal_np, idx_axis_opts(mode = "steps"))
   expect_true(inherits(sc, "ScaleContinuousPosition"))
+})
+test_that("idx_to_date preserves Date/POSIXct class for idx_calendar_multi_step calendars", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-01"),
+    multi_step = multi_step_pattern(
+      idx_step(days = 3), idx_step(days = 3), idx_step(months = 1)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 1:6)
+  expect_true(inherits(out, "POSIXct"))
+  expect_false(is.numeric(out) && !inherits(out, c("Date", "POSIXct")))
+})
+
+test_that("idx_to_date returns exact expected dates for idx_calendar_multi_step", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-01"),
+    multi_step = multi_step_pattern(
+      idx_step(days = 3), idx_step(days = 3), idx_step(months = 1)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 1:6)
+  expected <- as.POSIXct(c(
+    "2024-01-01", "2024-01-04", "2024-01-07",
+    "2024-02-07", "2024-02-10", "2024-02-13"
+  ), tz = attr(out, "tzone"))
+  expect_equal(as.numeric(out), as.numeric(expected))
+})
+
+test_that("idx_to_pos(idx_to_date(multi_step_cal, p)) == p (round trip)", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-01"),
+    multi_step = multi_step_pattern(
+      idx_step(days = 3), idx_step(days = 3), idx_step(months = 1)
+    ),
+    posixct = TRUE
+  )
+  p <- 1:12
+  dts <- idx_to_date(cal_multi, p)
+  back <- vapply(seq_along(p), function(i) idx_to_pos(cal_multi, dts[i]), integer(1))
+  expect_equal(back, p)
+})
+
+test_that("idx_calendar_multi_step handles positions before and after the anchor", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-01"),
+    anchor_pos = 5L,
+    multi_step = multi_step_pattern(
+      idx_step(days = 3), idx_step(days = 3), idx_step(months = 1)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 3:7)
+  expect_true(inherits(out, "POSIXct"))
+  expect_equal(idx_to_pos(cal_multi, out[1]), 3L)
+  expect_equal(idx_to_pos(cal_multi, out[5]), 7L)
+})
+
+test_that("idx_calendar_multi_step handles month-end boundaries without losing class", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-30"),
+    multi_step = multi_step_pattern(
+      idx_step(months = 1), idx_step(days = 1)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 1:4)
+  expect_true(inherits(out, "POSIXct"))
+  expect_false(any(is.na(out)))
+})
+
+test_that("idx_calendar_multi_step handles leap-year boundaries without losing class", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-02-28"),
+    multi_step = multi_step_pattern(
+      idx_step(days = 1), idx_step(days = 1)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 1:4)
+  expect_true(inherits(out, "POSIXct"))
+  expect_equal(as.Date(out[3]), as.Date("2024-03-01"))
+})
+
+test_that("idx_calendar_multi_step handles a mixed-step (fixed + calendar-relative) cycle without losing class", {
+  cal_multi <- idx_calendar_multi_step(
+    anchor = as.Date("2024-01-01"),
+    multi_step = multi_step_pattern(
+      idx_step(weeks = 1), idx_step(quarters = 1), idx_step(days = 5)
+    ),
+    posixct = TRUE
+  )
+  out <- idx_to_date(cal_multi, 1:9)
+  expect_true(inherits(out, "POSIXct"))
+  expect_false(is.numeric(out))
+  expect_true(all(diff(as.numeric(out)) > 0))
 })

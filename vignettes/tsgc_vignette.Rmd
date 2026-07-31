@@ -15,7 +15,10 @@ editor_options:
 ---
 
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(message = FALSE, warning = FALSE, fig.width = 7,
+# NOTE: warnings are shown (not globally suppressed), so that "rows
+# removed" and similar notices are visible and can be understood and
+# handled locally rather than hidden.
+knitr::opts_chunk$set(message = FALSE, warning = TRUE, fig.width = 7,
                       fig.height = 7)
 
 library(tsgc)
@@ -25,6 +28,51 @@ library(ggthemes)
 library(zoo)
 library(xts)
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
+```
+
+Naming a specific `tsgc` commit in prose is not the same as verifying
+that commit against what is actually installed when this vignette is
+rendered. The chunk below records the installed `tsgc` version (and,
+where available, the exact commit/remote SHA `install_github()`
+recorded at install time), so results in this vignette can be tied to
+a specific build rather than "whatever `tsgc` happened to be installed
+on the day it was rendered." Set `EXPECTED_TSGC_COMMIT` below to pin
+against a specific commit; leave it `NULL` to only report what is
+installed without checking it against an expectation.
+
+```{r tsgc-version-check}
+EXPECTED_TSGC_COMMIT <- NULL  # e.g. "a1b2c3d4..." to pin/verify a specific commit
+
+`%||%` <- function(x, y) if (is.null(x)) y else x
+tsgc_desc <- tryCatch(utils::packageDescription("tsgc"), error = function(e) NULL)
+tsgc_version <- if (!is.null(tsgc_desc)) tsgc_desc$Version else NA_character_
+tsgc_commit <- if (!is.null(tsgc_desc)) {
+  tsgc_desc$GithubSHA1 %||% tsgc_desc$RemoteSha %||% NA_character_
+} else NA_character_
+
+tsgc_version
+tsgc_commit
+
+if (!is.null(EXPECTED_TSGC_COMMIT) &&
+    (is.na(tsgc_commit) || !identical(tsgc_commit, EXPECTED_TSGC_COMMIT))) {
+  warning("Installed tsgc commit does not match EXPECTED_TSGC_COMMIT; ",
+          "results below may not match the pinned replication exactly.")
+}
+```
+
+For a fully pinned re-render, generate an `renv.lock` alongside this
+vignette (`renv::snapshot()`, once `renv` is initialised for the
+project) so every dependency version - not just `tsgc` - is fixed, and
+capture `sessionInfo()` for the rendering session:
+
+```{r session-info, eval = FALSE}
+# Not evaluated by default (eval = FALSE) since this writes to disk;
+# set eval = TRUE for a run whose purpose is to produce a pinned,
+# archivable record of the rendering environment.
+writeLines(capture.output(sessionInfo()), con = "sessionInfo.txt")
+if (requireNamespace("renv", quietly = TRUE)) {
+  renv::snapshot(prompt = FALSE)
+}
 ```
 
 # Introduction
@@ -879,6 +927,53 @@ plot_r0(res, gen_int = gen_int, n.ahead = 7,
         title = "Reproduction numbers for the 7-day period to 3 May 2021")
 ```
 
+`gen_int` above (4 days) is an epidemiological assumption fed into
+`estimate_r0()`, not something estimated from this data, so the
+resulting $R_t$ path is conditional on it. The sensitivity of $R_t$ to
+this assumption can be checked directly by sweeping `gen_int` over a
+plausible range and comparing the resulting point estimates on the
+same dates:
+
+```{r rt_gen_int_sensitivity}
+gen_int_grid <- c(3, 4, 5, 6, 7)
+
+r.t.sensitivity <- lapply(gen_int_grid, function(g) {
+  r.t.g <- estimate_r0(res, g, n.ahead = 7)
+  data.frame(
+    Date    = idx_to_date(res$calendar, idx_positions(r.t.g)),
+    gen_int = g,
+    Rt      = as.matrix(idx_values(r.t.g))[, "fit"]
+  )
+})
+r.t.sensitivity.df <- do.call(rbind, r.t.sensitivity)
+
+last_date <- max(r.t.sensitivity.df$Date)
+rt_last <- r.t.sensitivity.df$Rt[r.t.sensitivity.df$Date == last_date]
+range(rt_last)
+all(rt_last > 1) || all(rt_last < 1)
+```
+
+The last line reports whether the above/below-1 conclusion for $R_t$
+on the most recent date is the same across the whole `gen_int` grid
+(`TRUE`) or changes somewhere within it (`FALSE`); the numeric range
+just above it gives the spread of point estimates implied by the
+grid. Both should be checked before treating a single-`gen_int` $R_t$
+estimate as a robust statement about transmission on that date, rather
+than reported alongside the main $R_t$ figure without comment.
+
+```{r fig-5b, fig.cap = "Figure 5b: Sensitivity of Gauteng R_t to the assumed generation interval."}
+ggplot2::ggplot(r.t.sensitivity.df,
+                 ggplot2::aes(x = Date, y = Rt, color = factor(gen_int))) +
+  ggplot2::geom_line(linewidth = 0.6) +
+  ggplot2::geom_hline(yintercept = 1, linetype = "solid", color = "black") +
+  ggplot2::labs(
+    title = "Sensitivity of R_t to the assumed generation interval",
+    subtitle = paste0("gen_int swept over {", paste(gen_int_grid, collapse = ", "), "} days; point estimate only (no CI)"),
+    x = "Date", y = expression(R[t]), color = "gen_int (days)"
+  ) +
+  ggplot2::theme_light(base_size = 12)
+```
+
 A CSV file (`y-forecast`) is written to the directory specified. The
 forecast options specified earlier are retained.
 
@@ -935,7 +1030,7 @@ estimate exceeded twice its standard error on 1 May 2021, having risen
 above zero on 21 April 2021, giving trigger date $d =$ 1 May 2021 and
 reset date $r =$ 21 April 2021.
 
-```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: when smoothed slope exceeds twice its standard error above zero, reinitialization is triggered to the date when the smoothed slope crossed zero."}
+```{r fig-6, fig.cap = "Figure 6: Trigger for reinitialization: reinitialization is triggered when the two-standard-error lower threshold of the smoothed slope (slope - 2*se) crosses zero. Lines shown are k-SE thresholds, not confidence bands around the slope. Reset date selected from a single retrospective episode; not a validated general rule."}
 # Re-estimate model
 model <- SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
                                     start = estimation.pos.start,
@@ -945,8 +1040,12 @@ res <- estimate(model)
 
 # Extract the smoothed slope and its standard deviation as idx_series,
 # then convert to a data.frame with real dates for plotting.
+# Use the smoothed-state covariance V (matched to smoothed alphahat),
+# not output$P (filtered Ptt) -- see accompanying critical assessment.
 smoothed.slope.full <- idx_series(res$output$alphahat[, "slope"], start = res$index[1])
-smoothed.P.slope <- idx_series(res$output$P[2, 2, -1], start = res$index[1])
+V.smoothed <- get_V(res$output)
+i.slope <- grep("slope", colnames(res$output$alphahat))
+smoothed.P.slope <- idx_series(V.smoothed[i.slope, i.slope, ], start = res$index[1])
 
 common_pos <- idx_positions(smoothed.slope.full)
 d2 <- idx_series(
@@ -970,11 +1069,16 @@ d2.df <- data.frame(
 
 d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
 
+# zt = smoothed slope minus its own two-standard-error threshold (the
+# lower bound of the two-SE interval). Trigger = sign change in zt
+# itself, not a comparison of lagged slope against the current
+# threshold (not equivalent once the SE changes over time).
+d2.df$zt <- d2.df$smoothed.slope - d2.df$sd.smoothed.slope.2
+
 trigger.df <- d2.df %>%
-  mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
-  filter((smoothed.slope > sd.smoothed.slope.2 &
-            prev_smoothed.slope < sd.smoothed.slope.2))
-# Triggered on May 01 when smoothed slope > 2* sd(smoothed slope)
+  mutate(prev_zt = lag(zt)) %>%
+  filter(zt > 0 & prev_zt <= 0)
+# Triggered when the two-SE lower bound of the smoothed slope crosses zero
 
 reinit_zero.df <- d2.df %>%
   mutate(prev_smoothed.slope = lag(smoothed.slope)) %>%
@@ -982,7 +1086,9 @@ reinit_zero.df <- d2.df %>%
            (smoothed.slope > 0 & prev_smoothed.slope < 0)) %>%
   arrange(desc(Date)) %>%
   slice(1)
-# Reinitialisation on April 21
+# Reinitialisation on April 21. NOTE: this reset date is selected
+# retrospectively from a single episode/forecast origin and does not
+# validate the reinitialisation rule as a general real-time trigger.
 
 # Create plot
 ggplot(data = d2.df,
@@ -1298,6 +1404,10 @@ res.uk.gomp <- estimate(mod.uk.gomp)
 ```
 
 ```{r uk-lead}
+# NOTE: n.lag.uk = 14 here is illustrative (motivated by observed
+# first-wave timing) and precedes the systematic lag comparison below,
+# which selects its lag from data using disjoint selection/reporting
+# folds. This fixed value is not justified by that comparison.
 n.lag.uk <- 14
 mod.uk.lead <- SSModelLeadingIndicator$new(
   Y = ukitaly_idx, n.lag = n.lag.uk, sea.period = 7,
@@ -1339,50 +1449,152 @@ over alternative alignments, not as estimation of a distributed-lag
 response.
 
 ```{r cv-models}
+# The CV loop below tests n.lag up to 21. SSModelLeadingIndicator$estimate()
+# shifts the leading-indicator columns forward by n.lag positions before
+# differencing, which shrinks the range of usable (non-missing) rows by
+# roughly n.lag + 1 positions from the start of the window. The shared
+# est.start.uk/est.end.uk window (36 days) leaves too little room for the
+# SELECTION block once disjointness from REPORTING is also enforced: the
+# highest lags (16, 18, 21) then have no valid estimation positions left in
+# the SELECTION block and estimate() errors with "start is after end". A
+# separate, wider est.end.cv.uk window is used for the CV section only, so
+# the SELECTION block has enough margin for n.lag = 21; est.end.uk itself is
+# left untouched since other models earlier in this vignette are estimated
+# on that shorter window intentionally.
+est.end.cv.uk <- idx_to_pos(ukitaly_cal, "2020-04-15")
+
 cv_models <- list()
+
+cv_models[["Naive_last_value"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = 0, sea.period = 7,
+  start = est.start.uk, end = est.end.cv.uk,
+  calendar = ukitaly_cal
+)
+
+cv_models[["RW_growth"]] <- SSModelDynamicGompertz$new(
+  Y = Yuk, q = q.uk, sea.period = 0,
+  start = est.start.uk, end = est.end.cv.uk,
+  calendar = ukitaly_cal
+)
 
 cv_models[["Vanilla_q"]] <- SSModelDynamicGompertz$new(
   Y = Yuk, q = q.uk, sea.period = 7,
-  start = est.start.uk, end = est.end.uk,
+  start = est.start.uk, end = est.end.cv.uk,
   calendar = ukitaly_cal
 )
 
 cv_models[["Vanilla_ar1"]] <- SSModelDynamicGompertz$new(
   Y = Yuk, sea.period = 7,
-  start = est.start.uk, end = est.end.uk, ar1 = TRUE,
+  start = est.start.uk, end = est.end.cv.uk, ar1 = TRUE,
   calendar = ukitaly_cal
 )
 
 for (i in c(7, 10, 14, 16, 18, 21)) {
   cv_models[[paste0("Lag", i)]] <- SSModelLeadingIndicator$new(
     Y = ukitaly_idx, sea.period = 7,
-    start = est.start.uk, end = est.end.uk, n.lag = i,
+    start = est.start.uk, end = est.end.cv.uk, n.lag = i,
     calendar = ukitaly_cal
   )
 }
 ```
 
+`cross_val()` is run twice with **disjoint** sets of forecast origins,
+spaced by the forecast horizon itself so evaluation windows do not
+overlap: an earlier SELECTION block used only to choose the lag, and a
+later REPORTING block used only to score the selected lag against the
+benchmarks. Using the same folds for both selection and reporting
+would overstate the selected model's accuracy.
+
 ```{r cv-run}
-cross_val(
+# cross_val() steps origins FORWARD from est.end by gap each iteration,
+# not backward. cv_models above is now built on the wider est.end.cv.uk
+# window (2020-04-15), not est.end.uk (2020-04-01), specifically so the
+# SELECTION block has enough usable positions left for n.lag = 21 after
+# SSModelLeadingIndicator's lag-shift + differencing (see the comment in
+# the cv-models chunk). Both the SELECTION and REPORTING blocks are laid
+# out to forward-step within that wider window, with REPORTING's forecast
+# horizon landing exactly at est.end.cv.uk and SELECTION's last forecast
+# horizon finishing strictly before REPORTING's origin (not merely before
+# REPORTING's forecast horizon), so the two blocks share no origin and no
+# forecast window - verified by the stopifnot() below, not asserted by
+# comment alone.
+n.ahead.cv  <- 5
+gap.cv      <- n.ahead.cv   # non-overlapping horizons
+n.select.cv <- 2
+n.report.cv <- 1
+
+report.end.cv <- est.end.cv.uk - (n.report.cv - 1) * gap.cv - n.ahead.cv
+# The last SELECTION origin is select.end.cv + (n.select.cv-1)*gap.cv,
+# with its forecast horizon reaching + n.ahead.cv further. Requiring
+# that to finish strictly before the REPORTING origin (report.end.cv)
+# means subtracting n.select.cv * gap.cv (not a single gap.cv) below -
+# subtracting only one gap.cv left the last SELECTION fold's forecast
+# horizon landing exactly ON report.end.cv (touching, not disjoint).
+select.end.cv <- report.end.cv - n.select.cv * gap.cv - n.ahead.cv
+stopifnot(select.end.cv > est.start.uk)
+
+# Explicit disjointness check: the last SELECTION fold's forecast
+# horizon must end strictly before the REPORTING block's origin.
+last_selection_origin      <- select.end.cv + (n.select.cv - 1) * gap.cv
+last_selection_horizon_end <- last_selection_origin + n.ahead.cv
+stopifnot(last_selection_horizon_end < report.end.cv)
+
+# Feasibility check for the highest lag tested: SSModelLeadingIndicator's
+# estimate() needs at least n.lag + 2 usable positions from est.start.uk
+# before the SELECTION block's origin (n.lag positions consumed by the
+# forward lag-shift, plus at least 1-2 more lost to differencing/NA
+# trimming). This turns an opaque "start is after end" error from deep
+# inside estimate() into an explicit, early, diagnosable failure if the
+# window is ever narrowed again.
+max_lag_cv <- 21
+stopifnot(select.end.cv - est.start.uk > max_lag_cv + 1)
+
+cv_selection <- cross_val(
   Y = ukitaly_idx,
   model_list = cv_models,
-  est.end = est.end.uk,
+  est.end = select.end.cv,
   criterion = "smape",
-  n.ahead = 14,
-  n.estimate = 5,
-  gap = 2
+  n.ahead = n.ahead.cv,
+  n.estimate = n.select.cv,
+  gap = gap.cv
 )
+cv_selection
+
+lag_rows <- cv_selection[grepl("^Lag", cv_selection$Model), ]
+lag_rows$mean_smape <- rowMeans(lag_rows[, -1, drop = FALSE])
+selected_lag_name <- lag_rows$Model[which.min(lag_rows$mean_smape)]
+selected_lag_name
+
+cv_report_models <- cv_models[c(
+  "Naive_last_value", "RW_growth", "Vanilla_q", "Vanilla_ar1", selected_lag_name
+)]
+cv_reporting <- cross_val(
+  Y = ukitaly_idx,
+  model_list = cv_report_models,
+  est.end = report.end.cv,
+  criterion = "smape",
+  n.ahead = n.ahead.cv,
+  n.estimate = n.report.cv,
+  gap = gap.cv
+)
+cv_reporting
 ```
 
 For each candidate model, `cross_val()` evaluates forecasting
 performance over a rolling-origin scheme, re-estimating the model at
 each origin and recording the chosen accuracy criterion over the
-forecast horizon. The two `Vanilla` rows are UK-only dynamic Gompertz
-benchmarks (fixed $q_\zeta = 0.005$ and the AR(1) extension
-respectively); the remaining rows are Italy-to-UK leading-indicator
-models at different lags. The best-performing lags in this window are
-typically found in the mid-teens, consistent with a lead of roughly two
-to two-and-a-half weeks from Italy to the UK over this period.
+forecast horizon. `Naive_last_value` and `RW_growth` are naive
+benchmarks; the `Vanilla` rows are UK-only dynamic Gompertz benchmarks
+(fixed $q_\zeta = 0.005$ and the AR(1) extension respectively); the
+remaining rows are Italy-to-UK leading-indicator models at different
+lags. `cv_reporting` is the accuracy figure that should be quoted for
+the selected lag, since it comes from origins that played no role in
+choosing it; `cv_selection` should not itself be read as an accuracy
+claim about the winning lag. Note that this comparison still uses only
+a handful of origins from one epidemic wave and realised (not
+archived) values throughout, so it remains illustrative of the
+`cross_val()` API rather than a general validation of any one lag
+choice.
 
 ## Extensions: non-epidemiological applications and alternative data frequencies
 
@@ -1569,7 +1781,37 @@ between $\delta_t$ and $\gamma_t$, as well as the covariances between
 $\nu_{1,t},\nu_{2,t},\ldots,\nu_{s^*,t}$, are permitted to be non-zero
 and come directly from $P_{r+1}$.
 
-# Appendix: Supplying future external regressors
+# Appendix: Validating rendered figures
+
+Zero-byte or undecodable figures can pass a ZIP/Pandoc build silently,
+since neither checks that a referenced image actually decodes. The
+chunk below is intended to be run once after `rmarkdown::render()` on
+this vignette (not during normal knitting, since the output files do
+not yet exist while the document itself is being produced), and checks
+every figure written to the vignette's `_files` figure directory:
+existence, non-zero size, successful PNG decode, and a plausible
+minimum pixel dimension.
+
+```{r validate-figures, eval = FALSE}
+validate_rendered_figures <- function(fig_dir, min_dim = 50) {
+  pngs <- list.files(fig_dir, pattern = "\\.png$", full.names = TRUE, recursive = TRUE)
+  bad <- character(0)
+  for (f in pngs) {
+    sz <- file.info(f)$size
+    ok <- !is.na(sz) && sz > 0
+    if (ok) {
+      dims <- tryCatch(dim(png::readPNG(f))[1:2], error = function(e) NULL)
+      ok <- !is.null(dims) && all(dims >= min_dim)
+    }
+    if (!ok) bad <- c(bad, f)
+  }
+  if (length(bad) > 0) {
+    stop("Empty or undecodable figure(s): ", paste(basename(bad), collapse = ", "))
+  }
+  message("All ", length(pngs), " rendered figures validated.")
+}
+# validate_rendered_figures("tsgc_vignette_files/figure-html")
+```
 
 For models that include external regressors, forecasts are conditional
 on future values of those regressors. In this version of the package

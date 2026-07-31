@@ -97,7 +97,16 @@ earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y)}}{Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
   for forecasts against a holdout sample. For more details, please refer to 
-\link{mapes}.}
+\link{mapes}.
+  
+  sMAPE is computed as
+  mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
+  i.e. this uses (Actual + Forecast), not the more common
+  (|Actual| + |Forecast|) / 2, in the denominator. As a result this
+  statistic ranges over [0, 100], NOT the [0, 200] range associated
+  with the textbook sMAPE definition that divides by the mean of the
+  absolute values. Do not compare this sMAPE value directly against
+  sMAPE figures computed with the conventional 0-200 formula.}
 
 \item{\code{predict_all(
   n.ahead,

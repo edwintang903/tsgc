@@ -258,8 +258,26 @@ FilterResultsLI <- setRefClass(
                     dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
         if (xpred_logical[1]){
           if (is_idx_series(xpred_lead.new)){
-            xpred_lead.new.subset<-as.matrix(idx_values(get_timeframe(
-              idx_lag(xpred_lead.new, n.lag), end + 1L, end + n.ahead)))
+            xpred_lead.new.lagged <- idx_lag(xpred_lead.new, n.lag)
+            # get_timeframe() clamps start/end to the range actually
+            # available in its input rather than erroring, so a
+            # regressor series that does not extend across the full
+            # forecast horizon (end+1 .. end+n.ahead) would otherwise
+            # be silently truncated here, then positionally recycled
+            # into newZ[1, 1:d1, ] below - producing a misaligned
+            # forecast without any error. Check the returned window
+            # actually has n.ahead rows before proceeding.
+            xpred_lead.new.window <- get_timeframe(
+              xpred_lead.new.lagged, end + 1L, end + n.ahead)
+            if (length(idx_positions(xpred_lead.new.window)) != n.ahead) {
+              stop("xpred_lead.new (after lagging by n.lag = ", n.lag,
+                   ") does not cover the full forecast horizon: expected ",
+                   n.ahead, " positions from ", end + 1L, " to ", end + n.ahead,
+                   ", got ", length(idx_positions(xpred_lead.new.window)),
+                   ". Supply xpred_lead.new values for every date in the ",
+                   "forecast horizon (accounting for the lag).")
+            }
+            xpred_lead.new.subset<-as.matrix(idx_values(xpred_lead.new.window))
             d1<-ncol(xpred_lead.new.subset)
             newZ[1,1:d1,]<-t(xpred_lead.new.subset)
           } else {
@@ -268,8 +286,17 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is_idx_series(xpred_targ.new)){
-            xpred_targ.new.subset<-as.matrix(idx_values(get_timeframe(
-              xpred_targ.new, end + 1L, end + n.ahead)))
+            # Same silent-clamping concern as xpred_lead.new above.
+            xpred_targ.new.window <- get_timeframe(
+              xpred_targ.new, end + 1L, end + n.ahead)
+            if (length(idx_positions(xpred_targ.new.window)) != n.ahead) {
+              stop("xpred_targ.new does not cover the full forecast horizon: ",
+                   "expected ", n.ahead, " positions from ", end + 1L, " to ",
+                   end + n.ahead, ", got ", length(idx_positions(xpred_targ.new.window)),
+                   ". Supply xpred_targ.new values for every date in the ",
+                   "forecast horizon.")
+            }
+            xpred_targ.new.subset<-as.matrix(idx_values(xpred_targ.new.window))
             d2<-ncol(xpred_targ.new.subset)
             if (!xpred_logical[1]){d1=0}
             newZ[2,(d1+1):(d1+d2),]<-t(xpred_targ.new.subset)
@@ -508,7 +535,16 @@ FilterResultsLI <- setRefClass(
     mapes=function(n.ahead,Y){
       "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
       for forecasts against a holdout sample. For more details, please refer to 
-    \\link{mapes}."
+    \\link{mapes}.
+      
+      sMAPE is computed as
+      mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
+      i.e. this uses (Actual + Forecast), not the more common
+      (|Actual| + |Forecast|) / 2, in the denominator. As a result this
+      statistic ranges over [0, 100], NOT the [0, 200] range associated
+      with the textbook sMAPE definition that divides by the mean of the
+      absolute values. Do not compare this sMAPE value directly against
+      sMAPE figures computed with the conventional 0-200 formula."
       sea<-.self$predict_level(n.ahead=n.ahead, sea.on=TRUE)
       
       eval_window <- get_timeframe(Y, end)
