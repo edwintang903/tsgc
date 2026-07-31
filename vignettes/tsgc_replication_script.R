@@ -2125,9 +2125,11 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 #' 
 #' 3DS is Nintendo's handheld console (released 2011).
 #' Here we subsample quarterly cumulative global sales to an
-#' annual-frequency series of Q3 endpoints (since the source series
-#' begins 2004 Q4) to demonstrate annual Gompertz modelling. These are
-#' Q3-to-Q3 cumulative-sales differences, not calendar-year sales.
+#' annual-frequency series, taking every 4th quarter starting from the
+#' first observation in the source series, to demonstrate annual
+#' Gompertz modelling. These are same-quarter year-over-year
+#' cumulative-sales differences (whatever quarter the source series
+#' happens to start on), not calendar-year sales.
 #' 
 #' Annual modelling with `sea.period = 0`; 
 #' forecast and evaluate 3DS annual series.
@@ -2139,16 +2141,28 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 n.forecasts <- 2
 
 # Subsample quarterly Nintendo sales to annual-frequency observations
-# (every 4th quarter). The series begins 2004 Q4, so rows 4*(1:19) are
-# the Q3 endpoint of each subsequent year (2005 Q3, 2006 Q3, ...), not
-# January observations. We preserve the true selected dates rather than
-# relabelling them onto a 1 January calendar, so the resulting series is
-# accurately described as annual-frequency Q3-to-Q3 cumulative sales,
-# not calendar-year sales.
-yearly_nintendo_dates <- zoo::index(nintendo_sales)[4 * (1:19)]
-stopifnot(all(format(yearly_nintendo_dates, "%m") == "07" |
-                format(yearly_nintendo_dates, "%m") == "08" |
-                format(yearly_nintendo_dates, "%m") == "09"))
+# (every 4th quarter, i.e. the same calendar quarter each year). We
+# preserve the true selected dates rather than relabelling them onto a
+# 1 January calendar, so the resulting series is accurately described
+# as annual-frequency same-quarter cumulative sales, not calendar-year
+# sales. Rather than hardcoding an assumed starting month (which
+# depends on which quarter the source series happens to begin on and
+# was simply wrong here - it does not fall in Jul/Aug/Sep), we verify
+# directly against the series' own first date: every selected date
+# must fall in the same calendar month as the first observation, since
+# a 4-quarter step always returns to the same quarter.
+# zoo::index(nintendo_sales) is a `yearqtr` object, not a `Date`. Every
+# downstream use here (idx_calendar()'s anchor, and the format()/
+# idx_to_pos() calls further below) needs a genuine Date - passing a
+# yearqtr straight through as an idx_calendar anchor with unit = "years"
+# errors ("a yearqtr cal$anchor requires cal$unit = 'quarters'"), and
+# format()ing a yearqtr with "%Y-%m-%d" does not reliably give a real
+# calendar date either. Convert to Date immediately (as is already done
+# for nintendo_cal's own anchor above) so everything downstream operates
+# on Dates consistently.
+yearly_nintendo_dates <- as.Date(zoo::index(nintendo_sales)[4 * (1:19)])
+first_month <- format(as.Date(zoo::index(nintendo_sales)[4]), "%m") # Note that the first element is a Q4
+stopifnot(all(format(yearly_nintendo_dates, "%m") == first_month))
 yearly_nintendo_mat <- zoo::coredata(nintendo_sales)[4 * (1:19), c("wii", "3ds")]
 
 # Build an annual idx_series/idx_calendar anchored on the true first
