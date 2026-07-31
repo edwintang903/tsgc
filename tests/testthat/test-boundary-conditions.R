@@ -1,20 +1,3 @@
-# =============================================================================
-# Boundary & Edge-Case Tests: SSModelDynamicGompertz and SSModelLeadingIndicator
-#
-# Boundaries are derived directly from the package source and cross-checked
-# against theory. Tested in pairs (just inside vs. just outside valid regions)
-# to confirm exact boundary locations.
-#
-# Out-of-scope: Reinitialisation trigger rules, exact peak-prediction formula
-# (estimate_r0 used as proxy), and near-unidentified parameter estimates.
-#
-# Note: the old date-resolution validation (irregular calendar gaps detected
-# at construction time) no longer applies. idx_series is indexed by plain
-# integer position, so "gaps" are a property of an optional idx_calendar
-# layered on top, not of the series itself; SSModelLeadingIndicator now
-# validates that no positions are missing from the trimmed series instead.
-# =============================================================================
-
 library(tsgc)
 
 # #############################################################################
