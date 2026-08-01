@@ -272,7 +272,23 @@ FilterResults <- setRefClass(
         } else {
           firstpred <- tail(index,1) + 1L
           
+          # get_timeframe() clamps start/end to the range actually present
+          # in xpred.new rather than erroring (start <- max(start, rng[1]);
+          # end <- min(end, rng[2])), so a regressor series that runs out
+          # before firstpred + n.ahead - 1L would otherwise be silently
+          # truncated here, then positionally recycled into the
+          # fixed-size n.ahead newZ array below with no error - a
+          # regressor series a few rows short would misalign undetected.
+          # Check the row count explicitly and fail clearly instead (same
+          # fix as xpred_lead.new/xpred_targ.new in filterResultsLI.R).
           xpred.new<<-get_timeframe(xpred.new, firstpred, firstpred + n.ahead - 1L)
+          if (length(idx_positions(xpred.new)) != n.ahead) {
+            stop("xpred.new does not cover the full forecast horizon: expected ",
+                 n.ahead, " row(s) from position ", firstpred, " to ",
+                 firstpred + n.ahead - 1L, ", got ",
+                 length(idx_positions(xpred.new)), ". Supply xpred.new values ",
+                 "for every date in the forecast horizon.")
+          }
           
           newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                       dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))

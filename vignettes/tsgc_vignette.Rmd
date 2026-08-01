@@ -847,6 +847,22 @@ model <- SSModelDynamicGompertz(Y = Y, q = q, sea.period = 7,
 res <- estimate(model)
 ```
 
+## Model diagnostics
+
+Before looking at forecasts, it is worth checking that the model
+actually fitted sensibly. `summary()` on a `FilterResults`/
+`FilterResultsLI` object reports the estimation window, model states
+and their standard errors, and the estimated variance parameters
+(including the signal-to-noise ratio); `tsgc::print_model_diagnostics()`
+supplements this with the fitted log-likelihood, a check for estimated
+variances sitting at or near a zero/degenerate boundary, and simple
+recursive-residual diagnostics.
+
+```{r model-diagnostics}
+summary(res)
+tsgc::print_model_diagnostics(res)
+```
+
 ## Results
 
 We can now plot the forecast of $\ln g_t$ -- the log of the growth rate
@@ -1265,6 +1281,19 @@ mod.eng <- SSModelLeadingIndicator$new(
 res.eng <- estimate(mod.eng)
 ```
 
+`FilterResultsLI`'s `summary()` prints the same kind of diagnostics as
+`FilterResults$summary()` above, but its observation-equation noise `H`
+is a $2\times2$ matrix (one variance per equation, for the lead and
+target series) rather than a single scalar; it is printed as a matrix
+accordingly, and `print_model_diagnostics()` handles a matrix-valued `H`
+the same way when checking for boundary/degenerate variances.
+
+```{r li-diagnostics}
+summary(res.eng)
+tsgc::print_model_diagnostics(res.eng)
+```
+
+
 The fitted object `res.eng` can be used to generate the same forecast
 and holdout panels as for the dynamic Gompertz model.
 
@@ -1309,6 +1338,17 @@ the previous version of the package required a dedicated
 `xpred_lead.new` and `xpred_targ.new` -- are now set directly on the
 fitted `FilterResultsLI` object.
 
+***Oracle-forecast caveat.*** The future regressor values supplied below
+are REALISED (observed after the fact) weather from `england_weather_idx`,
+covering the same forecast horizon being predicted -- not an archived
+weather forecast that would actually have been available at the
+forecast origin. This makes the resulting forecast a conditional
+("oracle") exercise, not an operational validation: it shows what the
+model would have predicted GIVEN perfect future weather knowledge, not
+what it would have predicted using information available at the time.
+A genuine operational evaluation would require archived point/ensemble
+weather forecasts as of each origin date, which are not supplied here.
+
 ```{r li-xpred}
 data(england_weather_2021, package = "tsgc")
 
@@ -1330,19 +1370,26 @@ mod.eng.x <- SSModelLeadingIndicator$new(
 )
 res.eng.x <- estimate(mod.eng.x)
 
+# *** ORACLE-FORECAST CAVEAT ***
+# england_weather_idx covers the forecast horizon itself, so this
+# supplies REALISED (observed) weather over that horizon, not an
+# archived forecast that would have been available at the forecast
+# origin. Figures below are conditional/oracle forecasts, not an
+# operational validation -- see prose above.
 res.eng.x$xpred_lead.new <- england_weather_idx
 res.eng.x$xpred_targ.new <- england_weather_idx
 ```
 
-```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors, England."}
+```{r fig-li-x-forecast, fig.cap = "Figure 15: Forecast of hospitalisations with weather regressors (weather, oracle/realised), England."}
 tsgc::plot_forecast(
   res.eng.x,
   n.ahead = n.forecasts.eng,
   plt.start = est.end.eng - plt.length.eng,
-  title = "Forecast of hospitalisations with regressors",
+  title = "Forecast of hospitalisations\nwith regressors (weather, oracle/realised)",
   series.name = "Hospitalisations"
 )
 ```
+
 
 In practice, the recommended sequence is to establish a sensible lag and
 seasonal specification first, inspect the resulting forecasts, and only
@@ -1828,6 +1875,34 @@ positions line up correctly. The following example illustrates this
 using an inline text block for reproducibility; in practice the data
 would normally be read directly from a CSV file.
 
+The examples below assume a Gompertz model has already been fit with a
+weather regressor supplied via `xpred`, producing a `FilterResults`
+object called `res_weather`. This is fit explicitly here (using its own
+pinned estimation window, rather than the ambient `estimation.pos.end`
+reassigned above), so the CSV examples that follow are self-contained.
+
+```{r fit-res-weather}
+data(gauteng_weather_2021, package = "tsgc")
+gauteng_weather_idx <- xts_to_idx(
+  gauteng_weather_2021[, c(1, 3)],
+  start.pos = idx_to_pos(cal, zoo::index(gauteng_weather_2021)[1])
+)$series
+
+weather.pos.start <- estimation.pos.start
+weather.pos.end   <- idx_to_pos(cal, "2021-05-03")
+
+gauteng_weather_est <- get_timeframe(
+  gauteng_weather_idx, weather.pos.start, weather.pos.end
+)
+
+model_weather <- SSModelDynamicGompertz(
+  Y = Y, xpred = gauteng_weather_est, q = q,
+  start = weather.pos.start, end = weather.pos.end,
+  calendar = cal
+)
+res_weather <- estimate(model_weather)
+```
+
 ```{r xpred-csv-example, eval = F}
 # This inline CSV block demonstrates the expected format of a file
 # containing future values of the external regressors.
@@ -1923,16 +1998,30 @@ if the calendar has `posixct = TRUE` (as in almost every example
 above), otherwise plain integer positions. `idx_axis_opts()` lets you
 override this per plot, and applies uniformly across every
 `plot.*`/`plot_*` function in the package. To keep the comparison
-clear, this section reuses a single plot - the Gauteng fourteen-day
-new-cases forecast from Figure 3 - and simply varies `axis`.
+clear, this section reuses a single plot and simply varies `axis`.
 
 ```{r axis-showcase-setup}
+# res/model/estimation.pos.end are re-used, generically-named objects
+# earlier in this vignette: by this point in the document, `res` has
+# already been reassigned by the Reinitialization section above (to
+# the longer-window, 25-June re-estimate), so it no longer refers to
+# the original fixed-q Figure 3 model (estimation ending 3 May 2021).
+# Re-fit that original specification explicitly under its own name so
+# this section's figures do not silently depend on what the ambient
+# `res` object happens to hold by this point in the document.
+res.axis.demo <- estimate(
+  SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
+                             start = estimation.pos.start,
+                             end = idx_to_pos(cal, "2021-05-03"),
+                             calendar = cal)
+)
+
 showcase_axis_plot <- function(axis = NULL) {
   tsgc::plot_forecast(
-    res = res,
+    res = res.axis.demo,
     n.ahead = n.forecasts,
     confidence.level = confidence.level,
-    plt.start = tail(res$index, 1) - plt.length,
+    plt.start = tail(res.axis.demo$index, 1) - plt.length,
     series.name = "cases",
     axis = axis
   )

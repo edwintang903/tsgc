@@ -348,46 +348,81 @@ test_that("xts_to_idx errors clearly on a duplicated date in its input index", {
   expect_error(xts_to_idx(malformed_xts), "duplicate values")
 })
 
-test_that("sMAPE, as computed by mapes(), uses (Actual + Forecast) in the denominator and ranges over [0, 100], not the conventional [0, 200] scale", {
-  # Reproduces the exact formula used inside FilterResults$mapes() and
-  # FilterResultsLI$mapes():
-  #   smape <- mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
-  # This is NOT the textbook sMAPE, which divides by the mean of the
-  # absolute values ((|Actual| + |Forecast|) / 2) and ranges over
-  # [0, 200]. This test pins the formula and its scale directly, so a
-  # future change to the formula (e.g. "fixing" it to the textbook
-  # version) is caught rather than silently changing the meaning of
-  # every reported sMAPE figure in the package.
+test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, matches the documented (Actual + Forecast) denominator formula and its [0, 100] scale, not the textbook [0, 200] sMAPE", {
+  # Unlike a purely formula-level check, this test fits a real model,
+  # calls the package's actual mapes() method, independently
+  # reconstructs Actual/Forecast using the same public building blocks
+  # mapes() itself uses (predict_level(), idx_diff(), get_timeframe()),
+  # and compares the resulting sMAPE against res$mapes()$smape. This
+  # way a regression inside FilterResults$mapes() itself - not just in
+  # a standalone reimplementation of the formula - would be caught.
+  data(gauteng, package = "tsgc")
+  conv <- xts_to_idx(gauteng$cum_cases)
+  
+  est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
+  est.end   <- idx_to_pos(conv$calendar, as.Date("2021-04-19"))
+  
+  model <- SSModelDynamicGompertz$new(
+    Y = conv$series, q = 0.005, sea.period = 7,
+    start = est.start, end = est.end
+  )
+  res <- estimate(model)
+  n.ahead <- 7
+  
+  errs <- res$mapes(n.ahead = n.ahead, Y = conv$series)
+  
+  # Reconstruct Actual/Forecast exactly as FilterResults$mapes() does
+  # internally (see filterResults.R), using only public methods.
+  eval.window <- get_timeframe(conv$series, est.end, est.end + n.ahead)
+  y.eval.diff <- idx_diff(eval.window, 1L)
+  y.hat.diff.final <- res$predict_level(n.ahead = n.ahead, confidence.level = 0.68, sea.on = TRUE)
+  
+  eval_pos <- idx_positions(y.eval.diff)
+  eval_pos <- eval_pos[eval_pos > est.end]
+  forecast_mat <- idx_values(y.hat.diff.final)
+  forecast_pos <- idx_positions(y.hat.diff.final)
+  common_pos <- intersect(eval_pos, forecast_pos)
+  
+  Actual <- as.numeric(idx_values(y.eval.diff[common_pos]))
+  Forecast <- forecast_mat[match(common_pos, forecast_pos), 1]
+  
+  # The documented formula: mean(100 * |Actual - Forecast| / (Actual + Forecast)),
+  # ranging over [0, 100] - not the textbook (|A|+|F|)/2 denominator,
+  # which would range over [0, 200].
+  expected_smape <- mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
+  textbook_smape <- mean(100 * abs(Actual - Forecast) / ((abs(Actual) + abs(Forecast)) / 2))
+  
+  expect_equal(errs$smape, expected_smape)
+  expect_false(isTRUE(all.equal(errs$smape, textbook_smape)))
+  expect_true(errs$smape >= 0 && errs$smape <= 100)
+  
+  # mape and rmse from the same call, reconstructed the same way, catch
+  # a regression that shifted denominators/indexing across all five
+  # metrics rather than just smape.
+  expect_equal(errs$mape, mean(100 * abs(Actual - Forecast) / Actual))
+  expect_equal(errs$rmse, sqrt(mean((Actual - Forecast)^2)))
+})
+
+test_that("sMAPE formula, in isolation, uses (Actual + Forecast) in the denominator and ranges over [0, 100], not the conventional [0, 200] scale", {
+  # Complements the end-to-end test above with worked-example arithmetic
+  # that is easy to hand-verify and does not require fitting a model.
   smape_as_implemented <- function(actual, forecast) {
     mean(100 * abs(actual - forecast) / (actual + forecast))
   }
   
-  # Exact forecast: sMAPE must be exactly 0, both under this formula and
-  # under the textbook one, since both denominators are strictly
-  # positive when Actual == Forecast > 0.
   expect_equal(smape_as_implemented(c(100, 200, 300), c(100, 200, 300)), 0)
   
   # Textbook worked example: Actual = 100, Forecast = 110.
   #   As implemented: 100 * |100-110| / (100+110) = 100 * 10/210 = 4.7619...
   #   Textbook sMAPE (0-200 scale): 100 * |100-110| / ((100+110)/2) = 9.5238...
-  # i.e. this package's sMAPE is exactly half the textbook value for a
-  # single-point evaluation, since (A+F) = 2 * ((A+F)/2). Pinning both
-  # numbers makes the scale difference explicit and machine-checkable.
   implemented_val <- smape_as_implemented(100, 110)
   textbook_val <- 100 * abs(100 - 110) / ((100 + 110) / 2)
   expect_equal(implemented_val, 100 * 10 / 210)
   expect_equal(implemented_val, textbook_val / 2)
   
-  # Maximum-divergence case: Forecast = 0 (or Actual = 0) drives the
-  # implemented statistic to exactly 100, its upper bound - confirming
-  # the [0, 100] range rather than [0, 200].
   expect_equal(smape_as_implemented(100, 0), 100)
   expect_equal(smape_as_implemented(0, 100), 100)
   
-  # The implemented statistic never exceeds 100 for positive
-  # actual/forecast pairs, unlike the textbook version which can reach
-  # 200 as forecast error grows without bound relative to the average
-  # of actual and forecast.
   set.seed(1)
   actual <- runif(50, min = 1, max = 1000)
   forecast <- runif(50, min = 1, max = 1000)

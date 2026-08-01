@@ -1018,6 +1018,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
     ggplot2::geom_ribbon(data = ci, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
     ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title,
+                  caption = caption,
                   subtitle = paste("MAPE: ", mape.sea, "%; SMAPE: ", smape, "%; MAE: ", mae, "; RMSE: ", rmse, ".", sep = "")) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -1026,7 +1027,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
       axis.title.y = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(r = 10)),
       axis.title.x = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(t = 10)),
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
-      plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
+      plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3)),
+      plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +
@@ -1082,6 +1084,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
     ggplot2::geom_ribbon(data = ci_plot, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
     ggplot2::labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title,
+                  caption = caption,
                   subtitle = paste("MAPE: ", mape.sea, "%; SMAPE: ", smape, "%; MAE: ", mae, "; RMSE: ", rmse, ".", sep = "")) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -1090,7 +1093,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
       axis.title.y = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(r = 10)),
       axis.title.x = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(t = 10)),
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
-      plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
+      plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3)),
+      plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +

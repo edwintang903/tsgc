@@ -185,27 +185,9 @@ if (!is.null(EXPECTED_TSGC_COMMIT)) {
   }
 }
 
-if (SAVE_TABLES) {
-  ensure_dir(results_dir)
-  writeLines(
-    capture.output(sessionInfo()),
-    con = file.path(results_dir, "sessionInfo.txt")
-  )
-  message("Saved sessionInfo.txt (full package/version manifest for this run).")
-  
-  if (requireNamespace("renv", quietly = TRUE)) {
-    tryCatch({
-      renv::snapshot(project = base_path, prompt = FALSE)
-      message("Saved renv.lock via renv::snapshot().")
-    }, error = function(e) {
-      message("renv::snapshot() failed: ", conditionMessage(e),
-              " - install/configure renv to pin dependency versions.")
-    })
-  } else {
-    message("renv not installed: skipping renv.lock snapshot. Install ",
-            "renv and re-run with SAVE_TABLES = TRUE to pin dependency versions.")
-  }
-}
+# NOTE: the sessionInfo()/renv.lock pinning step itself (using
+# ensure_dir(), results_dir, and base_path) runs later, in Section 1.4,
+# once those are actually defined - see below.
 
 # ---- 1.3 Global Options & Theme ----
 # Set plotting and printing defaults so figures are visually consistent across the replication.
@@ -235,6 +217,36 @@ ensure_dir <- function(path) {
   }
 }
 invisible(lapply(list(results_dir, tables_dir, images_dir), ensure_dir))
+
+# ---- 1.4b Reproducibility: session/dependency snapshot ----
+# Moved here (from just after the tsgc version/commit check in Section
+# 1.2b) so it runs after ensure_dir(), results_dir, and base_path are
+# actually defined. Previously this block referenced all three before
+# their definitions later in the script, so with SAVE_TABLES = TRUE it
+# would fail immediately with "could not find function 'ensure_dir'" /
+# "object 'results_dir' not found", rather than ever reaching the
+# sessionInfo()/renv::snapshot() calls it exists to run.
+if (SAVE_TABLES) {
+  ensure_dir(results_dir)
+  writeLines(
+    capture.output(sessionInfo()),
+    con = file.path(results_dir, "sessionInfo.txt")
+  )
+  message("Saved sessionInfo.txt (full package/version manifest for this run).")
+  
+  if (requireNamespace("renv", quietly = TRUE)) {
+    tryCatch({
+      renv::snapshot(project = base_path, prompt = FALSE)
+      message("Saved renv.lock via renv::snapshot().")
+    }, error = function(e) {
+      message("renv::snapshot() failed: ", conditionMessage(e),
+              " - install/configure renv to pin dependency versions.")
+    })
+  } else {
+    message("renv not installed: skipping renv.lock snapshot. Install ",
+            "renv and re-run with SAVE_TABLES = TRUE to pin dependency versions.")
+  }
+}
 
 # ---- 1.5 Plot/Save Helpers ----
 # Define wrappers for saving plots. These centralise image dimensions, resolution, and the SAVE_PLOTS toggle.
@@ -302,53 +314,13 @@ validate_saved_figure <- function(filepath, min_dim = 50) {
 }
 
 # ---- 1.5b Model Diagnostics Helper ----
-# summary() on a fitted FilterResults/FilterResultsLI object reports
-# only Length/Class/Mode for each list element, since these are
-# reference-class objects rather than plain lists - it carries no
-# parameter estimates, likelihood, convergence, or state-diagnostic
-# information. print_model_diagnostics() reports the actual fitted
-# quantities: estimated variance parameters, q, the model
-# log-likelihood, and a boundary check flagging variance estimates at
-# or near zero (a common sign of an unidentified or degenerate
-# parameter in this model class).
-print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
-  cat("---- Model diagnostics ----\n")
-  # Parameter estimates: delegate to the package's own accessor, which
-  # already reports the fitted variance parameters (unlike summary()).
-  tryCatch(res$print_estimation_results(), error = function(e) {
-    cat("  (print_estimation_results unavailable: ", conditionMessage(e), ")\n", sep = "")
-  })
-  
-  # Log-likelihood of the fitted state-space model, when available.
-  ll <- tryCatch(stats::logLik(res$output$model), error = function(e) NA)
-  cat("  Log-likelihood:", if (is.na(ll)) "unavailable" else format(ll, digits = 6), "\n")
-  
-  # Boundary/degeneracy check: flag estimated variances at or near zero.
-  # H can be a KxK matrix (K > 1) for models with more than one
-  # observation-equation variance (e.g. FilterResultsLI's leading-
-  # indicator model), not just a scalar, so this must check across all
-  # elements rather than assume a single value - using && directly on a
-  # multi-element H errors ("'length = 4' in coercion to 'logical(1)'").
-  H  <- tryCatch(res$output$model$H[, , 1], error = function(e) NA)
-  Qg <- tryCatch(res$output$model$Q[2, 2, 1], error = function(e) NA)
-  boundary_hit <- (!anyNA(H) && any(H <= boundary_tol)) ||
-    (!anyNA(Qg) && any(Qg <= boundary_tol))
-  cat("  Boundary check (variance <= ", boundary_tol, "): ",
-      if (boundary_hit) "FLAGGED - one or more variances at/near zero" else "ok",
-      "\n", sep = "")
-  
-  # Residual/innovation diagnostics from the KFS object, when present.
-  resid <- tryCatch(residuals(res$output, type = "recursive"), error = function(e) NULL)
-  if (!is.null(resid)) {
-    resid <- resid[is.finite(resid)]
-    cat("  Recursive residuals: mean =", format(mean(resid), digits = 4),
-        ", sd =", format(sd(resid), digits = 4), "\n")
-  } else {
-    cat("  Recursive residuals: unavailable\n")
-  }
-  cat("----------------------------\n")
-  invisible(NULL)
-}
+# print_model_diagnostics() now lives in the package (utils.R) rather
+# than being defined locally in this script, since it operates purely
+# on public FilterResults/FilterResultsLI accessors and is generically
+# useful, not specific to this replication exercise. It reports the
+# log-likelihood, a matrix-safe variance-boundary check (via
+# check_variance_boundary(), also in utils.R), and recursive-residual
+# diagnostics - none of which summary() on these classes reports.
 
 # ---- 1.6 CSV Export Helpers ----
 # Define CSV-export helpers for forecasts, filtered states, growth rates, R_t outputs, and the manifest used to document exported files.
@@ -477,15 +449,14 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
     c("gamma_trend_slope", "gamma_std_error")
   )
   
-  # g_t = exp(delta_t) + gamma_t. Use the full first-order delta-method
-  # variance, including the delta variance and the delta-gamma
-  # covariance, not just the gamma variance:
-  #   Var(g_t) ~= exp(2*delta_t)*Pdd_t + Pgg_t + 2*exp(delta_t)*Pdg_t
+  # g_t = exp(delta_t) + gamma_t. Following Harvey & Kattuman (2021,
+  # Sec 3.1), the contribution of Var(delta_t) to Var(g_t) is negligible
+  # relative to Var(gamma_t) once the epidemic is underway, so the
+  # sampling variability of g_t is taken as that of gamma_t alone:
+  #   Var(g_t) ~= Var(gamma_t)
   e.delta <- exp(idx_values(filtered.level))
   fitted.growth <- e.delta + idx_values(filtered.slope)
-  growth.var <- (e.delta^2) * as.numeric(delta.var) +
-    as.numeric(gamma.var) +
-    2 * e.delta * as.numeric(delta.gamma.cov)
+  growth.var <- as.numeric(gamma.var)
   growth.se <- sqrt(pmax(growth.var, 0))
   ci.offset <- stats::qnorm((1 - confidence.level) / 2) *
     growth.se %o% c(1, -1)
@@ -651,7 +622,7 @@ model_free <- tsgc::SSModelDynamicGompertz(
   end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the free-q model and print its summary for parameter/state diagnostics.
-res_free <- tsgc::estimate(model_free); summary(res_free); print_model_diagnostics(res_free)
+res_free <- tsgc::estimate(model_free); summary(res_free); tsgc::print_model_diagnostics(res_free)
 
 # 2.3b Diffuse prior with AR(1)
 # Specify an AR(1) slope variant to impose smoother slope evolution.
@@ -660,7 +631,7 @@ model_ar1 <- tsgc::SSModelDynamicGompertz(
   end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the AR(1) variant and inspect the summary.
-res_ar1 <- tsgc::estimate(model_ar1); summary(res_ar1); print_model_diagnostics(res_ar1)
+res_ar1 <- tsgc::estimate(model_ar1); summary(res_ar1); tsgc::print_model_diagnostics(res_ar1)
 
 # 2.3c Fixed q
 # Specify the preferred fixed-q model using the shared q.default value.
@@ -669,7 +640,7 @@ model_q <- tsgc::SSModelDynamicGompertz(
   end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the fixed-q model used for the baseline forecasts.
-res_q <- tsgc::estimate(model_q); summary(res_q); print_model_diagnostics(res_q)
+res_q <- tsgc::estimate(model_q); summary(res_q); tsgc::print_model_diagnostics(res_q)
 
 #' 
 #' ## 2.4 Forecasts & Accuracy
@@ -718,7 +689,7 @@ model_q_holdout <- tsgc::SSModelDynamicGompertz(
 # Estimate the holdout model before comparing its forecasts with the withheld observations.
 res_q_holdout <- tsgc::estimate(model_q_holdout); 
 summary(res_q_holdout)
-print_model_diagnostics(res_q_holdout)
+tsgc::print_model_diagnostics(res_q_holdout)
 
 # 2.4c Holdout accuracy plot
 # Plot holdout accuracy by comparing forecasts with observed values after the truncated end position.
@@ -807,7 +778,7 @@ model_weather <- tsgc::SSModelDynamicGompertz(
 # Estimate the weather-augmented model and inspect its fitted output.
 res_weather <- tsgc::estimate(model_weather)
 summary(res_weather)
-print_model_diagnostics(res_weather)
+tsgc::print_model_diagnostics(res_weather)
 
 # ---------------------------------------------------
 # 3.1.2 Supplying future xpred values for forecasting
@@ -1169,7 +1140,7 @@ model_rei_base <- tsgc::SSModelDynamicGompertz(
 # Estimate the longer-window model and inspect the summary before deriving diagnostics.
 res_rei_base <- tsgc::estimate(model_rei_base)
 summary(res_rei_base)
-print_model_diagnostics(res_rei_base)
+tsgc::print_model_diagnostics(res_rei_base)
 
 # KFS pieces from the fitted results object, extracted as idx_series so
 # they carry their own integer positions.
@@ -1310,7 +1281,7 @@ model_reinit <- tsgc::SSModelDynamicGompertz(
 # Estimate the reinitialised model and inspect its summary.
 res_reinit <- tsgc::estimate(model_reinit)
 summary(res_reinit)
-print_model_diagnostics(res_reinit)
+tsgc::print_model_diagnostics(res_reinit)
 
 # Forecasts after reinitialisation
 # Forecast log growth after allowing the model to restart at the reinitialisation position.
@@ -1402,7 +1373,7 @@ out_eng <- tsgc::SSModelLeadingIndicator(
 # Estimate the England leading-indicator model and inspect the fitted summary.
 res_eng <- tsgc::estimate(out_eng)
 summary(res_eng)
-print_model_diagnostics(res_eng)
+tsgc::print_model_diagnostics(res_eng)
 
 # Forecasts
 # Forecast the target-series log growth rate.
@@ -1467,7 +1438,7 @@ mod_eng_x <- tsgc::SSModelLeadingIndicator(
 # Estimate the weather-augmented England model and inspect the summary.
 res_eng_x <- tsgc::estimate(mod_eng_x)
 summary(res_eng_x)
-print_model_diagnostics(res_eng_x)
+tsgc::print_model_diagnostics(res_eng_x)
 
 # Supply future regressors for the lead and target equations. Where the
 # previous version required a supply_xpred.new(idx = "lead"/"targ")
@@ -1889,7 +1860,7 @@ mod_wii <- tsgc::SSModelDynamicGompertz(
 # Estimate the quarterly Wii model and inspect the summary.
 res_wii <- tsgc::estimate(mod_wii)
 summary(res_wii)
-print_model_diagnostics(res_wii)
+tsgc::print_model_diagnostics(res_wii)
 
 # Cases with MA overlay
 p <- plot(
@@ -1955,7 +1926,7 @@ mod_switch <- tsgc::SSModelLeadingIndicator(
 # Estimate the quarterly leading-indicator model and inspect the summary.
 res_switch <- tsgc::estimate(mod_switch)
 summary(res_switch)
-print_model_diagnostics(res_switch)
+tsgc::print_model_diagnostics(res_switch)
 
 # Forecast Switch log growth at quarterly frequency.
 p <- tsgc::plot_log_forecast(
@@ -2021,7 +1992,7 @@ mod_500 <- tsgc::SSModelDynamicGompertz(
 # Estimate the monthly Plus500 model and inspect the summary.
 res_500 <- tsgc::estimate(mod_500)
 summary(res_500)
-print_model_diagnostics(res_500)
+tsgc::print_model_diagnostics(res_500)
 
 p <- plot(
   mod_500, title = "Plus500 monthly downloads in France", 
@@ -2089,7 +2060,7 @@ mod_500_lead <- tsgc::SSModelLeadingIndicator(
 # Estimate the monthly leading-indicator model and inspect the summary.
 res_500_lead <- tsgc::estimate(mod_500_lead)
 summary(res_500_lead)
-print_model_diagnostics(res_500_lead)
+tsgc::print_model_diagnostics(res_500_lead)
 
 # Forecast AvaTrade log growth at monthly frequency.
 p <- tsgc::plot_log_forecast(
@@ -2187,7 +2158,7 @@ mod_3ds <- tsgc::SSModelDynamicGompertz(
 # Estimate the annual 3DS model and inspect the summary.
 res_3ds <- tsgc::estimate(mod_3ds)
 summary(res_3ds)
-print_model_diagnostics(res_3ds)
+tsgc::print_model_diagnostics(res_3ds)
 
 # Forecast annual 3DS log growth.
 p <- tsgc::plot_log_forecast(
@@ -2239,7 +2210,7 @@ mod_lead_y <- tsgc::SSModelLeadingIndicator(
 # Estimate the annual leading-indicator model and inspect the summary.
 res_lead_y <- tsgc::estimate(mod_lead_y)
 summary(res_lead_y)
-print_model_diagnostics(res_lead_y)
+tsgc::print_model_diagnostics(res_lead_y)
 
 # Forecast annual 3DS log growth from the leading-indicator model.
 p <- tsgc::plot_log_forecast(

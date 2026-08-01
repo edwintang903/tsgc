@@ -96,6 +96,12 @@ SSModelLeadingIndicator <- setRefClass(
           sea.period==1 || sea.period<0){
         stop("sea.period must be a non-negative integer that is not 1.")
       } 
+      if (length(n.lag) != 1 || !is.numeric(n.lag) || !is.finite(n.lag) ||
+          !isTRUE(all.equal(n.lag, as.integer(n.lag)))){
+        stop("n.lag must be a single (finite) integer. Note that n.lag = 0 ",
+             "(contemporaneous alignment) is permitted, as is a negative ",
+             "n.lag, which reverses the intended lead/lag direction.")
+      }
       if (!is.null(xpred_lead) && !is_idx_series(xpred_lead)){
         stop("xpred_lead must be NULL or an idx_series object.")
       } 

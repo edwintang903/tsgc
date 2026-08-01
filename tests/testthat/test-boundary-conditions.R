@@ -310,6 +310,29 @@ test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds 
   expect_error(mod$estimate(), "n.lag|overlapping positions")
 })
 
+test_that("SSModelLeadingIndicator errors clearly, naming n.lag and the row count, when the estimation window collapses to a single usable row", {
+  # Regression test for the CV-driven bug where a single-row SELECTION
+  # fold (start == end) silently collapsed data_mat to a plain vector
+  # via matrix subsetting without drop = FALSE, then failed deep inside
+  # KFAS::SSModel() with an opaque "Misspecified H" error instead of a
+  # clear message pointing at n.lag / the estimation window. The fix
+  # added drop = FALSE plus an explicit nrow(data_mat) < 2 check.
+  lead <- seq(100, 300, length.out = 30)
+  targ <- seq(50, 150, length.out = 30)
+  Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
+  
+  # start == end leaves exactly one row in y.estimate regardless of
+  # n.lag, reproducing the single-row SELECTION-fold scenario from
+  # cross_val() without needing to invoke cross_val() itself.
+  mod <- SSModelLeadingIndicator$new(
+    Y = Y_li, n.lag = 3, LeadIndCol = 1, start = 10L, end = 10L
+  )
+  expect_error(
+    mod$estimate(),
+    "only 1 usable row.*n\\.lag = 3"
+  )
+})
+
 
 # #############################################################################
 # 3. STRUCTURAL / TYPE-VALIDATION BOUNDARIES (both classes)

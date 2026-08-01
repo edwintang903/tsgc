@@ -142,7 +142,8 @@ FilterResultsLI <- setRefClass(
         forcout<-.self$predict_all(n.ahead, sea.on = FALSE, return.all = FALSE, 
                                    confidence.level=confidence.level)$y.hat.kfas
       } else {
-        forcout = .self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE)$y.hat.kfas
+        forcout = .self$predict_all(n.ahead, sea.on = TRUE, return.all = FALSE,
+                                    confidence.level=confidence.level)$y.hat.kfas
       }
       
       forecasts <- matrix(NA_real_, ncol=3, nrow=n.ahead)
@@ -523,13 +524,18 @@ FilterResultsLI <- setRefClass(
       cat("  - Model States and Standard Errors\n")
       base::print(output)
       cat("  - Variance parameter estimates\n")
-      cat("Observation equation noise:",format(H, digits = 4))
-      cat("\n")
-      cat("State transition equation noise:",format(Q_gamma, digits = 4))
+      # H is a K x K matrix (K = number of observation equations - 2 for
+      # this leading-indicator model: lead and target), not a scalar.
+      # Flattening it into cat() would silently print all elements
+      # run together with no row/column labelling; print it as a
+      # matrix instead so each observation equation's noise is legible.
+      cat("Observation equation noise:\n")
+      base::print(round(H, digits = 4))
+      cat("State transition equation noise:", format(Q_gamma, digits = 4))
       if (has_seasonal) {
         Q_seasonal <- matrixKFS(output, "Q")[3, 3, 1]
         cat("\n")
-        cat("Seasonality noise:",format(Q_seasonal, digits = 4))
+        cat("Seasonality noise:", format(Q_seasonal, digits = 4))
       }
     },
     mapes=function(n.ahead,Y){

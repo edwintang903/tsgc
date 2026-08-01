@@ -1,186 +1,222 @@
 # tsgc Replication — Correction Changelog
 
-31 July 2026
+1 August 2026
 
-Scope: `tsgc_replication_script.R`, `tsgc_vignette.Rmd`, `idx_calendar.R`,
-`test-idx_calendar.R`, `filterResultsLI.R`, `test-filterResultsLI.R`,
-`filterResults.R`, `SSModelLeadingIndicator.R`. Verified by direct
-inspection of source; where noted, also verified by an actual R run.
+## Corrections
 
-## Fixed
-
-1. **Gauteng `q` mismatch** — the forecast used a freely estimated `q`
-   while the holdout evaluation used a fixed `q`, giving an
-   apples-to-oranges accuracy comparison. *(`tsgc_replication_script.R`)*
-2. **Gauteng weather CSV overwrote the full-precision data** — even
-   after an initial fix kept the CSV-derived series in its own object,
-   a leftover assignment line still copied the rounded (2 d.p.)
-   CSV values over the full-precision series, so every downstream
-   figure used the rounded data regardless. The stray assignment was
-   removed. *(`tsgc_replication_script.R`)*
-3. **Reinitialisation paired smoothed estimates with filtered variance**
-   — `alphahat` (smoothed) was combined with the filtered `P`/`Ptt`
-   instead of the matching smoothed covariance. *(`tsgc_replication_script.R`,
-   `tsgc_vignette.Rmd`)*
-4. **Reinitialisation trigger compared the wrong quantities** — the
-   crossing rule compared a lagged slope value to the *current*
-   threshold rather than comparing the signal to its own threshold at
-   the same date. *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-5. **Reinitialisation plot mislabelled its reference lines** — lines
-   were labelled "SE bands around the slope" when they are k-SE
-   *thresholds*, not confidence bands. *(`tsgc_replication_script.R`,
-   `tsgc_vignette.Rmd`)*
-6. **Reinitialisation exercise overstated as a real-time trigger** — now
-   disclosed as a retrospective, single-episode illustration rather
-   than a validated real-time rule; the CV redesign below (#19–21)
-   is a related fix. *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-7. **Nintendo annual dates relabelled onto a fabricated calendar** — the
-   series had been given a made-up 1 Jan date rather than its actual
-   annual dates. *(`tsgc_replication_script.R`)*
-8. **`*_filtered.csv` files silently extended into the forecast period**
-   — filtered-estimate exports weren't cut off at the end of the
-   estimation sample. *(`tsgc_replication_script.R`)*
-9. **Diffuse-state rows exported with a false-certainty zero SE** — an
-    initial fix added a `diffuse_flag` column but still exported the
-    literal zero standard error underneath it, so any consumer that
-    didn't check the flag would still read zero uncertainty.
-    `write_idx_csv()` now also sets the SE and any `_lower_`/`_upper_`
-    bound columns to `NA` on flagged rows. *(`tsgc_replication_script.R`)*
-10. **`idx_to_date()` dropped Date/POSIXct class for multi-step
-    calendars** — the real bug was one level deeper than an initial
-    attribute-copying fix assumed (see note below).
-    *(`idx_calendar.R`)*
-11. **No regression test for the multi-step calendar class-drop bug** —
-    added; also corrected three pre-existing, unrelated tests that
-    asserted a plain `Date` result on a `posixct = TRUE` calendar.
-    *(`test-idx_calendar.R`)*
-12. **England regressor alignment tests didn't test the alignment logic**
-    — the three tests assigned expected values to `res$xpred.new`, a
-    field that doesn't exist on the model object (the real fields are
-    `xpred_lead.new`/`xpred_targ.new`), so none of them actually
-    exercised `predict_all()`'s alignment path. All three rewritten to
-    use the real fields and, for the duplicate-date case, a genuinely
-    malformed `xts` input. *(`test-filterResultsLI.R`)*
-13. **sMAPE formula/scale undocumented** — docstrings now state the
-    exact formula and clarify the implemented range is [0, 100], not
-    the conventional [0, 200]; added a numerical unit test pinning the
-    formula directly. *(`filterResults.R`, `filterResultsLI.R`,
-    `test-filterResultsLI.R`)*
-14. **Global warning suppression hid real issues** — `warning = FALSE`
-    removed so warnings surface instead of being silently discarded.
-    *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-15. **Two rendered figures were zero bytes despite a successful build**
-    — `validate_saved_figure()` was correctly implemented but only ever
-    called inside `if (SAVE_PLOTS) ...`, and `SAVE_PLOTS` defaults to
-    `FALSE`, so the check never ran by default. `safe_ggsave()` now
-    returns whether it actually wrote a file, and validation is tied to
-    that return value; a comment now flags that `SAVE_PLOTS <- TRUE` is
-    required to actually exercise render validation.
-    *(`tsgc_replication_script.R`)*
-16. **`summary()` reported only Length/Class/Mode** — replaced with real
-    diagnostics. *(`tsgc_replication_script.R`)*
-17. **Realised (oracle) future weather used without disclosure** — now
+1. **Gauteng `q` mismatch.** The forecast table was produced by a model
+   with a freely estimated `q`, while the reported holdout accuracy came
+   from a model with a fixed `q` — an apples-to-oranges comparison. Both
+   now use the same fixed `q`, and all associated figures and tables were
+   regenerated.
+2. **Gauteng weather data overwritten by a rounded CSV.** A stray
+   assignment copied 2-decimal-place CSV weather values over the
+   full-precision series used for estimation, so every downstream figure
+   silently used the rounded data. The assignment was removed and the
+   CSV-derived series is now kept in its own object.
+3. **Reinitialisation combined mismatched estimate/variance pairs.** The
+   smoothed state estimate was paired with the filtered-state covariance
+   rather than the matching smoothed covariance. Corrected to use one
+   consistent pair throughout.
+4. **Reinitialisation trigger compared the wrong quantities.** The
+   crossing rule compared a lagged slope value against the threshold at
+   the *current* date rather than each date's own threshold. Corrected
+   so the signal and its threshold are always compared at the same date.
+5. **Reinitialisation plot mislabelled its reference lines.** Lines shown
+   as "standard-error bands around the slope" are k-SE *thresholds*, not
+   confidence bands. Labels corrected.
+6. **Reinitialisation overstated as a validated real-time rule.** Now
+   explicitly disclosed as a retrospective, single-episode illustration.
+   A smoothed estimate computed with data through the forecast origin
+   cannot establish that the rule would have triggered in real time on
+   an earlier date, since it incorporates information not yet available
+   on that earlier date. The cross-validation redesign below addresses
+   the closely related evaluation-design concern.
+7. **Nintendo annual dates relabelled onto a fabricated calendar.** The
+   selected quarterly observations were Q3 endpoints, not January
+   observations, but had been assigned a made-up 1 January date. The
+   series is now described as annual-frequency, Q3-endpoint cumulative
+   sales, with its actual dates preserved.
+8. **Filtered-estimate exports extended into the forecast period.**
+   Files intended to hold only in-sample filtered estimates were not cut
+   off at the end of the estimation sample. Now restricted accordingly.
+9. **Diffuse-state rows exported with a false-certainty zero standard
+   error.** Rows flagged as diffuse still reported a literal zero
+   standard error underneath the flag, so any consumer not checking the
+   flag would read zero uncertainty. Standard errors and interval bounds
+   on flagged rows are now also set to missing.
+10. **Multi-step calendars lost their Date/POSIXct class.** Positions
+    converted back to dates under certain multi-step calendar patterns
+    came back as raw numeric offsets rather than proper dates. Root
+    cause and full resolution are described under Further fixes below,
+    since the first attempted fix here was itself incomplete.
+11. **No regression test for the multi-step calendar class-drop.**
+    Added, alongside correcting three pre-existing tests that had
+    asserted the wrong result type.
+12. **England regressor-alignment tests didn't test the alignment
+    logic.** The tests referenced a field that doesn't exist on the
+    model object, so none of them actually exercised the real alignment
+    path. Rewritten against the real fields, including a genuinely
+    malformed input for the duplicate-date case.
+13. **sMAPE formula and scale undocumented.** Documentation now states
+    the exact formula and clarifies the implemented range is [0, 100],
+    not the conventional [0, 200]. A numerical test pins the formula
+    against a real fitted model's output, not just the formula in
+    isolation.
+14. **Global warning suppression hid real issues.** Removed, so warnings
+    surface instead of being silently discarded.
+15. **Two rendered figures were zero bytes despite a successful build.**
+    Figure validation existed but was only run under a flag that
+    defaults off. The save step now reports whether it actually wrote a
+    file, and validation is tied to that outcome rather than to the
+    flag.
+16. **`summary()` reported only Length/Class/Mode.** Replaced with real
+    diagnostics: estimated parameters, positions, and model states.
+17. **Realised (oracle) future weather used without disclosure.** Now
     disclosed in comments and figure titles. Not resolved to an
-    operational validation — that would need archived point/ensemble
-    forecasts as of each origin date, which weren't supplied in any
-    batch. *(`tsgc_replication_script.R`)*
-18. **Lag 14 used downstream with no explanation vs. the CV-selected
-    lag** — now disclosed as illustrative. *(`tsgc_replication_script.R`,
-    `tsgc_vignette.Rmd`)*
-19. **Cross-validation SELECTION and REPORTING blocks were not actually
-    disjoint** — origins were assumed to step *backward* from
-    `est.end`, but `cross_val()` actually steps forward. This made the
-    REPORTING fold's forecast horizon land exactly on (or past) the
-    SELECTION block's boundary rather than strictly before it — a
-    structural off-by-one, not a one-off coincidence. `select.end.cv`
-    now subtracts `n.select.cv * gap.cv` instead of a single `gap.cv`,
-    and an explicit `stopifnot()` checks disjointness at runtime.
-    *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-20. **No naive/random-walk benchmark in cross-validation** — added.
-    *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-21. **Annual leading-indicator accuracy based on only two observations**
-    — added an explicit small-sample caveat and relabelled the plot
-    title "(illustrative only – n=2 holdout observations)".
-    *(`tsgc_replication_script.R`)*
-22. **Interval coverage reported from very small evaluation samples** —
-    same treatment extended to the quarterly Wii (n=4), Wii→Switch
-    (n=8), monthly Plus500 (n=4), and DEGIRO→AvaTrade (n=4) holdouts.
-    Daily-frequency (7- and 14-day) holdouts were left as-is, since the
-    concern was specifically about samples that are small because each
-    point is a whole year/quarter/month. *(`tsgc_replication_script.R`)*
-23. **No sensitivity analysis for the generation-interval assumption** —
-    added a `gen_int` sweep over `{3,4,5,6,7}` days, reporting the range
-    of $R_t$ estimates and whether the above/below-1 conclusion is
-    robust across the grid, plus a combined chart.
-    *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
-24. **No reproducibility pinning (commit SHA / `renv.lock` /
-    `sessionInfo()`)** — added a check of the installed `tsgc`
-    version/commit against an optional `EXPECTED_TSGC_COMMIT`, a
-    `sessionInfo()` capture, and a guarded `renv::snapshot()` call.
-    Gated behind `SAVE_TABLES` in the script; a separate `eval = FALSE`
-    chunk in the vignette (writes to disk, so not run on every render
-    by default). *(`tsgc_replication_script.R`, `tsgc_vignette.Rmd`)*
+    operational validation, which would require archived forecasts as of
+    each origin date that were not supplied.
+18. **An illustrative lag used downstream without explanation versus the
+    cross-validation-selected lag.** Now disclosed as illustrative.
+19. **Cross-validation selection and reporting blocks were not actually
+    disjoint.** Forecast origins were assumed to step backward from the
+    estimation end, but the underlying function steps forward, so the
+    reporting fold's horizon could land on or past the selection block's
+    boundary — a structural off-by-one, not a one-off coincidence.
+    Corrected, with an explicit runtime check that the two blocks remain
+    disjoint.
+20. **No naive/random-walk benchmark in cross-validation.** Added.
+21. **Annual leading-indicator accuracy based on only two observations.**
+    Labelled explicitly as illustrative given the small sample.
+22. **Interval coverage reported from very small evaluation samples.**
+    Same treatment extended to all holdouts whose small size comes from
+    each point being a whole year/quarter/month; daily-frequency
+    holdouts were left as-is since that concern doesn't apply to them.
+23. **No sensitivity analysis for the generation-interval assumption.**
+    Added a sweep over a plausible range of values, reporting whether
+    the qualitative conclusion is robust across it.
+24. **No reproducibility pinning.** Added a check of the installed
+    package version/commit against an expected value, a captured session
+    summary, and a guarded environment-snapshot step.
 
-## Fixed — found during a later re-audit, not from the original review list
+## Further fixes
 
-25. **`idx_to_date()` fix above was itself wrong** — the initial fix
-    (`attributes(out) <- attributes(cal$anchor)`) passed static review
-    but failed the actual test suite (6 failures: `POSIXct` check
-    returning `FALSE`, plus a `strptime`/invalid-`tz` error). Root
-    cause: `idx_step_add()` only promotes `Date` to `POSIXct` when the
-    *step itself* has a nonzero sub-day component — it never checks the
-    calendar's `posixct` flag. Every failing test used date-only steps,
-    so promotion never happened, and reused `Date` attributes
-    mislabelled the result with both the wrong class and the wrong
-    numeric scale (seconds-since-epoch read as days-since-epoch).
-    `idx_multi_step_offset_to_date()` now promotes the anchor to
-    `POSIXct` up front based on `cal$posixct` itself. Confirmed by an
-    actual test run — the 6 failing tests plus 3 related corrected
-    tests all pass. *(`idx_calendar.R`)*
-26. **`print_model_diagnostics()` errored on multi-parameter `H`** — a
-    live render surfaced `'length = 4' in coercion to 'logical(1)'`
-    because the leading-indicator model's `H` is a 2×2 matrix, not a
-    scalar, and the boundary check used `&&`. Replaced
-    `!is.na(H) && H <= boundary_tol` with
-    `!anyNA(H) && any(H <= boundary_tol)`. Confirmed by an actual run
-    that previously errored at this line and now completes.
-27. **Single-row CV estimation window silently malformed, surfaced as an
-    opaque KFAS error** — an actual `cross_val()` run over
-    `Lag1..Lag21` failed deep inside `SSModel()` with a misleading
-    "Misspecified H" error. Root cause: at `n.lag = 21`, the first
-    SELECTION fold leaves exactly one usable row, and a matrix subset
-    without `drop = FALSE` silently collapsed it to a plain vector.
-    Added `drop = FALSE`, plus an explicit `if (nrow(data_mat) < 2)
-    stop(...)` naming `n.lag`, the row count, and the remedy.
-    *(`SSModelLeadingIndicator.R`)*
-28. **`xts_to_idx()` duplicate-date test was hedged/wrong** — the
-    function's real source unconditionally errors on a duplicated
-    index; this was never actually an open defect. The test was
-    rewritten to assert that behaviour directly instead of hedging
-    between "errors or de-duplicates." *(`test-filterResultsLI.R`)*
-29. **`predict_all()` didn't check regressor length before array
-    assignment** — `get_timeframe()` clamps rather than errors on an
-    out-of-range request, silently returning fewer rows than asked
-    for. `predict_all()` assigned that result positionally into a
-    fixed-size `n.ahead`-length array with no length check, so a
-    regressor series that runs out before the forecast horizon ends
-    would be silently truncated and misaligned. Both
-    `xpred_lead.new`/`xpred_targ.new` branches now check the returned
-    row count and `stop()` with the expected/actual counts if it's
-    short. *(`filterResultsLI.R`)*
-30. **Round-1 "missing regressor date" test didn't test a missing date**
-    — `idx_series` objects can't represent an internal gap at all
-    (`idx_series(data, start)` always implies a contiguous run of
-    positions), so the original test's approach of dropping a row
-    silently re-indexed everything after it instead of leaving a hole.
-    Replaced with a test that truncates the series before the forecast
-    horizon ends (the realistic failure mode), and added a second test
-    pinning `get_timeframe()`'s actual clamping behaviour.
-    *(`test-filterResultsLI.R`)*
+These weren't on the original list above; they turned up while making
+the changes described there.
+
+_Items below the "1 August 2026 (later pass)" marker were found in a
+subsequent, independent review of the same replication script, vignette,
+and package source (not the original correction pass above), and are
+dated separately for that reason._
+
+- **The first fix to the multi-step calendar date-class bug was itself
+  wrong.** It passed a static read-through but failed the actual test
+  suite. The real root cause was one level deeper: date-to-POSIXct
+  promotion was being triggered by a property of the individual step
+  rather than by the calendar's own settings, so plain date-only steps
+  never got promoted and ended up mislabelled with both the wrong class
+  and the wrong numeric scale. Fixed at the correct layer and confirmed
+  by a full test run, including the tests that had previously failed.
+- **A diagnostics helper errored on models with more than one
+  observation-equation variance.** A boundary check assumed a single
+  scalar variance value; leading-indicator models have two, and the
+  check crashed on the resulting matrix. Fixed to handle any number of
+  variance parameters, and the same underlying issue was found and fixed
+  in an unrelated summary method that had been silently misprinting the
+  same kind of matrix rather than erroring on it.
+- **A single-row cross-validation window failed with a misleading
+  low-level error instead of a clear one.** At the tightest lag setting,
+  the first selection fold could leave exactly one usable row, which a
+  matrix operation silently collapsed to a plain vector, surfacing a
+  confusing error several layers downstream. Fixed at the source, with
+  an explicit, clearly worded check in its place.
+- **A duplicate-date test asserted hedged, incorrect behaviour.** The
+  underlying function actually errors unconditionally on a duplicated
+  date; this had never been an open defect. The test was rewritten to
+  assert that directly.
+- **A forecasting function didn't check regressor length before use.**
+  An internal helper clamps rather than errors when asked for more data
+  than is available, silently returning fewer rows. The function
+  consuming its output assigned that result into a fixed-size array
+  with no length check, so a regressor series running out before the
+  forecast horizon ended would be silently truncated and misaligned.
+  This was fixed and tested for the leading-indicator model
+  (`xpred_lead.new`/`xpred_targ.new`), but the equivalent path for the
+  plain Gompertz model (`xpred.new`) was missed in that pass: it still
+  had no such check. Added the same explicit row-count check and error
+  message there, plus a matching test, so both places now check the row
+  count and fail clearly if it's short, as originally intended.
+- **A "missing regressor date" test didn't actually test a missing
+  date.** The data structure in question can't represent an internal
+  gap at all, so the original approach of dropping a row silently
+  re-indexed everything after it instead of leaving a hole. Replaced
+  with a test of the realistic failure mode (a series that runs out
+  before the forecast horizon ends), plus a second test pinning the
+  clamping behaviour directly.
+- **A diagnostics helper useful beyond this replication was promoted
+  into the package itself**, rather than staying local to this script,
+  along with the shared boundary-check logic it depends on. This also
+  made both properly testable, closing the gap that a package-level
+  test suite couldn't previously reach.
+- **The vignette's weather-regressor example for England carried no
+  oracle-forecast disclosure.** The same realised (not archived)
+  future weather already disclosed for Gauteng and for England
+  elsewhere in the replication script was used here too, but the
+  vignette's prose, code comments, and figure title/caption were
+  silent about it. Added the same caveat paragraph, code comment, and
+  "(weather, oracle/realised)" figure labelling used elsewhere.
+- **The vignette never demonstrated the corrected `summary()` output.**
+  The reviewed defect was that all `summary()` calls in the vignette
+  printed only Length/Class/Mode; the fix removed those calls rather
+  than showing the corrected output, so a reader of the vignette alone
+  saw no evidence `summary()` had been fixed. Added a "Model
+  diagnostics" demonstration after both the baseline Gompertz model and
+  the England leading-indicator model, calling `summary()` and
+  `print_model_diagnostics()` on each - the latter specifically noting
+  the matrix-valued `H` case for the leading-indicator model.
+- **A vignette appendix silently plotted the wrong model.** The
+  axis-mode appendix's helper function referenced the ambient `res`
+  object and its caption claimed to reuse "the Gauteng fourteen-day
+  new-cases forecast from Figure 3," but `res` had since been
+  reassigned by the Reinitialization section (to the longer,
+  25-June-end re-estimate) earlier in the same document. The appendix
+  therefore rendered figures from the wrong model while describing them
+  as the Figure 3 model. Fixed by re-fitting the original Figure 3
+  specification under its own name (`res.axis.demo`) local to that
+  appendix, rather than depending on what the shared `res` object
+  happened to hold by that point in the document.
+- **The reproducibility-pinning block referenced objects before they
+  were defined.** The tsgc-commit/version check block called
+  `ensure_dir(results_dir)` and `renv::snapshot(project = base_path)`,
+  but `ensure_dir`, `results_dir`, and `base_path` were all defined
+  later in the same script (Section 1.4). With `SAVE_TABLES = TRUE`
+  this would fail immediately with an object/function-not-found error,
+  so the reproducibility feature credited elsewhere in this changelog
+  could not actually run as originally ordered. Moved the block to
+  after Section 1.4, where all three are defined.
+- **Leading-indicator forecast intervals now honour the requested 
+  confidence level in all cases.** A code path in 
+  `FilterResultsLI$predict_level()` ignored the user-supplied 
+  `confidence.level` when seasonal adjustment was enabled, silently 
+  falling back to the default interval width. Fixed so the requested 
+  confidence level is applied consistently.
+- **`plot_holdout()` now applies the supplied plot caption.** The 
+  `caption` argument was accepted but never passed through to the 
+  underlying `ggplot2` call, so user-specified captions were silently 
+  ignored.
+- **`SSModelLeadingIndicator()` now validates `n.lag` on construction.** 
+  Invalid lag specifications (for example negative or non-integer values) 
+  now fail immediately with a clear error rather than surfacing later 
+  during estimation.
+
+- **Corrected a non-runnable vignette example.** The weather-regressor 
+  CSV example referenced an undefined `res_weather` object; the missing 
+  model-fitting step has been restored so the example can be run as 
+  presented.
 
 ## Out of scope
 
 - **Annual leading-indicator accuracy from two observations** and
-  **interval coverage from very small evaluation samples** —
-  labelling fixes are above (#22–23); the underlying small-sample
-  limitation itself isn't fixable without more data.
+  **interval coverage from very small evaluation samples** — labelling
+  fixes are above; the underlying small-sample limitation itself isn't
+  fixable without more data.
