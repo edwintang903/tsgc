@@ -995,6 +995,83 @@ idx_step_date_to_offset <- function(cal, date) {
        "cal$step relative to cal$anchor.")
 }
 
+#' @title Translate a date to a position for a numeric-pattern calendar
+#'
+#' @description Internal inverse of \code{\link{idx_to_date}} for calendars
+#' built by \code{\link{idx_calendar}}. A numeric pattern makes the calendar
+#' offset a piecewise sequence rather than a single amount that can be divided
+#' in closed form, so this brackets and binary-searches the integer position.
+#' Using \code{idx_to_date} as the forward map also verifies exact step
+#' boundaries instead of silently rounding off-boundary dates.
+#'
+#' @param cal An \code{idx_calendar} built by \code{idx_calendar}.
+#' @param date A single date/time.
+#' @returns A single integer position.
+#' @keywords internal
+#' @noRd
+idx_calendar_date_to_pos <- function(cal, date) {
+  kind <- idx_anchor_kind(cal$anchor)
+  date <- if (kind$is_yearqtr) {
+    zoo::as.yearqtr(date)
+  } else if (kind$is_yearmon) {
+    zoo::as.yearmon(date)
+  } else if (kind$is_posixct) {
+    as.POSIXct(date, tz = format(cal$anchor, "%Z"))
+  } else {
+    as.Date(date)
+  }
+
+  calendar_month_granularity <- kind$is_date_posix &&
+    cal$unit %in% c("months", "quarters", "years")
+  comparable <- function(x) {
+    if (calendar_month_granularity) {
+      x <- as.Date(x)
+      return(as.integer(format(x, "%Y")) * 12L +
+               as.integer(format(x, "%m")) - 1L)
+    }
+    as.numeric(x)
+  }
+  target_num <- comparable(date)
+  anchor_num <- comparable(cal$anchor)
+  if (isTRUE(all.equal(target_num, anchor_num))) {
+    return(as.integer(cal$anchor_pos))
+  }
+  fwd <- target_num > anchor_num
+  at_delta <- function(delta) {
+    comparable(idx_to_date(cal, cal$anchor_pos + delta))
+  }
+
+  lo <- 0
+  hi <- 1
+  repeat {
+    probe <- if (fwd) hi else -hi
+    value <- at_delta(probe)
+    reached_or_passed <- if (fwd) value >= target_num else value <= target_num
+    if (reached_or_passed) break
+    lo <- hi
+    if (hi > 1e9) {
+      stop("idx_to_pos: date is too far from cal$anchor to bracket.")
+    }
+    hi <- hi * 2
+  }
+  lo_delta <- if (fwd) lo else -lo
+  hi_delta <- if (fwd) hi else -hi
+
+  while (abs(hi_delta - lo_delta) > 1) {
+    mid_delta <- lo_delta + (hi_delta - lo_delta) %/% 2
+    value <- at_delta(mid_delta)
+    before_target <- if (fwd) value < target_num else value > target_num
+    if (before_target) lo_delta <- mid_delta else hi_delta <- mid_delta
+  }
+  for (delta in c(lo_delta, hi_delta)) {
+    if (isTRUE(all.equal(at_delta(delta), target_num))) {
+      return(as.integer(cal$anchor_pos + delta))
+    }
+  }
+  stop("idx_to_pos: date does not fall on a whole step boundary of ",
+       "cal's amount/unit/pattern relative to cal$anchor.")
+}
+
 #' @title Translate \code{idx_series} positions to calendar time
 #'
 #' @description Converts one or more integer \code{idx_series} positions

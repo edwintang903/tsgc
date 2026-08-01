@@ -45,10 +45,12 @@ found by counting whole calendar steps between \code{cal$anchor} and
 a quarter is not a fixed number of days. For the fixed-duration units
 \code{"seconds"}, \code{"minutes"}, \code{"hours"}, \code{"days"},
 \code{"weeks"}, positions are computed as a plain time difference
-scaled by \code{cal$amount}; this is exact for these units. Either way
-this ignores any \code{pattern} (i.e. exact only for
-\code{pattern = 1}; only appropriate for simple, evenly spaced
-calendars). This branch is O(1).
+scaled by \code{cal$amount}; this is exact for these units. A repeating
+numeric \code{pattern} is respected. Because patterned offsets are
+piecewise rather than a single amount that can be divided in closed
+form, the inverse is found by an exact binary search over integer
+positions. Dates that do not land on a whole step boundary are rejected
+rather than rounded.
 \item \code{\link{idx_calendar_step}} (a compound \code{idx_step}) and
 \code{\link{idx_calendar_multi_step}} (a \code{multi_step_pattern})
 calendars have no single \code{amount}/\code{unit} pair to invert in

@@ -347,3 +347,21 @@ test_that("monthly-frequency data works under a non-posixct calendar", {
   expect_no_error(tsgc::plot_forecast(res.m, n.ahead = 4))
   expect_no_error(plot_forecast(res.m, n.ahead = 4, axis = idx_axis_opts(mode = "time_since")))
 })
+
+test_that("repeated LI estimation does not shift or truncate lead regressors", {
+  set.seed(2)
+  Y <- idx_series(cbind(cumsum(rpois(150, 6)) + 1,
+                        cumsum(rpois(150, 8)) + 1))
+  xpred <- idx_series(matrix(rnorm(300), ncol = 2))
+  mod <- SSModelLeadingIndicator(
+    Y, n.lag = 5, sea.period = 0, start = 20, end = 100,
+    xpred_lead = xpred
+  )
+  original_xpred <- mod$xpred_lead
+
+  first <- estimate(mod)
+  second <- estimate(mod)
+
+  expect_identical(mod$xpred_lead, original_xpred)
+  expect_equal(first$output$alphahat, second$output$alphahat)
+})

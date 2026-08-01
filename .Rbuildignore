@@ -9,3 +9,4 @@
 ^.idea$
 ^\.github$
 ^CHANGELOG\.md$
+^cran-comments\.md$

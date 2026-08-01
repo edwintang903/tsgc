@@ -188,15 +188,17 @@ SSModelLeadingIndicator <- setRefClass(
       
       est_pos <- idx_positions(y.estimate)
       
-      if (!is.null(xpred_lead)){
-        xpred_lead <<- idx_lag(xpred_lead, n.lag)
-        est_pos <- intersect(est_pos, idx_positions(xpred_lead))
+      xpred_lead_est <- xpred_lead
+      xpred_targ_est <- xpred_targ
+      if (!is.null(xpred_lead_est)){
+        xpred_lead_est <- idx_lag(xpred_lead_est, n.lag)
+        est_pos <- intersect(est_pos, idx_positions(xpred_lead_est))
         if (length(est_pos) == 0){
           stop("xpred_lead (after lagging by n.lag) does not overlap with the estimation timeframe.")
         }
       }
-      if (!is.null(xpred_targ)){
-        est_pos <- intersect(est_pos, idx_positions(xpred_targ))
+      if (!is.null(xpred_targ_est)){
+        est_pos <- intersect(est_pos, idx_positions(xpred_targ_est))
         if (length(est_pos) == 0){
           stop("xpred_targ does not overlap with the estimation timeframe.")
         }
@@ -220,14 +222,14 @@ SSModelLeadingIndicator <- setRefClass(
              "(start/end) or reduce n.lag.")
       }
       
-      if (!is.null(xpred_lead)){
-        xpred_lead <<- get_timeframe(xpred_lead, est_pos[1], tail(est_pos,1))
+      if (!is.null(xpred_lead_est)){
+        xpred_lead_est <- get_timeframe(xpred_lead_est, est_pos[1], tail(est_pos,1))
       }
-      if (!is.null(xpred_targ)){
-        xpred_targ <<- get_timeframe(xpred_targ, est_pos[1], tail(est_pos,1))
+      if (!is.null(xpred_targ_est)){
+        xpred_targ_est <- get_timeframe(xpred_targ_est, est_pos[1], tail(est_pos,1))
       }
-      xreg_lead <- if (!is.null(xpred_lead)) idx_values(xpred_lead) else NULL
-      xreg_targ <- if (!is.null(xpred_targ)) idx_values(xpred_targ) else NULL
+      xreg_lead <- if (!is.null(xpred_lead_est)) idx_values(xpred_lead_est) else NULL
+      xreg_targ <- if (!is.null(xpred_targ_est)) idx_values(xpred_targ_est) else NULL
       
       # Update function allowing the signal-to-noise ratio to be targeted.
       # The signal-to-noise ratio is the variance of the trend component of
@@ -340,7 +342,7 @@ SSModelLeadingIndicator <- setRefClass(
         n.lag=n.lag,
         sea.period=sea.period,
         LeadIndCol=LeadIndCol,
-        xpred_logical=c(!is.null(xpred_lead),!is.null(xpred_targ)),
+        xpred_logical=c(!is.null(xpred_lead_est),!is.null(xpred_targ_est)),
         start=est_pos[1],
         end=tail(est_pos,1),
         calendar=calendar)

@@ -1,5 +1,22 @@
 library(KFAS)
 
+test_that("forecasting does not truncate supplied future regressors", {
+  set.seed(3)
+  Y <- idx_series(cumsum(rpois(130, 8)) + 1)
+  xpred <- idx_series(matrix(rnorm(130), ncol = 1))
+  model <- SSModelDynamicGompertz(
+    Y, q = 0.005, sea.period = 0, start = 1, end = 100, xpred = xpred
+  )
+  res <- estimate(model)
+  res$xpred.new <- xpred
+  original_xpred <- res$xpred.new
+
+  expect_no_error(res$predict_all(5))
+  expect_identical(res$xpred.new, original_xpred)
+  expect_no_error(res$predict_all(10))
+  expect_identical(res$xpred.new, original_xpred)
+})
+
 test_that("predict_level computes predictions correctly - no seasonal", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng$cum_cases)

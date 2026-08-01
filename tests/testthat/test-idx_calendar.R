@@ -1066,3 +1066,19 @@ test_that("idx_calendar_multi_step handles a mixed-step (fixed + calendar-relati
   expect_false(is.numeric(out))
   expect_true(all(diff(as.numeric(out)) > 0))
 })
+
+test_that("idx_to_pos exactly inverts numeric-pattern calendars", {
+  bdays <- seq(as.Date("2024-01-01"), by = "day", length.out = 20)
+  bdays <- bdays[!weekdays(bdays) %in% c("Saturday", "Sunday")]
+  x <- xts::xts(seq_along(bdays), order.by = bdays)
+  cal <- xts_to_idx(x)$calendar
+
+  back <- vapply(seq_along(bdays), function(i) idx_to_pos(cal, bdays[i]), integer(1))
+  expect_equal(back, seq_along(bdays))
+})
+
+test_that("idx_to_pos rejects dates between whole numeric-pattern steps", {
+  cal <- idx_calendar(as.Date("2024-01-01"), amount = 2, unit = "days",
+                      posixct = TRUE)
+  expect_error(idx_to_pos(cal, "2024-01-02"), "whole step boundary")
+})

@@ -2358,9 +2358,8 @@ tsgc::idx_to_date(cal_step, 1:4)
 
 # idx_to_pos() inverts this exactly as it does for the primary
 # constructor. A compound step has no single amount to divide by, so
-# rather than the closed-form calculation used for idx_calendar()
-# calendars, the position is instead located by a binary search on the
-# number of steps from the anchor.
+# the position is located by a binary search on the number of steps from
+# the anchor, as it is for idx_calendar() calendars with numeric patterns.
 tsgc::idx_to_pos(cal_step, tsgc::idx_to_date(cal_step, 4))
 
 # Any component of an idx_step left at its default of 0 is simply

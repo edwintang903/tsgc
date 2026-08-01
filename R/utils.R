@@ -294,10 +294,12 @@ xts_to_idx <- function(x, start.pos = 1L, detect = TRUE, amount = 1, unit = "day
 #'   a quarter is not a fixed number of days. For the fixed-duration units
 #'   \code{"seconds"}, \code{"minutes"}, \code{"hours"}, \code{"days"},
 #'   \code{"weeks"}, positions are computed as a plain time difference
-#'   scaled by \code{cal$amount}; this is exact for these units. Either way
-#'   this ignores any \code{pattern} (i.e. exact only for
-#'   \code{pattern = 1}; only appropriate for simple, evenly spaced
-#'   calendars). This branch is O(1).
+#'   scaled by \code{cal$amount}; this is exact for these units. A repeating
+#'   numeric \code{pattern} is respected. Because patterned offsets are
+#'   piecewise rather than a single amount that can be divided in closed
+#'   form, the inverse is found by an exact binary search over integer
+#'   positions. Dates that do not land on a whole step boundary are rejected
+#'   rather than rounded.
 #'   \item \code{\link{idx_calendar_step}} (a compound \code{idx_step}) and
 #'   \code{\link{idx_calendar_multi_step}} (a \code{multi_step_pattern})
 #'   calendars have no single \code{amount}/\code{unit} pair to invert in
@@ -375,8 +377,6 @@ idx_to_pos <- function(cal, date) {
     return(idx_step_date_to_offset(cal, date))
   }
   
-  calendar_step_unit <- cal$unit %in% c("months", "quarters", "years")
-  
   if (is_yearqtr_anchor || is_yearmon_anchor) {
     if (is_yearqtr_anchor && cal$unit != "quarters") {
       stop("idx_to_pos: a yearqtr cal$anchor requires cal$unit = 'quarters'.")
@@ -384,52 +384,9 @@ idx_to_pos <- function(cal, date) {
     if (is_yearmon_anchor && cal$unit != "months") {
       stop("idx_to_pos: a yearmon cal$anchor requires cal$unit = 'months'.")
     }
-    date <- if (is_yearqtr_anchor) zoo::as.yearqtr(date) else zoo::as.yearmon(date)
-    # yearqtr/yearmon are stored internally as fractional years, so the
-    # number of quarters/months between two of them is an exact multiple
-    # of 0.25/(1/12) of the numeric difference - mirrors idx_step_add()'s
-    # fractional-year stepping for these classes.
-    per_step <- if (is_yearqtr_anchor) 0.25 else (1 / 12)
-    steps <- (as.numeric(date) - as.numeric(cal$anchor)) / per_step
-    if (!isTRUE(all.equal(steps, round(steps)))) {
-      stop("idx_to_pos: date does not fall on a whole ", cal$unit,
-           " boundary relative to cal$anchor.")
-    }
-    return(as.integer(cal$anchor_pos + round(steps / cal$amount)))
   }
   
-  if (calendar_step_unit) {
-    date <- as.Date(date)
-    anchor_date <- as.Date(cal$anchor)
-    per_year <- switch(cal$unit, months = 12, quarters = 4, years = 1)
-    anchor_ym <- (as.integer(format(anchor_date, "%Y")) * 12 +
-                    (as.integer(format(anchor_date, "%m")) - 1))
-    date_ym <- (as.integer(format(date, "%Y")) * 12 +
-                  (as.integer(format(date, "%m")) - 1))
-    months_diff <- date_ym - anchor_ym
-    steps <- months_diff / (12 / per_year)
-    if (!isTRUE(all.equal(steps, round(steps)))) {
-      stop("idx_to_pos: date does not fall on a whole ", cal$unit,
-           " boundary relative to cal$anchor.")
-    }
-    as.integer(cal$anchor_pos + round(steps / cal$amount))
-  } else if (inherits(cal$anchor, "POSIXct")) {
-    date <- as.POSIXct(date, tz = format(cal$anchor, "%Z"))
-    diff_secs <- as.numeric(difftime(date, cal$anchor, units = "secs"))
-    by_unit <- idx_calendar_by_unit(cal$unit)
-    unit_secs <- switch(if (is.null(by_unit)) "" else by_unit,
-                        sec = 1, min = 60, hour = 3600, day = 86400, week = 86400 * 7,
-                        NA_real_
-    )
-    if (is.na(unit_secs)) {
-      stop("idx_to_pos: unit '", cal$unit, "' is not a recognised ",
-           "fixed-duration unit for a POSIXct anchor.")
-    }
-    as.integer(cal$anchor_pos + round(diff_secs / unit_secs / cal$amount))
-  } else {
-    date <- as.Date(date)
-    as.integer(cal$anchor_pos + as.numeric(date - cal$anchor) / cal$amount)
-  }
+  idx_calendar_date_to_pos(cal, date)
 }
 
 #' @title Translate a plain numeric offset to an \code{idx_series} integer

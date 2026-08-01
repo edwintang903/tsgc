@@ -281,18 +281,19 @@ FilterResults <- setRefClass(
           # regressor series a few rows short would misalign undetected.
           # Check the row count explicitly and fail clearly instead (same
           # fix as xpred_lead.new/xpred_targ.new in filterResultsLI.R).
-          xpred.new<<-get_timeframe(xpred.new, firstpred, firstpred + n.ahead - 1L)
-          if (length(idx_positions(xpred.new)) != n.ahead) {
+          xpred.new.window <- get_timeframe(
+            xpred.new, firstpred, firstpred + n.ahead - 1L)
+          if (length(idx_positions(xpred.new.window)) != n.ahead) {
             stop("xpred.new does not cover the full forecast horizon: expected ",
                  n.ahead, " row(s) from position ", firstpred, " to ",
                  firstpred + n.ahead - 1L, ", got ",
-                 length(idx_positions(xpred.new)), ". Supply xpred.new values ",
+                 length(idx_positions(xpred.new.window)), ". Supply xpred.new values ",
                  "for every date in the forecast horizon.")
           }
           
           newZ<-array(new.model$Z[,,dim(new.model$Z)[3]], 
                       dim = c(dim(new.model$Z)[1], dim(new.model$Z)[2], n.ahead))
-          xpred.new.mat <- as.matrix(idx_values(xpred.new))
+          xpred.new.mat <- as.matrix(idx_values(xpred.new.window))
           newZ[,1:dim(xpred.new.mat)[2],]<-t(xpred.new.mat)
           
           new.model$Z <- abind::abind(
