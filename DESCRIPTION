@@ -30,9 +30,7 @@ Encoding: UTF-8
 VignetteBuilder: knitr
 Roxygen: list(markdown = TRUE)
 Suggests:
-    dplyr,
     ggfortify,
-    ggthemes,
     knitr,
     RColorBrewer,
     rmarkdown,
@@ -41,7 +39,9 @@ Suggests:
     latex2exp,
     here,
     testthat,
-    kableExtra
+    kableExtra,
+    dplyr,
+    ggthemes
 Config/testthat/edition: 3
 Imports:
     KFAS,
