@@ -700,6 +700,40 @@ estimate_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
   idx_series(rt_mat[keep, , drop = FALSE], start = gy.ci$start + keep[1] - 1L)
 }
 
+#' @title Estimate the reproduction number as a dated data frame
+#'
+#' @description Wraps \code{\link{estimate_r0}}, attaching calendar dates
+#' so that fitted \eqn{R_t} values (and their confidence interval) can be
+#' read directly from a data frame, without having to read them off the
+#' \code{plot_r0()} plot. Dates are taken from \code{res$calendar}.
+#'
+#' @inheritParams estimate_r0
+#'
+#' @returns A data frame with columns \code{Date}, \code{fit}, \code{lower}
+#' and \code{upper}, one row per integer position over the last
+#' \code{n.ahead} positions of \code{res}.
+#'
+#' @examples
+#' library(tsgc)
+#' set.seed(1)
+#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
+#' cal <- idx_calendar(anchor = as.Date("2021-01-01"), anchor_pos = 1L,
+#'                     amount = 1, unit = "days")
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100, calendar = cal)
+#' res <- estimate(model)
+#' estimate_r0_df(res, gen_int = 5, n.ahead = 7)
+#'
+#' @export
+estimate_r0_df <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
+                           confidence.level = 0.68) {
+  r.t <- estimate_r0(res, gen_int = gen_int, n.ahead = n.ahead,
+                     smoothed = smoothed, confidence.level = confidence.level)
+  data.frame(
+    Date  = idx_to_date(res$calendar, idx_positions(r.t)),
+    as.data.frame(as.matrix(idx_values(r.t)))
+  )
+}
+
 #' @title Walk-Forward Validation for Model Comparison Using Mean Absolute
 #' Percentage Error (MAPE)
 #'

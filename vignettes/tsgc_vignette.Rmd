@@ -30,51 +30,6 @@ library(xts)
 theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
 ```
 
-Naming a specific `tsgc` commit in prose is not the same as verifying
-that commit against what is actually installed when this vignette is
-rendered. The chunk below records the installed `tsgc` version (and,
-where available, the exact commit/remote SHA `install_github()`
-recorded at install time), so results in this vignette can be tied to
-a specific build rather than "whatever `tsgc` happened to be installed
-on the day it was rendered." Set `EXPECTED_TSGC_COMMIT` below to pin
-against a specific commit; leave it `NULL` to only report what is
-installed without checking it against an expectation.
-
-```{r tsgc-version-check}
-EXPECTED_TSGC_COMMIT <- NULL  # e.g. "a1b2c3d4..." to pin/verify a specific commit
-
-`%||%` <- function(x, y) if (is.null(x)) y else x
-tsgc_desc <- tryCatch(utils::packageDescription("tsgc"), error = function(e) NULL)
-tsgc_version <- if (!is.null(tsgc_desc)) tsgc_desc$Version else NA_character_
-tsgc_commit <- if (!is.null(tsgc_desc)) {
-  tsgc_desc$GithubSHA1 %||% tsgc_desc$RemoteSha %||% NA_character_
-} else NA_character_
-
-tsgc_version
-tsgc_commit
-
-if (!is.null(EXPECTED_TSGC_COMMIT) &&
-    (is.na(tsgc_commit) || !identical(tsgc_commit, EXPECTED_TSGC_COMMIT))) {
-  warning("Installed tsgc commit does not match EXPECTED_TSGC_COMMIT; ",
-          "results below may not match the pinned replication exactly.")
-}
-```
-
-For a fully pinned re-render, generate an `renv.lock` alongside this
-vignette (`renv::snapshot()`, once `renv` is initialised for the
-project) so every dependency version - not just `tsgc` - is fixed, and
-capture `sessionInfo()` for the rendering session:
-
-```{r session-info, eval = FALSE}
-# Not evaluated by default (eval = FALSE) since this writes to disk;
-# set eval = TRUE for a run whose purpose is to produce a pinned,
-# archivable record of the rendering environment.
-writeLines(capture.output(sessionInfo()), con = "sessionInfo.txt")
-if (requireNamespace("renv", quietly = TRUE)) {
-  renv::snapshot(prompt = FALSE)
-}
-```
-
 # Introduction
 
 Outbreaks of infectious diseases with epidemic potential require
@@ -943,51 +898,14 @@ plot_r0(res, gen_int = gen_int, n.ahead = 7,
         title = "Reproduction numbers for the 7-day period to 3 May 2021")
 ```
 
-`gen_int` above (4 days) is an epidemiological assumption fed into
-`estimate_r0()`, not something estimated from this data, so the
-resulting $R_t$ path is conditional on it. The sensitivity of $R_t$ to
-this assumption can be checked directly by sweeping `gen_int` over a
-plausible range and comparing the resulting point estimates on the
-same dates:
+`estimate_r0()`'s `idx_series` output above is expressed in integer
+positions rather than calendar dates. `estimate_r0_df()` wraps
+`estimate_r0()` and attaches the corresponding calendar dates, returning
+a plain data frame so that the $R_t$ values and their confidence
+interval can be read off directly, without reading them from the plot:
 
-```{r rt_gen_int_sensitivity}
-gen_int_grid <- c(3, 4, 5, 6, 7)
-
-r.t.sensitivity <- lapply(gen_int_grid, function(g) {
-  r.t.g <- estimate_r0(res, g, n.ahead = 7)
-  data.frame(
-    Date    = idx_to_date(res$calendar, idx_positions(r.t.g)),
-    gen_int = g,
-    Rt      = as.matrix(idx_values(r.t.g))[, "fit"]
-  )
-})
-r.t.sensitivity.df <- do.call(rbind, r.t.sensitivity)
-
-last_date <- max(r.t.sensitivity.df$Date)
-rt_last <- r.t.sensitivity.df$Rt[r.t.sensitivity.df$Date == last_date]
-range(rt_last)
-all(rt_last > 1) || all(rt_last < 1)
-```
-
-The last line reports whether the above/below-1 conclusion for $R_t$
-on the most recent date is the same across the whole `gen_int` grid
-(`TRUE`) or changes somewhere within it (`FALSE`); the numeric range
-just above it gives the spread of point estimates implied by the
-grid. Both should be checked before treating a single-`gen_int` $R_t$
-estimate as a robust statement about transmission on that date, rather
-than reported alongside the main $R_t$ figure without comment.
-
-```{r fig-5b, fig.cap = "Figure 5b: Sensitivity of Gauteng R_t to the assumed generation interval."}
-ggplot2::ggplot(r.t.sensitivity.df,
-                 ggplot2::aes(x = Date, y = Rt, color = factor(gen_int))) +
-  ggplot2::geom_line(linewidth = 0.6) +
-  ggplot2::geom_hline(yintercept = 1, linetype = "solid", color = "black") +
-  ggplot2::labs(
-    title = "Sensitivity of R_t to the assumed generation interval",
-    subtitle = paste0("gen_int swept over {", paste(gen_int_grid, collapse = ", "), "} days; point estimate only (no CI)"),
-    x = "Date", y = expression(R[t]), color = "gen_int (days)"
-  ) +
-  ggplot2::theme_light(base_size = 12)
+```{r calc_rt_df}
+estimate_r0_df(res, gen_int, n.ahead = 7)
 ```
 
 A CSV file (`y-forecast`) is written to the directory specified. The

@@ -124,8 +124,9 @@ are defined in `fields` section.
 \item{\code{print()}}{Provides a quick description of the SSModelDynamicGompertz object, providing 
 model states and standard errors.}
 
-\item{\code{summary()}}{Supplies details of the SSModelDynamicGompertz object, such as estimated 
-parameter values, start and end positions of estimation.}
+\item{\code{summary()}}{Estimates the model and delegates to the resulting FilterResults
+object's summary() method, so that summary(model) reports the same
+fitted-results summary as summary(res).}
 }}
 
 \examples{
