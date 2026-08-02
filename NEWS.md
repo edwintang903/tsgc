@@ -15,6 +15,9 @@
   `plot.SSModelLeadingIndicator()`, which continue to work with the usual
   `plot(model, ...)` syntax.
 * The `timetk` package is no longer a dependency.
+* `estimate_r0()` now returns a data frame, including dates from
+  `res$calendar` when available. The redundant `estimate_r0_df()` wrapper
+  has been removed.
 
 ## New features
 
@@ -56,7 +59,7 @@
 * Updated the vignette and replication script to reflect the internal
   changes above; user-facing behaviour and function signatures for
   `SSModelDynamicGompertz`, `SSModelLeadingIndicator`, `cross_val()`,
-  `estimate_r0()`, and the plotting functions are unchanged.
+  and the plotting functions are unchanged.
 
 ## Bug fixes
 

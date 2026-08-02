@@ -87,8 +87,6 @@ seasonalComp <- function(object) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' att(output(res))
-#'
-#' @export
 att <- function(object) {
   object$att
 }
@@ -111,8 +109,6 @@ att <- function(object) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' Ptt(output(res))
-#'
-#' @export
 Ptt <- function(object) {
   object$Ptt
 }
@@ -162,8 +158,6 @@ get_V <- function(object) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' matrixKFS(output(res), "Z")
-#'
-#' @export
 matrixKFS <- function(object, matrix) {
   modelKFS(object)[[matrix]]
 }
@@ -186,8 +180,6 @@ matrixKFS <- function(object, matrix) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' gety(modelKFS(output(res)))
-#'
-#' @export
 gety <- function(object) {
   object$y
 }
@@ -211,8 +203,6 @@ gety <- function(object) {
 #' res <- estimate(model)
 #' all_predictions <- res$predict_all(n.ahead = 7)
 #' gety.hat(all_predictions)
-#'
-#' @export
 gety.hat <- function(object) {
   object$y.hat
 }
@@ -235,8 +225,6 @@ gety.hat <- function(object) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' alphahat(output(res))
-#'
-#' @export
 alphahat <- function(object) {
   object$alphahat
 }

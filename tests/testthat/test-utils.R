@@ -233,19 +233,35 @@ test_that("mapes works and returns five named error metrics", {
   expect_equal(sort(names(error_metrics)), sort(expected_names))
 })
 
-test_that("estimate_r0 returns an idx_series with fit/lower/upper columns", {
+test_that("estimate_r0 returns positions and calendar dates in a data frame", {
   set.seed(1)
   Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1L)
-  model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+  cal <- idx_calendar(as.Date("2021-01-01"), anchor_pos = 1L,
+                      amount = 1, unit = "days")
+  model <- SSModelDynamicGompertz$new(
+    Y = Y, q = NULL, end = 100, calendar = cal
+  )
   res <- estimate(model)
   
   r_t <- estimate_r0(res, gen_int = 5, n.ahead = 7)
   
-  expect_true(is_idx_series(r_t))
-  expect_equal(colnames(idx_values(r_t)), c("fit", "lower", "upper"))
-  expect_equal(length(r_t), 7)
-  expect_true(all(idx_values(r_t)[, "lower"] <= idx_values(r_t)[, "fit"]))
-  expect_true(all(idx_values(r_t)[, "fit"] <= idx_values(r_t)[, "upper"]))
+  expect_s3_class(r_t, "data.frame")
+  expect_equal(names(r_t), c("Date", "Position", "fit", "lower", "upper"))
+  expect_equal(nrow(r_t), 7)
+  expect_equal(r_t$Date, idx_to_date(cal, r_t$Position))
+  expect_true(all(r_t$lower <= r_t$fit))
+  expect_true(all(r_t$fit <= r_t$upper))
+})
+
+test_that("estimate_r0 retains positions when no calendar is available", {
+  set.seed(2)
+  Y <- idx_series(cumsum(rpois(80, 8)) + 1, start = 1L)
+  res <- estimate(SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 60))
+
+  r_t <- estimate_r0(res, gen_int = 5, n.ahead = 5)
+
+  expect_equal(names(r_t), c("Position", "fit", "lower", "upper"))
+  expect_equal(nrow(r_t), 5)
 })
 
 test_that("estimate_r0 errors when res is not a FilterResults or FilterResultsLI object", {

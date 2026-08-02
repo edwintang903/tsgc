@@ -128,9 +128,9 @@ test_that("estimate_r0 reproduces the documented decline toward Rt = 1 approachi
   )
   res <- model$estimate()
   r_t <- estimate_r0(res, gen_int = 4, n.ahead = 7)
-  rt_vals <- idx_values(r_t)[, "fit"]
+  rt_vals <- r_t$fit
   
-  expect_equal(length(r_t), 7)
+  expect_equal(nrow(r_t), 7)
   # Decline over the first six days of the documented window.
   expect_true(all(diff(rt_vals[1:6]) <= 1e-8))
   # Ensure the window as a whole approaches Rt = 1 at the end.
@@ -150,14 +150,13 @@ test_that("estimate_r0 output brackets Rt = 1 as growth decelerates through a kn
   )
   res <- model$estimate()
   r_t <- estimate_r0(res, gen_int = 4, n.ahead = 30)
-  rt <- idx_values(r_t)
-  
-  expect_true(is_idx_series(r_t))
-  expect_true(all(c("fit", "lower", "upper") %in% colnames(rt)))
-  expect_true(any(rt[, "fit"] > 1) || any(rt[, "fit"] < 1))
-  expect_true(all(rt[, "lower"] <= rt[, "fit"]))
-  expect_true(all(rt[, "fit"] <= rt[, "upper"]))
-  expect_true(all(is.finite(rt[, "fit"])))
+
+  expect_s3_class(r_t, "data.frame")
+  expect_true(all(c("fit", "lower", "upper") %in% names(r_t)))
+  expect_true(any(r_t$fit > 1) || any(r_t$fit < 1))
+  expect_true(all(r_t$lower <= r_t$fit))
+  expect_true(all(r_t$fit <= r_t$upper))
+  expect_true(all(is.finite(r_t$fit)))
 })
 
 

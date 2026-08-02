@@ -86,9 +86,8 @@ fields laid out at the beginning of the documentation.}
 \item{\code{print()}}{Provides a quick description of the SSModelLeadingIndicator object, providing 
 model states and standard errors.}
 
-\item{\code{summary()}}{Estimates the model and delegates to the resulting FilterResultsLI
-object's summary() method, so that summary(model) reports the same
-fitted-results summary as summary(res).}
+\item{\code{summary()}}{Supplies details of the SSModelLeadingIndicator object, such as estimated 
+parameter values, start and end positions of estimation.}
 }}
 
 \examples{

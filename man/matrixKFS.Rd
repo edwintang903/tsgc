@@ -29,5 +29,4 @@ model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
 matrixKFS(output(res), "Z")
-
 }

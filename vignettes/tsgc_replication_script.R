@@ -988,17 +988,16 @@ print(p)
 ## ---- 4.1 Transform Gompertz estimates to R_t ----
 # Convert fitted Gompertz dynamics into an implied reproduction-number path using the assumed generation interval.
 # Estimate the implied reproduction number from the fixed-q Gauteng model.
-# estimate_r0() now returns an idx_series with columns fit/lower/upper
-# over the last n.ahead (here ndays) positions; plotting is done
-# explicitly with ggplot rather than a built-in show_plot argument.
+# estimate_r0() returns a dated data frame with fit/lower/upper columns
+# over the last n.ahead (here ndays) positions; plotting is done explicitly
+# with ggplot rather than a built-in show_plot argument.
 r.t <- tsgc::estimate_r0(res_q, gen_int, ndays)
 
-r.t.mat <- as.matrix(idx_values(r.t))
 r.t.df <- data.frame(
-  Date  = idx_to_date(gauteng_cal, idx_positions(r.t)),
-  Rt    = r.t.mat[, "fit"],
-  lower = r.t.mat[, "lower"],
-  upper = r.t.mat[, "upper"]
+  Date  = r.t$Date,
+  Rt    = r.t$fit,
+  lower = r.t$lower,
+  upper = r.t$upper
 )
 names(r.t.df) <- c(
   "Date", "Rt",
@@ -1057,9 +1056,9 @@ gen_int_grid <- c(3, 4, 5, 6, 7)
 r.t.sensitivity <- lapply(gen_int_grid, function(g) {
   r.t.g <- tsgc::estimate_r0(res_q, g, ndays)
   data.frame(
-    Date    = idx_to_date(gauteng_cal, idx_positions(r.t.g)),
+    Date    = r.t.g$Date,
     gen_int = g,
-    Rt      = as.matrix(idx_values(r.t.g))[, "fit"]
+    Rt      = r.t.g$fit
   )
 })
 r.t.sensitivity.df <- do.call(rbind, r.t.sensitivity)

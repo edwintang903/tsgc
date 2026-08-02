@@ -530,6 +530,7 @@ FilterResults <- setRefClass(
       if (sea.period>1){
         cat("Seasonality noise:",format(Q_seasonal, digits = 4))
       }
+      cat("\n")
     }, 
     mapes=function(n.ahead,Y){
       "Computes five metrics, including Mean Absolute Percentage Error (MAPE), 

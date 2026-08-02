@@ -177,6 +177,26 @@ idx_x_theme <- function(calendar = NULL, axis = NULL) {
 
 #' @keywords internal
 #' @noRd
+idx_forecast_x_theme <- function(calendar = NULL, axis = NULL) {
+  axis <- idx_resolve_axis(axis, calendar)
+  if (axis$mode == "date") {
+    # Forecast plots commonly show fairly dense dates. Anchor each angled
+    # label beneath its tick, then leave a clear gap before the axis title so
+    # that "Date" cannot sit among the tick labels.
+    ggplot2::theme(
+      axis.text.x = ggplot2::element_text(
+        angle = 45, hjust = 1, vjust = 1,
+        margin = ggplot2::margin(t = 6)
+      ),
+      axis.title.x = ggplot2::element_text(margin = ggplot2::margin(t = 18))
+    )
+  } else {
+    ggplot2::theme()
+  }
+}
+
+#' @keywords internal
+#' @noRd
 idx_x_lab <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   switch(axis$mode,
@@ -388,16 +408,14 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
     geom_line(aes(y = newTarg, color = series.name.target), linewidth = 0.85) +
     scale_color_manual(values = c("red", "blue")) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
     theme(
       legend.title = element_text(size = 10),
       legend.text = element_text(size = 10),
-      axis.text.x = element_text(angle = 45, hjust = 0, size = 10),
-      axis.title.x = element_text(margin = margin(t = 20)),
       axis.title.y = element_text(margin = margin(r = 20)),
       plot.title = element_text(face = "bold"),
       plot.margin = margin(t = 5, r = 25, l = 5, b = 15)
-    )
+    ) +
+    idx_forecast_x_theme(calendar, axis)
   idx_add_info_box(p, calendar, axis)
 }
 
@@ -515,7 +533,7 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
+    idx_forecast_x_theme(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1, 1))
   idx_add_info_box(p, calendar, axis)
 }
@@ -567,7 +585,7 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
+    idx_forecast_x_theme(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1, 1))
   idx_add_info_box(p, calendar, axis)
 }
@@ -687,7 +705,6 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
     ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Log Growth Rate", caption = caption, title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -697,7 +714,8 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
       axis.title.x = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(t = 10)),
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
       plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
-    )
+    ) +
+    idx_forecast_x_theme(calendar, axis)
   idx_add_info_box(p1, calendar, axis)
 }
 
@@ -765,7 +783,6 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
     ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Log Growth Rate", caption = caption, title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -775,7 +792,8 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
       axis.title.x = ggplot2::element_text(size = ggplot2::rel(1), margin = ggplot2::margin(t = 10)),
       plot.title = ggplot2::element_text(margin = ggplot2::margin(b = 5)),
       plot.caption = ggplot2::element_text(size = ggplot2::rel(1))
-    )
+    ) +
+    idx_forecast_x_theme(calendar, axis)
   idx_add_info_box(p1, calendar, axis)
 }
 
@@ -1054,7 +1072,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
+    idx_forecast_x_theme(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
   idx_add_info_box(p, calendar, axis)
 }
@@ -1121,7 +1139,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
     ) +
     ggplot2::scale_linetype_manual(values = c("solid", "solid")) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
+    idx_forecast_x_theme(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
   idx_add_info_box(p, calendar, axis)
 }
@@ -1246,7 +1264,7 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
       plot.subtitle = ggplot2::element_text(size = ggplot2::rel(1), hjust = 0, margin = ggplot2::margin(t = 3))
     ) +
     idx_x_scale(calendar, axis) +
-    idx_x_theme(calendar, axis) +
+    idx_forecast_x_theme(calendar, axis) +
     ggplot2::scale_size_manual(values = c(1, 1.5, 1))
   idx_add_info_box(p, calendar, axis)
 }
@@ -1307,7 +1325,11 @@ plot_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
                      smoothed = smoothed, confidence.level = confidence.level)
   
   resolved_axis <- idx_resolve_axis(axis, calendar)
-  df_plot <- idx_series_df(r.t, calendar, resolved_axis)
+  r.t.series <- idx_series(
+    as.matrix(r.t[, c("fit", "lower", "upper"), drop = FALSE]),
+    start = r.t$Position[1]
+  )
+  df_plot <- idx_series_df(r.t.series, calendar, resolved_axis)
   
   fit <- lower <- upper <- NULL
   p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = x)) +

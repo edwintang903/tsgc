@@ -34,9 +34,11 @@ normally distributed random variable. Passed through to
 \code{res$get_gy_ci()}.}
 }
 \value{
-An \code{idx_series} with columns \code{fit}, \code{lower} and
-\code{upper}, giving the estimated reproduction number and its
-confidence interval over the last \code{n.ahead} integer positions.
+A data frame containing \code{Position}, \code{fit},
+\code{lower} and \code{upper}. If \code{res$calendar} is available, a
+\code{Date} column is included before \code{Position}. Each row gives the
+estimated reproduction number and its confidence interval over one of the
+last \code{n.ahead} integer positions.
 }
 \description{
 Computes the (instantaneous) reproduction number
@@ -52,7 +54,10 @@ output; \code{res} must already have been produced by \code{estimate()}.
 library(tsgc)
 set.seed(1)
 Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
-model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+cal <- idx_calendar(anchor = as.Date("2021-01-01"), anchor_pos = 1L,
+                    amount = 1, unit = "days")
+model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100,
+                                    calendar = cal)
 res <- estimate(model)
 estimate_r0(res, gen_int = 5, n.ahead = 7)
 

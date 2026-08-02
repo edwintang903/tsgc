@@ -675,15 +675,20 @@ mapes <- function(res, n.ahead, Y) {
 #' normally distributed random variable. Passed through to
 #' \code{res$get_gy_ci()}.
 #'
-#' @returns An \code{idx_series} with columns \code{fit}, \code{lower} and
-#' \code{upper}, giving the estimated reproduction number and its
-#' confidence interval over the last \code{n.ahead} integer positions.
+#' @returns A data frame containing \code{Position}, \code{fit},
+#' \code{lower} and \code{upper}. If \code{res$calendar} is available, a
+#' \code{Date} column is included before \code{Position}. Each row gives the
+#' estimated reproduction number and its confidence interval over one of the
+#' last \code{n.ahead} integer positions.
 #'
 #' @examples
 #' library(tsgc)
 #' set.seed(1)
 #' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
-#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100)
+#' cal <- idx_calendar(anchor = as.Date("2021-01-01"), anchor_pos = 1L,
+#'                     amount = 1, unit = "days")
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100,
+#'                                     calendar = cal)
 #' res <- estimate(model)
 #' estimate_r0(res, gen_int = 5, n.ahead = 7)
 #'
@@ -697,41 +702,20 @@ estimate_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
   rt_mat <- exp(idx_values(gy.ci) * gen_int)
   n <- nrow(rt_mat)
   keep <- seq.int(max(1L, n - n.ahead + 1L), n)
-  idx_series(rt_mat[keep, , drop = FALSE], start = gy.ci$start + keep[1] - 1L)
-}
-
-#' @title Estimate the reproduction number as a dated data frame
-#'
-#' @description Wraps \code{\link{estimate_r0}}, attaching calendar dates
-#' so that fitted \eqn{R_t} values (and their confidence interval) can be
-#' read directly from a data frame, without having to read them off the
-#' \code{plot_r0()} plot. Dates are taken from \code{res$calendar}.
-#'
-#' @inheritParams estimate_r0
-#'
-#' @returns A data frame with columns \code{Date}, \code{fit}, \code{lower}
-#' and \code{upper}, one row per integer position over the last
-#' \code{n.ahead} positions of \code{res}.
-#'
-#' @examples
-#' library(tsgc)
-#' set.seed(1)
-#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
-#' cal <- idx_calendar(anchor = as.Date("2021-01-01"), anchor_pos = 1L,
-#'                     amount = 1, unit = "days")
-#' model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100, calendar = cal)
-#' res <- estimate(model)
-#' estimate_r0_df(res, gen_int = 5, n.ahead = 7)
-#'
-#' @export
-estimate_r0_df <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
-                           confidence.level = 0.68) {
-  r.t <- estimate_r0(res, gen_int = gen_int, n.ahead = n.ahead,
-                     smoothed = smoothed, confidence.level = confidence.level)
-  data.frame(
-    Date  = idx_to_date(res$calendar, idx_positions(r.t)),
-    as.data.frame(as.matrix(idx_values(r.t)))
+  positions <- gy.ci$start + keep - 1L
+  out <- data.frame(
+    Position = positions,
+    as.data.frame(rt_mat[keep, , drop = FALSE]),
+    check.names = FALSE
   )
+  if (is_idx_calendar(res$calendar)) {
+    out <- data.frame(
+      Date = idx_to_date(res$calendar, positions),
+      out,
+      check.names = FALSE
+    )
+  }
+  out
 }
 
 #' @title Walk-Forward Validation for Model Comparison Using Mean Absolute
@@ -978,6 +962,208 @@ check_variance_boundary <- function(..., boundary_tol = 1e-6) {
   }, logical(1)))
 }
 
+
+#' @title Calling print method for classes in tsgc
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `SSModelLeadingIndicator` class
+#'
+#' @param x A `SSModelLeadingIndicator` object
+#' @param ... Additional arguments.
+#' 
+#' @method print SSModelLeadingIndicator
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' # Specify a model
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' # Print a short description of the model object
+#' print(out_eng)
+#' 
+#' 
+#' @export
+print.SSModelLeadingIndicator <- function(x, ...) {
+  x$print()
+}
+
+
+#' @title Calling summary method for classes in tsgc
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `SSModelLeadingIndicator` class
+#'
+#' @param object A `SSModelLeadingIndicator` object
+#' @param ... Additional arguments.
+#' @method summary SSModelLeadingIndicator
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' # Specify a model
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' summary(out_eng)
+#' 
+#' @export
+summary.SSModelLeadingIndicator <- function(object, ...) {
+  object$summary()
+}
+
+#' @title Calling print method for SSModelDynamicGompertz class
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `SSModelDynamicGompertz` class
+#'
+#' @param x A `SSModelDynamicGompertz` object
+#' @param ... Additional arguments.
+#' @method print SSModelDynamicGompertz
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#'
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' 
+#' # Print a short description of the model object
+#' print(model)
+#' 
+#' @export
+print.SSModelDynamicGompertz <- function(x, ...) {
+  x$print()
+}
+
+#' @title Calling summary method for SSModelDynamicGompertz class
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `SSModelDynamicGompertz` class
+#'
+#' @param object A `SSModelDynamicGompertz` object
+#' @param ... Additional arguments.
+#' @method summary SSModelDynamicGompertz
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#'
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' 
+#' # Show summary of the model object
+#' summary(model)
+#' 
+#' @export
+summary.SSModelDynamicGompertz <- function(object, ...) {
+  object$summary()
+}
+
+#' @title Calling summary method for FilterResults
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `FilterResults` class
+#'
+#' @param object A `FilterResults` object
+#' @param ... Additional arguments.
+#' @method summary FilterResults
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' # Return KFS object in output of res
+#' summary(res)
+#' 
+#' @export
+summary.FilterResults <- function(object, ...) {
+  object$summary()
+}
+
+#' @title Calling print method for FilterResults class
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `FilterResults` class
+#'
+#' @param x A `FilterResults` object
+#' @param ... Additional arguments.
+#' @method print FilterResults
+#' 
+#' @examples
+#' library(tsgc)
+#' data(gauteng,package="tsgc")
+#' # Specify a model
+#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' # Estimate a specified model
+#' res <- estimate(model)
+#' 
+#' # Return short description of fitted model
+#' print(res)
+#' 
+#' @export
+print.FilterResults <- function(x, ...) {
+  x$print()
+}
+
+#' @title Calling summary method for FilterResultsLI
+#'
+#' @description Accessor method to show a summary for the objects of
+#' `FilterResultsLI` class
+#'
+#' @param object A `FilterResultsLI` object
+#' @param ... Additional arguments.
+#' @method summary FilterResultsLI
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' res_eng<-estimate(out_eng)
+#' summary(res_eng)
+#' 
+#' @export
+summary.FilterResultsLI <- function(object, ...) {
+  object$summary()
+}
+
+#' @title Calling print method for FilterResultsLI class
+#'
+#' @description Accessor method to print a short description for the objects of
+#' `FilterResultsLI` class
+#'
+#' @param x A `FilterResultsLI` object
+#' @param ... Additional arguments.
+#' @method print FilterResultsLI
+#' 
+#' @examples
+#' library(tsgc)
+#' 
+#' out_eng <- tsgc::SSModelLeadingIndicator(
+#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
+#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' 
+#' res_eng<-estimate(out_eng)
+#' print(res_eng) 
+#' 
+#' @export
+print.FilterResultsLI <- function(x, ...) {
+  x$print()
+}
+
+
+
 #' @title Report fitted diagnostics for a FilterResults/FilterResultsLI object
 #'
 #' @description \code{summary()} on \code{\link{FilterResults}}/
@@ -999,7 +1185,6 @@ print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
-  
   cat("---- Model diagnostics ----\n")
   
   # Parameter estimates: delegate to the package's own accessor, which

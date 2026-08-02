@@ -661,10 +661,60 @@ SSModelDynamicGompertz <- setRefClass(
     return(results)
   },
   summary = function() {
-    "Estimates the model and delegates to the resulting FilterResults
-      object's summary() method, so that summary(model) reports the same
-      fitted-results summary as summary(res)."
-    .self$estimate()$summary()
+    "Supplies details of the SSModelDynamicGompertz object, such as estimated 
+      parameter values, start and end positions of the estimation window."
+    result<-.self$estimate()
+    out <- output(result)
+    start_pos<-result$index[1]
+    end_pos<-tail(result$index,1)
+    
+    if(is.null(q)){
+      qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
+    }
+    reinit<-!is.null(reinit.idx)
+    if (ar1){
+      ar1_comp<-matrixKFS(out,"T")["ar1","ar1",1]
+    }
+    
+    cat("Summary of SSModelDynamicGompertz Model")
+    if (reinit) {
+      cat(" (Reinitialized)")
+    }
+    cat("\n")
+    cat("--------------------------------------\n")
+    cat("Cumulated Variable:\n")
+    base::print(head(idx_values(.self$Y)))
+    cat("Signal-to-Noise Ratio (q):", 
+        ifelse(is.null(q), paste(signif(qest,3), "(estimated)"), 
+               paste(q, ("(user specified)"))), "\n")
+    if (ar1){
+      cat("AR(1) coefficient:", signif(ar1_comp,3))
+      cat("\n")
+    }
+    cat("Model Details:\n")
+    cat("  - Model Type: Dynamic Gompertz Curve")
+    if (reinit) {
+      cat(" (Reinitialized)")
+    }
+    cat("\n")
+    cat("  - Seasonal Component: ", ifelse(sea.period>1, "Trigonometric", "None"), "\n")
+    cat("  - Period of Seasonality: ", ifelse(sea.period>1, sea.period, "N/A"), "\n")
+    cat("  - Estimation start position:", start_pos)
+    cat("\n")
+    cat("  - Estimation end position:", end_pos)
+    cat("\n")
+    if (reinit){
+      cat("  - Reinitialization position:",reinit.idx)
+      cat("\n")
+      cat("  - Use presample info:", use.presample.info)
+      cat("\n")
+    }
+    if (!is.null(xpred)){
+      cat("  - Exogenous predictors dataset")
+      base::print(head(idx_values(.self$xpred)))
+    }
+    cat("  - Model States and Standard Errors\n")
+    base::print(out)
   },
   print = function() {
     "Provides a quick description of the SSModelDynamicGompertz object, providing 

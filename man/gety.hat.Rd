@@ -26,5 +26,4 @@ model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
 res <- estimate(model)
 all_predictions <- res$predict_all(n.ahead = 7)
 gety.hat(all_predictions)
-
 }

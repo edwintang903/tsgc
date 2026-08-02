@@ -348,10 +348,29 @@ SSModelLeadingIndicator <- setRefClass(
         calendar=calendar)
       return(results)},
     summary = function() {
-      "Estimates the model and delegates to the resulting FilterResultsLI
-      object's summary() method, so that summary(model) reports the same
-      fitted-results summary as summary(res)."
-      .self$estimate()$summary()
+      "Supplies details of the SSModelLeadingIndicator object, such as estimated 
+      parameter values, start and end positions of estimation."
+      result<-.self$estimate()
+      out <- output(result)
+      start_pos<-result$start
+      end_pos<-result$end
+      
+      cat("Summary of SSModelLeadingIndicator Model")
+      cat("\n")
+      cat("--------------------------------------\n")
+      cat("Cumulated Variable:\n")
+      base::print(head(idx_values(.self$Y)))
+      cat("Model Details:\n")
+      cat("  - Model Type: Leading Indicator Model")
+      cat("\n")
+      cat("  - Seasonal Component: ", ifelse(sea.period>1, "Trigonometric", "None"), "\n")
+      cat("  - Period of Seasonality: ", ifelse(sea.period>1, sea.period, "N/A"), "\n")
+      cat("  - Estimation start position:", start_pos)
+      cat("\n")
+      cat("  - Estimation end position:", end_pos)
+      cat("\n")
+      cat("  - Model States and Standard Errors\n")
+      base::print(out)
     },
     print = function() {
       "Provides a quick description of the SSModelLeadingIndicator object, providing 

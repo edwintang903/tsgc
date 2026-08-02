@@ -1,19 +1,20 @@
-test_that("Test plot_forecast() works", {
+test_that("forecast plots keep angled date labels clear of the axis title", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng)
   model <- tsgc::SSModelDynamicGompertz$new(Y = get_timeframe(conv$series, conv$series$start, conv$series$start + 49), q = 0.005, calendar = conv$calendar)
   res <- model$estimate()
-  tsgc::plot_forecast(res)
-  expect_equal(1, 1)
-})
 
-test_that("Test plot_log_forecast() works", {
-  data(gauteng, package = "tsgc")
-  conv <- xts_to_idx(gauteng)
-  model <- tsgc::SSModelDynamicGompertz$new(Y = get_timeframe(conv$series, conv$series$start, conv$series$start + 49), q = 0.005, calendar = conv$calendar)
-  res <- model$estimate()
-  tsgc::plot_log_forecast(res, conv$series)
-  expect_equal(1, 1)
+  plots <- list(
+    plot_forecast(res),
+    plot_log_forecast(res, conv$series)
+  )
+  for (p in plots) {
+    expect_equal(p$theme$axis.text.x$angle, 45)
+    expect_equal(p$theme$axis.text.x$hjust, 1)
+    expect_equal(p$theme$axis.text.x$vjust, 1)
+    expect_equal(as.numeric(p$theme$axis.text.x$margin[1]), 6)
+    expect_equal(as.numeric(p$theme$axis.title.x$margin[1]), 18)
+  }
 })
 
 test_that("Test plot_gy_components() works", {
@@ -34,18 +35,22 @@ test_that("Test plot_gy_ci() works", {
   expect_equal(1, 1)
 })
 
-test_that("Test plot_holdout() works", {
+test_that("plot_holdout keeps angled date labels clear of the axis title", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng)
   end.pos <- idx_to_pos(conv$calendar, as.Date("2020-07-20"))
   model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005, end = end.pos, calendar = conv$calendar)
   res <- model$estimate()
   # Plot forecasts and outcomes over evaluation period
-  plot_holdout(res = res, Y = conv$series)
-  expect_equal(1, 1)
+  p <- plot_holdout(res = res, Y = conv$series)
+  expect_equal(p$theme$axis.text.x$angle, 45)
+  expect_equal(p$theme$axis.text.x$hjust, 1)
+  expect_equal(p$theme$axis.text.x$vjust, 1)
+  expect_equal(as.numeric(p$theme$axis.text.x$margin[1]), 6)
+  expect_equal(as.numeric(p$theme$axis.title.x$margin[1]), 18)
 })
 
-test_that("Test plot_compare_forecast() works across two models", {
+test_that("plot_compare_forecast uses the forecast date-label style", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng)
   end.pos <- idx_to_pos(conv$calendar, as.Date("2020-07-20"))
@@ -55,9 +60,32 @@ test_that("Test plot_compare_forecast() works across two models", {
   res1 <- estimate(model1)
   res2 <- estimate(model2)
   
-  expect_no_error(
-    plot_compare_forecast(list(q_fixed = res1, q_estimated = res2), n.ahead = 7)
+  p <- plot_compare_forecast(
+    list(q_fixed = res1, q_estimated = res2), n.ahead = 7
   )
+  expect_equal(p$theme$axis.text.x$angle, 45)
+  expect_equal(p$theme$axis.text.x$hjust, 1)
+  expect_equal(p$theme$axis.text.x$vjust, 1)
+  expect_equal(as.numeric(p$theme$axis.text.x$margin[1]), 6)
+  expect_equal(as.numeric(p$theme$axis.title.x$margin[1]), 18)
+})
+
+test_that("plot.SSModelLeadingIndicator uses the forecast date-label style", {
+  data(england, package = "tsgc")
+  conv <- xts_to_idx(england[, 1:2])
+  model <- SSModelLeadingIndicator$new(
+    conv$series, n.lag = 4, sea.period = 7,
+    start = idx_to_pos(conv$calendar, as.Date("2021-04-30")),
+    end = idx_to_pos(conv$calendar, as.Date("2021-07-24")),
+    calendar = conv$calendar
+  )
+
+  p <- plot(model)
+  expect_equal(p$theme$axis.text.x$angle, 45)
+  expect_equal(p$theme$axis.text.x$hjust, 1)
+  expect_equal(p$theme$axis.text.x$vjust, 1)
+  expect_equal(as.numeric(p$theme$axis.text.x$margin[1]), 6)
+  expect_equal(as.numeric(p$theme$axis.title.x$margin[1]), 18)
 })
 
 test_that("Plots fall back to plain integer x-axis positions when no calendar is supplied", {

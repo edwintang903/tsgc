@@ -148,8 +148,8 @@ NID(0,\sigma_{\varepsilon }^{2}),\;t=2,...,T, & (2)
 \delta_{t} &=\delta_{t-1}+\gamma_{t-1}, & (3)\\
 \gamma_{t} &=\gamma_{t-1}+\zeta_{t},\;\;\; \zeta_{t}\sim
 NID(0,\sigma_{\zeta }^{2}), & (4)
-\end{align} where the disturbances $\varepsilon_{t}$ and $\zeta_{t}$
-are mutually independent, and $NID(0,\sigma^2)$ denotes normally and
+\end{align} where the disturbances $\varepsilon_{t}$ and $\zeta_{t}$ are
+mutually independent, and $NID(0,\sigma^2)$ denotes normally and
 independently distributed with mean zero and variance $\sigma^2$. Note
 that the larger the signal-to-noise ratio,
 $q_{\zeta }=\sigma_{\zeta }^{2}/\sigma_{\varepsilon }^{2}$, the faster
@@ -381,23 +381,23 @@ latent slope $\gamma_T$ given the information available at $T$. Define
 the standardised signal
 $$z_{\gamma,T} = \frac{\hat\gamma_{T\mid T}}{\sqrt{P_{\gamma,T\mid T}}}.$$
 The reinitialization warning is triggered when
-$$z_{\gamma,T} > c_{reinit}, \qquad c_{reinit} = 2,$$
-that is, when $\hat\gamma_{T\mid T}$ exceeds zero by approximately two
-conditional standard deviations. This threshold is an operational rule
-of thumb rather than a fixed statistical decision rule, and can be
-adjusted depending on the noisiness of the data and the desired
-trade-off between early warning and false reinitialization.
+$$z_{\gamma,T} > c_{reinit}, \qquad c_{reinit} = 2,$$ that is, when
+$\hat\gamma_{T\mid T}$ exceeds zero by approximately two conditional
+standard deviations. This threshold is an operational rule of thumb
+rather than a fixed statistical decision rule, and can be adjusted
+depending on the noisiness of the data and the desired trade-off between
+early warning and false reinitialization.
 
 Let $d$ denote the first forecast origin at which this trigger condition
 holds. The reset date $r$ supplied to `reinit.date` is then defined as
 the start of the current positive spell in the smoothed slope estimate
 computed on the sample ending at $d$:
 $$r = \min\{t \le d : \hat\gamma^S_{u\mid d} > 0 \text{ for all } u=t,\ldots,d\},$$
-where $\hat\gamma^S_{u\mid d}$ denotes the smoothed estimate of the slope
-at date $u$, using observations only up to and including date $d$. Thus
-the trigger date $d$ and the reset date $r$ are distinct: $d$ is the
-date on which the warning first fires in real time, whereas $r$ is the
-earlier date at which the cumulative series is reinitialized. In the
+where $\hat\gamma^S_{u\mid d}$ denotes the smoothed estimate of the
+slope at date $u$, using observations only up to and including date $d$.
+Thus the trigger date $d$ and the reset date $r$ are distinct: $d$ is
+the date on which the warning first fires in real time, whereas $r$ is
+the earlier date at which the cumulative series is reinitialized. In the
 notation below, $t=r$ denotes the reset date and $r_0$ the date at which
 the cumulative series is set to 0. Then:
 
@@ -485,8 +485,8 @@ reinitialization. A model object is constructed with
 and its unknown parameters are estimated with the `estimate()` method,
 invoked as `estimate(model)`, which returns an object of the
 `FilterResults` class. This class wraps the underlying `KFAS` `KFS`
-object, together with additional methods for prediction, and an
-optional `idx_calendar` (see below) attached.
+object, together with additional methods for prediction, and an optional
+`idx_calendar` (see below) attached.
 
 The `SSModelDynamicGompertz` needs only a cumulative series `Y` as an
 input, supplied as an `idx_series` object -- an integer-position
@@ -496,42 +496,42 @@ cumulative number of new coronavirus cases. The estimation window is
 specified directly on the model object via the `start` and `end`
 arguments, which are integer positions in `Y` rather than calendar
 dates. There is an option to specify the signal-to-noise ratio
-$q_{\zeta}$, rather than estimate it, and an option to specify the
-model to have a seasonal component through the `sea.period` argument.
-The period of a seasonal component is specified through the
-`sea.period` option.
+$q_{\zeta}$, rather than estimate it, and an option to specify the model
+to have a seasonal component through the `sea.period` argument. The
+period of a seasonal component is specified through the `sea.period`
+option.
 
 `idx_series` positions carry no calendar meaning of their own: they are
 plain integers, and the model, its estimation, and its forecasts are
 defined purely in terms of them. Real calendar time is reintroduced only
 as an optional, purely cosmetic layer for plotting, via an
 `idx_calendar` object passed through the `calendar` argument. An
-`idx_calendar` records an anchor position and the corresponding
-calendar date (or other real-world reference point), together with the
-step size and unit between consecutive positions; it is never consulted
-during estimation or filtering. Supplying a `calendar` therefore changes
+`idx_calendar` records an anchor position and the corresponding calendar
+date (or other real-world reference point), together with the step size
+and unit between consecutive positions; it is never consulted during
+estimation or filtering. Supplying a `calendar` therefore changes
 nothing about the fitted model -- only whether its plots are labelled
 with dates or with raw integer positions. Two helper functions,
 `xts_to_idx()` and `idx_to_pos()`, are provided to ease the transition
 from calendar-time data: the former converts an `xts`/`Date`-indexed
 series into an `idx_series` plus a matching `idx_calendar` in one step,
-and the latter translates a calendar date back into the integer
-position `idx_series` expects for `start`/`end`/`reinit.idx`. Both are
+and the latter translates a calendar date back into the integer position
+`idx_series` expects for `start`/`end`/`reinit.idx`. Both are
 demonstrated in the Illustration section below. Every calendar used in
 this vignette has a step size that is a single, uniform `amount`/`unit`
-pair; `idx_calendar` also supports compound and heterogeneous step
-sizes for series that need them, described in the Appendices
-"Compound calendar steps" and "Heterogeneous repeating cycles" below.
+pair; `idx_calendar` also supports compound and heterogeneous step sizes
+for series that need them, described in the Appendices "Compound
+calendar steps" and "Heterogeneous repeating cycles" below.
 
 The `SSModelDynamicGompertz` class allows the model to be estimated for
 a new wave without losing information from prior waves. It will accept
 the reinitialization position specified by `reinit.idx` (an integer
 position, rather than the calendar date `reinit.date` used previously)
 or a `FilterResults` object from which it can extract the initial
-values. If the user wishes to reinitialize the model without using
-prior information (i.e. treat the new wave as an entirely separate
-epidemic), a reinitialization position can be specified through the
-`reinit.idx` option and `use.presample.info` can be set to `FALSE`.
+values. If the user wishes to reinitialize the model without using prior
+information (i.e. treat the new wave as an entirely separate epidemic),
+a reinitialization position can be specified through the `reinit.idx`
+option and `use.presample.info` can be set to `FALSE`.
 
 The `FilterResults` class contains prediction methods which can be
 applied to estimated dynamic Gompertz curve models (both reinitialized
@@ -561,8 +561,8 @@ Every one of these plotting functions accepts an `axis` argument, of
 class `idx_axis_opts`, which controls how integer positions are
 translated to the x-axis and is described in full in the Appendix
 "Controlling the plot x-axis" below. Left at its default (`NULL`), the
-x-axis reproduces the previous behaviour: real calendar dates whenever
-a suitable `calendar` is attached to the model or results object, and
+x-axis reproduces the previous behaviour: real calendar dates whenever a
+suitable `calendar` is attached to the model or results object, and
 plain integer positions otherwise.
 
 More details on how to use the methods and functions described are
@@ -607,15 +607,15 @@ and diagnostic methods as the `FilterResults` class used for the dynamic
 Gompertz model.
 
 The role of `n.lag` is therefore to align the information in the leading
-series with the target series, in integer positions rather than
-calendar time. If the indicator is known to anticipate the target by
-several periods, a larger lag is appropriate. The package also allows
-the user to supply exogenous covariates through `xpred_lead` and
-`xpred_targ` at estimation time, and their future values by setting the
-`xpred_lead.new` and `xpred_targ.new` fields directly on the fitted
-`FilterResultsLI` object before forecasting, making the model suitable
-for settings where both the lead and target series are influenced by
-observed external drivers.
+series with the target series, in integer positions rather than calendar
+time. If the indicator is known to anticipate the target by several
+periods, a larger lag is appropriate. The package also allows the user
+to supply exogenous covariates through `xpred_lead` and `xpred_targ` at
+estimation time, and their future values by setting the `xpred_lead.new`
+and `xpred_targ.new` fields directly on the fitted `FilterResultsLI`
+object before forecasting, making the model suitable for settings where
+both the lead and target series are influenced by observed external
+drivers.
 
 The empirical benefit of this extension is that it can improve
 short-horizon predictions when the relationship between the two series
@@ -806,9 +806,9 @@ res <- estimate(model)
 
 Before looking at forecasts, it is worth checking that the model
 actually fitted sensibly. `summary()` on a `FilterResults`/
-`FilterResultsLI` object reports the estimation window, model states
-and their standard errors, and the estimated variance parameters
-(including the signal-to-noise ratio); `tsgc::print_model_diagnostics()`
+`FilterResultsLI` object reports the estimation window, model states and
+their standard errors, and the estimated variance parameters (including
+the signal-to-noise ratio); `tsgc::print_model_diagnostics()`
 supplements this with the fitted log-likelihood, a check for estimated
 variances sitting at or near a zero/degenerate boundary, and simple
 recursive-residual diagnostics.
@@ -883,9 +883,11 @@ the forecasts, the MAPE was 27%.
 
 As discussed earlier, the reproduction numbers $R_t$ and their 68%
 approximate pointwise uncertainty bands can be calculated using
-`estimate_r0()`, which returns an `idx_series` of the fitted $R_t$ values
-together with their lower and upper bounds. These can then be plotted
-directly with `plot_r0()`, as shown in Figure 5.
+`estimate_r0()`. It returns a data frame containing the integer
+position, fitted $R_t$, and lower and upper bounds. When the fitted
+result has a calendar, as here, the corresponding date is included as
+well. The estimates can be plotted directly with `plot_r0()`, as shown
+in Figure 5.
 
 ```{r calc_rt}
 gen_int <- 4
@@ -898,15 +900,9 @@ plot_r0(res, gen_int = gen_int, n.ahead = 7,
         title = "Reproduction numbers for the 7-day period to 3 May 2021")
 ```
 
-`estimate_r0()`'s `idx_series` output above is expressed in integer
-positions rather than calendar dates. `estimate_r0_df()` wraps
-`estimate_r0()` and attaches the corresponding calendar dates, returning
-a plain data frame so that the $R_t$ values and their confidence
-interval can be read off directly, without reading them from the plot:
-
-```{r calc_rt_df}
-estimate_r0_df(res, gen_int, n.ahead = 7)
-```
+The dated data frame printed above also makes the $R_t$ values and their
+confidence interval available directly, without having to read them from
+the plot.
 
 A CSV file (`y-forecast`) is written to the directory specified. The
 forecast options specified earlier are retained.
@@ -1211,7 +1207,6 @@ summary(res.eng)
 tsgc::print_model_diagnostics(res.eng)
 ```
 
-
 The fitted object `res.eng` can be used to generate the same forecast
 and holdout panels as for the dynamic Gompertz model.
 
@@ -1252,20 +1247,21 @@ we add contemporaneous weather variables (wind speed, relative humidity,
 temperature, and maximum temperature) to both the lead and target
 equations, and then supply their future values before forecasting. Where
 the previous version of the package required a dedicated
-`supply_xpred.new()` call, the corresponding fields --
-`xpred_lead.new` and `xpred_targ.new` -- are now set directly on the
-fitted `FilterResultsLI` object.
+`supply_xpred.new()` call, the corresponding fields -- `xpred_lead.new`
+and `xpred_targ.new` -- are now set directly on the fitted
+`FilterResultsLI` object.
 
 ***Oracle-forecast caveat.*** The future regressor values supplied below
-are REALISED (observed after the fact) weather from `england_weather_idx`,
-covering the same forecast horizon being predicted -- not an archived
-weather forecast that would actually have been available at the
-forecast origin. This makes the resulting forecast a conditional
-("oracle") exercise, not an operational validation: it shows what the
-model would have predicted GIVEN perfect future weather knowledge, not
-what it would have predicted using information available at the time.
-A genuine operational evaluation would require archived point/ensemble
-weather forecasts as of each origin date, which are not supplied here.
+are REALISED (observed after the fact) weather from
+`england_weather_idx`, covering the same forecast horizon being
+predicted -- not an archived weather forecast that would actually have
+been available at the forecast origin. This makes the resulting forecast
+a conditional ("oracle") exercise, not an operational validation: it
+shows what the model would have predicted GIVEN perfect future weather
+knowledge, not what it would have predicted using information available
+at the time. A genuine operational evaluation would require archived
+point/ensemble weather forecasts as of each origin date, which are not
+supplied here.
 
 ```{r li-xpred}
 data(england_weather_2021, package = "tsgc")
@@ -1307,7 +1303,6 @@ tsgc::plot_forecast(
   series.name = "Hospitalisations"
 )
 ```
-
 
 In practice, the recommended sequence is to establish a sensible lag and
 seasonal specification first, inspect the resulting forecasts, and only
@@ -1467,8 +1462,8 @@ for (i in c(7, 10, 14, 16, 18, 21)) {
 spaced by the forecast horizon itself so evaluation windows do not
 overlap: an earlier SELECTION block used only to choose the lag, and a
 later REPORTING block used only to score the selected lag against the
-benchmarks. Using the same folds for both selection and reporting
-would overstate the selected model's accuracy.
+benchmarks. Using the same folds for both selection and reporting would
+overstate the selected model's accuracy.
 
 ```{r cv-run}
 # cross_val() steps origins FORWARD from est.end by gap each iteration,
@@ -1555,11 +1550,10 @@ remaining rows are Italy-to-UK leading-indicator models at different
 lags. `cv_reporting` is the accuracy figure that should be quoted for
 the selected lag, since it comes from origins that played no role in
 choosing it; `cv_selection` should not itself be read as an accuracy
-claim about the winning lag. Note that this comparison still uses only
-a handful of origins from one epidemic wave and realised (not
-archived) values throughout, so it remains illustrative of the
-`cross_val()` API rather than a general validation of any one lag
-choice.
+claim about the winning lag. Note that this comparison still uses only a
+handful of origins from one epidemic wave and realised (not archived)
+values throughout, so it remains illustrative of the `cross_val()` API
+rather than a general validation of any one lag choice.
 
 ## Extensions: non-epidemiological applications and alternative data frequencies
 
@@ -1746,52 +1740,22 @@ between $\delta_t$ and $\gamma_t$, as well as the covariances between
 $\nu_{1,t},\nu_{2,t},\ldots,\nu_{s^*,t}$, are permitted to be non-zero
 and come directly from $P_{r+1}$.
 
-# Appendix: Validating rendered figures
-
-Zero-byte or undecodable figures can pass a ZIP/Pandoc build silently,
-since neither checks that a referenced image actually decodes. The
-chunk below is intended to be run once after `rmarkdown::render()` on
-this vignette (not during normal knitting, since the output files do
-not yet exist while the document itself is being produced), and checks
-every figure written to the vignette's `_files` figure directory:
-existence, non-zero size, successful PNG decode, and a plausible
-minimum pixel dimension.
-
-```{r validate-figures, eval = FALSE}
-validate_rendered_figures <- function(fig_dir, min_dim = 50) {
-  pngs <- list.files(fig_dir, pattern = "\\.png$", full.names = TRUE, recursive = TRUE)
-  bad <- character(0)
-  for (f in pngs) {
-    sz <- file.info(f)$size
-    ok <- !is.na(sz) && sz > 0
-    if (ok) {
-      dims <- tryCatch(dim(png::readPNG(f))[1:2], error = function(e) NULL)
-      ok <- !is.null(dims) && all(dims >= min_dim)
-    }
-    if (!ok) bad <- c(bad, f)
-  }
-  if (length(bad) > 0) {
-    stop("Empty or undecodable figure(s): ", paste(basename(bad), collapse = ", "))
-  }
-  message("All ", length(pngs), " rendered figures validated.")
-}
-# validate_rendered_figures("tsgc_vignette_files/figure-html")
-```
+# Appendix: How to import data from CSV file
 
 For models that include external regressors, forecasts are conditional
 on future values of those regressors. In this version of the package
-those future values are supplied as an `idx_series`, set directly on
-the fields of a fitted `FilterResults`/`FilterResultsLI` object
-(`xpred.new` for `SSModelDynamicGompertz`, or `xpred_lead.new`/
-`xpred_targ.new` for `SSModelLeadingIndicator`), rather than through the
-`supply_xpred.new()` helper used previously. If the future regressor
-values originate in a CSV file with a `Date` column, the same
-`xts_to_idx()` conversion used elsewhere in this vignette applies: read
-the CSV, convert the date column, coerce to `xts`, and then convert to
-`idx_series` using the model's existing calendar so that the resulting
-positions line up correctly. The following example illustrates this
-using an inline text block for reproducibility; in practice the data
-would normally be read directly from a CSV file.
+those future values are supplied as an `idx_series`, set directly on the
+fields of a fitted `FilterResults`/`FilterResultsLI` object (`xpred.new`
+for `SSModelDynamicGompertz`, or `xpred_lead.new`/ `xpred_targ.new` for
+`SSModelLeadingIndicator`), rather than through the `supply_xpred.new()`
+helper used previously. If the future regressor values originate in a
+CSV file with a `Date` column, the same `xts_to_idx()` conversion used
+elsewhere in this vignette applies: read the CSV, convert the date
+column, coerce to `xts`, and then convert to `idx_series` using the
+model's existing calendar so that the resulting positions line up
+correctly. The following example illustrates this using an inline text
+block for reproducibility; in practice the data would normally be read
+directly from a CSV file.
 
 The examples below assume a Gompertz model has already been fit with a
 weather regressor supplied via `xpred`, producing a `FilterResults`
@@ -1912,11 +1876,11 @@ cases-hospitalisations example above.
 
 Every plotting function in this section so far has left its `axis`
 argument unset, which defaults to `mode = "auto"`: real calendar dates
-if the calendar has `posixct = TRUE` (as in almost every example
-above), otherwise plain integer positions. `idx_axis_opts()` lets you
-override this per plot, and applies uniformly across every
-`plot.*`/`plot_*` function in the package. To keep the comparison
-clear, this section reuses a single plot and simply varies `axis`.
+if the calendar has `posixct = TRUE` (as in almost every example above),
+otherwise plain integer positions. `idx_axis_opts()` lets you override
+this per plot, and applies uniformly across every `plot.*`/`plot_*`
+function in the package. To keep the comparison clear, this section
+reuses a single plot and simply varies `axis`.
 
 ```{r axis-showcase-setup}
 # res/model/estimation.pos.end are re-used, generically-named objects
@@ -1965,10 +1929,10 @@ showcase_axis_plot(idx_axis_opts(mode = "position"))
 
 ## `mode = "steps"`
 
-Steps from the calendar's anchor position
-(`position - anchor_pos`). Since `gauteng_cal` has an `anchor_name`
-set (`"first recorded case"`, added earlier when the calendar was
-built), the axis label uses it automatically.
+Steps from the calendar's anchor position (`position - anchor_pos`).
+Since `gauteng_cal` has an `anchor_name` set (`"first recorded case"`,
+added earlier when the calendar was built), the axis label uses it
+automatically.
 
 ```{r fig-axis-steps, fig.cap = "Steps from the anchor (mode = \"steps\")."}
 showcase_axis_plot(idx_axis_opts(mode = "steps"))
@@ -1990,11 +1954,10 @@ showcase_axis_plot(idx_axis_opts(mode = "time_since"))
 
 ## Adding an info box
 
-Setting `info_box = TRUE` (on any of the modes above) appends a
-caption summarising the calendar: the anchor (and its name, if set),
-the step size/unit, and the pattern. `pattern_n` truncates a long
-pattern to its first `n` values; by default the full pattern is
-shown.
+Setting `info_box = TRUE` (on any of the modes above) appends a caption
+summarising the calendar: the anchor (and its name, if set), the step
+size/unit, and the pattern. `pattern_n` truncates a long pattern to its
+first `n` values; by default the full pattern is shown.
 
 ```{r fig-axis-infobox, fig.cap = "Steps from anchor, with an info box summarising the calendar."}
 showcase_axis_plot(idx_axis_opts(mode = "steps", info_box = TRUE))
@@ -2006,20 +1969,20 @@ weekends skipped), `pattern_n` keeps the caption readable:
 ```{r fig-axis-infobox-truncated, fig.cap = "Info box with pattern truncated to its first 3 values via pattern_n."}
 showcase_axis_plot(idx_axis_opts(mode = "steps", info_box = TRUE, pattern_n = 3))
 ```
+
 # Appendix: Compound calendar steps with `idx_step()` and `idx_calendar_step()`
 
-Every calendar used elsewhere in this vignette is built with the
-primary `idx_calendar()` constructor, whose step size is a single
-`amount`/`unit` pair (e.g. `amount = 1, unit = "days"`, or `amount = 1,
-unit = "quarters"`). This covers the common case where the step
-between consecutive `idx_series` positions is a whole multiple of one
-calendar unit. Some series, however, are genuinely spaced by a
-combination of units that a single `amount`/`unit` pair cannot
-express - for example, a reporting system that timestamps quarterly
-figures a few seconds after the quarter boundary, so that the step is
-"one quarter plus three seconds". `idx_step()` builds this kind of
-compound step, and `idx_calendar_step()` is the `idx_calendar`
-constructor that takes one.
+Every calendar used elsewhere in this vignette is built with the primary
+`idx_calendar()` constructor, whose step size is a single
+`amount`/`unit` pair (e.g. `amount = 1, unit = "days"`, or
+`amount = 1, unit = "quarters"`). This covers the common case where the
+step between consecutive `idx_series` positions is a whole multiple of
+one calendar unit. Some series, however, are genuinely spaced by a
+combination of units that a single `amount`/`unit` pair cannot express -
+for example, a reporting system that timestamps quarterly figures a few
+seconds after the quarter boundary, so that the step is "one quarter
+plus three seconds". `idx_step()` builds this kind of compound step, and
+`idx_calendar_step()` is the `idx_calendar` constructor that takes one.
 
 ```{r appendix-idx-step}
 qtr_step <- idx_step(quarters = 1, seconds = 3)
@@ -2042,30 +2005,29 @@ anchor, as it is for `idx_calendar()` calendars with numeric patterns:
 idx_to_pos(cal_step, idx_to_date(cal_step, 4))
 ```
 
-Any component of an `idx_step` (`years`, `quarters`, `months`,
-`weeks`, `days`, `hours`, `minutes`, `seconds`) left at its default of
-`0` is simply omitted from the step, so `idx_step(days = 1)` is
-equivalent to the `amount = 1, unit = "days"` pairs used throughout
-the main text. `idx_step_add()` is the lower-level function that
-applies a given number of whole steps to an anchor date directly, and
-is what an `idx_calendar_step()`-built calendar uses internally to
-convert positions to dates; it is not usually called directly by
-users of the package; it is available for cases where a step needs
-to be applied outside of an `idx_calendar` altogether.
+Any component of an `idx_step` (`years`, `quarters`, `months`, `weeks`,
+`days`, `hours`, `minutes`, `seconds`) left at its default of `0` is
+simply omitted from the step, so `idx_step(days = 1)` is equivalent to
+the `amount = 1, unit = "days"` pairs used throughout the main text.
+`idx_step_add()` is the lower-level function that applies a given number
+of whole steps to an anchor date directly, and is what an
+`idx_calendar_step()`-built calendar uses internally to convert
+positions to dates; it is not usually called directly by users of the
+package; it is available for cases where a step needs to be applied
+outside of an `idx_calendar` altogether.
 
 # Appendix: Heterogeneous repeating cycles with `multi_step_pattern()` and `idx_calendar_multi_step()`
 
-The `pattern` argument of `idx_calendar()`/`idx_calendar_step()`
-handles a repeating cycle of *different multiples* of one step - e.g.
-a business-day calendar, where four single-day steps (Mon-Thu) are
-followed by a three-day step over the weekend. That still assumes
-every step in the cycle is the same *kind* of step, just scaled
-differently. Some data instead cycle through genuinely different
-kinds of steps - for example, "three days, three days, then one
-month, repeating". `multi_step_pattern()` describes this kind of
-cycle as a sequence of `idx_step` objects, and
-`idx_calendar_multi_step()` is the `idx_calendar` constructor that
-uses it.
+The `pattern` argument of `idx_calendar()`/`idx_calendar_step()` handles
+a repeating cycle of *different multiples* of one step - e.g. a
+business-day calendar, where four single-day steps (Mon-Thu) are
+followed by a three-day step over the weekend. That still assumes every
+step in the cycle is the same *kind* of step, just scaled differently.
+Some data instead cycle through genuinely different kinds of steps - for
+example, "three days, three days, then one month, repeating".
+`multi_step_pattern()` describes this kind of cycle as a sequence of
+`idx_step` objects, and `idx_calendar_multi_step()` is the
+`idx_calendar` constructor that uses it.
 
 ```{r appendix-multi-step}
 cal_multi <- idx_calendar_multi_step(
@@ -2081,9 +2043,8 @@ idx_to_date(cal_multi, 1:6)
 Because the slots in a `multi_step_pattern` can mix calendar-relative
 (e.g. months) and fixed-duration (e.g. days) components, there is no
 closed-form way to collapse the whole cycle into a single numeric
-offset. `idx_to_date()` instead walks one slot at a time from the
-anchor position, and `idx_to_pos()`'s inverse walks the same cycle in
-reverse:
+offset. `idx_to_date()` instead walks one slot at a time from the anchor
+position, and `idx_to_pos()`'s inverse walks the same cycle in reverse:
 
 ```{r appendix-multi-step-inverse}
 idx_to_pos(cal_multi, "2024-02-07")
@@ -2094,21 +2055,21 @@ convert than the other two constructors - each position takes time
 proportional to its distance from the anchor, rather than constant
 time - so it is best reserved for genuinely irregular step sequences
 that the `pattern` argument of the other two constructors cannot
-express. The `"time_since"` axis mode described in the previous
-appendix is also unavailable for this calendar: a `multi_step_pattern`
-has no single `amount` to express an offset in, so `mode = "steps"`
-or `mode = "date"` should be used instead.
+express. The `"time_since"` axis mode described in the previous appendix
+is also unavailable for this calendar: a `multi_step_pattern` has no
+single `amount` to express an offset in, so `mode = "steps"` or
+`mode = "date"` should be used instead.
 
 # Appendix: Non-calendar `idx_calendar` anchors and `idx_offset_to_pos()`
 
 Not every `idx_series` needs a genuine calendar interpretation. An
-`idx_calendar`'s `anchor` can be any single reference point, not just
-a `Date`/`POSIXct` - for example, a plain numeric count of
-picoseconds since the start of an experiment. `idx_offset_to_pos()`
-is the inverse operation for this case: given a value already
-expressed in the anchor's own units, it returns the integer
-`idx_series` position that corresponds to it - the counterpart of
-`idx_to_pos()`, which instead expects a calendar date.
+`idx_calendar`'s `anchor` can be any single reference point, not just a
+`Date`/`POSIXct` - for example, a plain numeric count of picoseconds
+since the start of an experiment. `idx_offset_to_pos()` is the inverse
+operation for this case: given a value already expressed in the anchor's
+own units, it returns the integer `idx_series` position that corresponds
+to it - the counterpart of `idx_to_pos()`, which instead expects a
+calendar date.
 
 ```{r appendix-offset-to-pos}
 cal_ps <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 2.5,
