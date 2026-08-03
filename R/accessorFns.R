@@ -86,7 +86,7 @@ seasonalComp <- function(object) {
 #'                                     calendar = conv$calendar,
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
-#' att(output(res))
+#' tsgc:::att(output(res))
 att <- function(object) {
   object$att
 }
@@ -108,7 +108,7 @@ att <- function(object) {
 #'                                     calendar = conv$calendar,
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
-#' Ptt(output(res))
+#' tsgc:::Ptt(output(res))
 Ptt <- function(object) {
   object$Ptt
 }
@@ -148,6 +148,7 @@ get_V <- function(object) {
 #' e.g. `"H"`, `"T"`, `"R"`, `"Q"`.
 #'
 #' @returns The requested matrix.
+#' 
 #'
 #' @examples
 #' library(tsgc)
@@ -157,7 +158,7 @@ get_V <- function(object) {
 #'                                     calendar = conv$calendar,
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
-#' matrixKFS(output(res), "Z")
+#' tsgc:::matrixKFS(output(res), "Z")
 matrixKFS <- function(object, matrix) {
   modelKFS(object)[[matrix]]
 }
@@ -170,6 +171,7 @@ matrixKFS <- function(object, matrix) {
 #' @param object An `SSModel` object.
 #'
 #' @returns The time series `y`.
+#' 
 #'
 #' @examples
 #' library(tsgc)
@@ -179,7 +181,7 @@ matrixKFS <- function(object, matrix) {
 #'                                     calendar = conv$calendar,
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
-#' gety(modelKFS(output(res)))
+#' tsgc:::gety(modelKFS(output(res)))
 gety <- function(object) {
   object$y
 }
@@ -192,6 +194,7 @@ gety <- function(object) {
 #' @param object An object returned by `predict_all`.
 #'
 #' @returns The predicted values `y.hat`.
+#' 
 #'
 #' @examples
 #' library(tsgc)
@@ -202,7 +205,7 @@ gety <- function(object) {
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
 #' all_predictions <- res$predict_all(n.ahead = 7)
-#' gety.hat(all_predictions)
+#' tsgc:::gety.hat(all_predictions)
 gety.hat <- function(object) {
   object$y.hat
 }
@@ -215,6 +218,7 @@ gety.hat <- function(object) {
 #' @param object A `KFS` object.
 #'
 #' @returns The smoothed state estimates `alphahat`.
+#' 
 #'
 #' @examples
 #' library(tsgc)
@@ -224,7 +228,7 @@ gety.hat <- function(object) {
 #'                                     calendar = conv$calendar,
 #'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' res <- estimate(model)
-#' alphahat(output(res))
+#' tsgc:::alphahat(output(res))
 alphahat <- function(object) {
   object$alphahat
 }

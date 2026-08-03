@@ -25,5 +25,5 @@ model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
 all_predictions <- res$predict_all(n.ahead = 7)
-gety.hat(all_predictions)
+tsgc:::gety.hat(all_predictions)
 }

@@ -28,5 +28,5 @@ model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
                                     calendar = conv$calendar,
                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-matrixKFS(output(res), "Z")
+tsgc:::matrixKFS(output(res), "Z")
 }
