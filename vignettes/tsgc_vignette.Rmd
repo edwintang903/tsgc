@@ -389,7 +389,7 @@ depending on the noisiness of the data and the desired trade-off between
 early warning and false reinitialization.
 
 Let $d$ denote the first forecast origin at which this trigger condition
-holds. The reset date $r$ supplied to `reinit.date` is then defined as
+holds. The reset date $r$ is then defined as
 the start of the current positive spell in the smoothed slope estimate
 computed on the sample ending at $d$:
 $$r = \min\{t \le d : \hat\gamma^S_{u\mid d} > 0 \text{ for all } u=t,\ldots,d\},$$
