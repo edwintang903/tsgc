@@ -17,9 +17,12 @@ Accessor method to print a short description for the objects of
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
 # Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 # Estimate a specified model
 res <- estimate(model)
 

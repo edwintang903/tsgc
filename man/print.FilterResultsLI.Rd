@@ -17,10 +17,14 @@ Accessor method to print a short description for the objects of
 }
 \examples{
 library(tsgc)
+data(england, package = "tsgc")
+conv <- xts_to_idx(england[, 1:2])
 
-out_eng <- tsgc::SSModelLeadingIndicator(
-Y = england[, 1:2], n.lag = 4, sea.period = 7,
-start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+out_eng <- SSModelLeadingIndicator(
+  Y = conv$series, n.lag = 4, sea.period = 7, LeadIndCol = 1,
+  calendar = conv$calendar,
+  start = idx_to_pos(conv$calendar, "2021-04-30"),
+  end = idx_to_pos(conv$calendar, "2021-07-24"))
 
 res_eng<-estimate(out_eng)
 print(res_eng) 

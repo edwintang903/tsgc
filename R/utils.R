@@ -975,11 +975,15 @@ check_variance_boundary <- function(..., boundary_tol = 1e-6) {
 #' 
 #' @examples
 #' library(tsgc)
-#' 
+#' data(england, package = "tsgc")
+#' conv <- xts_to_idx(england[, 1:2])
+#'
 #' # Specify a model
-#' out_eng <- tsgc::SSModelLeadingIndicator(
-#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
-#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' out_eng <- SSModelLeadingIndicator(
+#'   Y = conv$series, n.lag = 4, sea.period = 7, LeadIndCol = 1,
+#'   calendar = conv$calendar,
+#'   start = idx_to_pos(conv$calendar, "2021-04-30"),
+#'   end = idx_to_pos(conv$calendar, "2021-07-24"))
 #' 
 #' # Print a short description of the model object
 #' print(out_eng)
@@ -1002,11 +1006,15 @@ print.SSModelLeadingIndicator <- function(x, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' 
+#' data(england, package = "tsgc")
+#' conv <- xts_to_idx(england[, 1:2])
+#'
 #' # Specify a model
-#' out_eng <- tsgc::SSModelLeadingIndicator(
-#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
-#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' out_eng <- SSModelLeadingIndicator(
+#'   Y = conv$series, n.lag = 4, sea.period = 7, LeadIndCol = 1,
+#'   calendar = conv$calendar,
+#'   start = idx_to_pos(conv$calendar, "2021-04-30"),
+#'   end = idx_to_pos(conv$calendar, "2021-07-24"))
 #' 
 #' summary(out_eng)
 #' 
@@ -1026,11 +1034,13 @@ summary.SSModelLeadingIndicator <- function(object, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
-#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#' data(gauteng, package = "tsgc")
+#' conv <- xts_to_idx(gauteng)
 #'
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-06"))
 #' 
 #' # Print a short description of the model object
 #' print(model)
@@ -1050,11 +1060,13 @@ print.SSModelDynamicGompertz <- function(x, ...) {
 #' @method summary SSModelDynamicGompertz
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
-#' idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
+#' data(gauteng, package = "tsgc")
+#' conv <- xts_to_idx(gauteng)
 #'
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-06"))
 #' 
 #' # Show summary of the model object
 #' summary(model)
@@ -1075,9 +1087,12 @@ summary.SSModelDynamicGompertz <- function(object, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
+#' data(gauteng, package = "tsgc")
+#' conv <- xts_to_idx(gauteng)
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' # Estimate a specified model
 #' res <- estimate(model)
 #' 
@@ -1100,9 +1115,12 @@ summary.FilterResults <- function(object, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
+#' data(gauteng, package = "tsgc")
+#' conv <- xts_to_idx(gauteng)
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
+#' model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+#'                                     calendar = conv$calendar,
+#'                                     end = idx_to_pos(conv$calendar, "2020-07-20"))
 #' # Estimate a specified model
 #' res <- estimate(model)
 #' 
@@ -1125,10 +1143,14 @@ print.FilterResults <- function(x, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' 
-#' out_eng <- tsgc::SSModelLeadingIndicator(
-#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
-#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' data(england, package = "tsgc")
+#' conv <- xts_to_idx(england[, 1:2])
+#'
+#' out_eng <- SSModelLeadingIndicator(
+#'   Y = conv$series, n.lag = 4, sea.period = 7, LeadIndCol = 1,
+#'   calendar = conv$calendar,
+#'   start = idx_to_pos(conv$calendar, "2021-04-30"),
+#'   end = idx_to_pos(conv$calendar, "2021-07-24"))
 #' 
 #' res_eng<-estimate(out_eng)
 #' summary(res_eng)
@@ -1149,10 +1171,14 @@ summary.FilterResultsLI <- function(object, ...) {
 #' 
 #' @examples
 #' library(tsgc)
-#' 
-#' out_eng <- tsgc::SSModelLeadingIndicator(
-#' Y = england[, 1:2], n.lag = 4, sea.period = 7,
-#' start.date = as.Date("2021-04-30"), end.date = as.Date("2021-07-24"))
+#' data(england, package = "tsgc")
+#' conv <- xts_to_idx(england[, 1:2])
+#'
+#' out_eng <- SSModelLeadingIndicator(
+#'   Y = conv$series, n.lag = 4, sea.period = 7, LeadIndCol = 1,
+#'   calendar = conv$calendar,
+#'   start = idx_to_pos(conv$calendar, "2021-04-30"),
+#'   end = idx_to_pos(conv$calendar, "2021-07-24"))
 #' 
 #' res_eng<-estimate(out_eng)
 #' print(res_eng) 
