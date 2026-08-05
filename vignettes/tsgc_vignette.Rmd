@@ -1034,7 +1034,7 @@ ggplot(data = d2.df,
              color = "black",linewidth = 1)+
   geom_vline(data = trigger.df,
              aes(xintercept = Date),
-             linetype = "solid", size = .5,
+             linetype = "solid", linewidth = .5,
              color = "black")+
   ylab("Slope") +
   scale_x_date(date_breaks = "10 days") +
