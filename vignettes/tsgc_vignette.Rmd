@@ -15,9 +15,6 @@ editor_options:
 ---
 
 ```{r setup, include = FALSE}
-# NOTE: warnings are shown (not globally suppressed), so that "rows
-# removed" and similar notices are visible and can be understood and
-# handled locally rather than hidden.
 knitr::opts_chunk$set(message = FALSE, warning = TRUE, fig.width = 7,
                       fig.height = 7)
 
