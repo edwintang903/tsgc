@@ -967,8 +967,6 @@ res <- estimate(model)
 
 # Extract the smoothed slope and its standard deviation as idx_series,
 # then convert to a data.frame with real dates for plotting.
-# Use the smoothed-state covariance V (matched to smoothed alphahat),
-# not output$P (filtered Ptt) -- see accompanying critical assessment.
 smoothed.slope.full <- idx_series(res$output$alphahat[, "slope"], start = res$index[1])
 V.smoothed <- get_V(res$output)
 i.slope <- grep("slope", colnames(res$output$alphahat))
@@ -997,9 +995,7 @@ d2.df <- data.frame(
 d2.df <- d2.df[d2.df$Date >= as.Date("2021-02-15"), ]
 
 # zt = smoothed slope minus its own two-standard-error threshold (the
-# lower bound of the two-SE interval). Trigger = sign change in zt
-# itself, not a comparison of lagged slope against the current
-# threshold (not equivalent once the SE changes over time).
+# lower bound of the two-SE interval).
 d2.df$zt <- d2.df$smoothed.slope - d2.df$sd.smoothed.slope.2
 
 trigger.df <- d2.df %>%
@@ -1013,9 +1009,7 @@ reinit_zero.df <- d2.df %>%
            (smoothed.slope > 0 & prev_smoothed.slope < 0)) %>%
   arrange(desc(Date)) %>%
   slice(1)
-# Reinitialisation on April 21. NOTE: this reset date is selected
-# retrospectively from a single episode/forecast origin and does not
-# validate the reinitialisation rule as a general real-time trigger.
+# Reinitialisation on April 21.
 
 # Create plot
 ggplot(data = d2.df,
@@ -1242,23 +1236,13 @@ tsgc::plot_holdout(
 The same specification can be enriched with exogenous predictors. Here
 we add contemporaneous weather variables (wind speed, relative humidity,
 temperature, and maximum temperature) to both the lead and target
-equations, and then supply their future values before forecasting. Where
-the previous version of the package required a dedicated
-`supply_xpred.new()` call, the corresponding fields -- `xpred_lead.new`
-and `xpred_targ.new` -- are now set directly on the fitted
-`FilterResultsLI` object.
+equations, and then supply their future values before forecasting.
 
-***Oracle-forecast caveat.*** The future regressor values supplied below
-are REALISED (observed after the fact) weather from
-`england_weather_idx`, covering the same forecast horizon being
-predicted -- not an archived weather forecast that would actually have
-been available at the forecast origin. This makes the resulting forecast
-a conditional ("oracle") exercise, not an operational validation: it
-shows what the model would have predicted GIVEN perfect future weather
-knowledge, not what it would have predicted using information available
-at the time. A genuine operational evaluation would require archived
-point/ensemble weather forecasts as of each origin date, which are not
-supplied here.
+[^4]: Note that these weather variables are realised weather covering
+the forecast horizon being predicted, rather than an archived forecast
+available at the time of the forecast origin which could potentially induce
+look-ahead bias. This exercise is purely to illustrate the capabilities of the
+`tsgc` package.
 
 ```{r li-xpred}
 data(england_weather_2021, package = "tsgc")
@@ -1280,13 +1264,6 @@ mod.eng.x <- SSModelLeadingIndicator$new(
   calendar = eng_cal
 )
 res.eng.x <- estimate(mod.eng.x)
-
-# *** ORACLE-FORECAST CAVEAT ***
-# england_weather_idx covers the forecast horizon itself, so this
-# supplies REALISED (observed) weather over that horizon, not an
-# archived forecast that would have been available at the forecast
-# origin. Figures below are conditional/oracle forecasts, not an
-# operational validation -- see prose above.
 res.eng.x$xpred_lead.new <- england_weather_idx
 res.eng.x$xpred_targ.new <- england_weather_idx
 ```
@@ -1361,10 +1338,6 @@ res.uk.gomp <- estimate(mod.uk.gomp)
 ```
 
 ```{r uk-lead}
-# NOTE: n.lag.uk = 14 here is illustrative (motivated by observed
-# first-wave timing) and precedes the systematic lag comparison below,
-# which selects its lag from data using disjoint selection/reporting
-# folds. This fixed value is not justified by that comparison.
 n.lag.uk <- 14
 mod.uk.lead <- SSModelLeadingIndicator$new(
   Y = ukitaly_idx, n.lag = n.lag.uk, sea.period = 7,
@@ -1405,19 +1378,13 @@ alignment lag per fitted model, this should be read as model selection
 over alternative alignments, not as estimation of a distributed-lag
 response.
 
+The following cross-validation loop tests lags up to $k=21$. We must take care
+to set the estimation end date in the selection part to give us a sufficiently 
+long window to estimate the models with longer lags in the cross-validation 
+selection part. This estimation window ends later than the estimation window 
+used for this data earlier in this vignette.
+
 ```{r cv-models}
-# The CV loop below tests n.lag up to 21. SSModelLeadingIndicator$estimate()
-# shifts the leading-indicator columns forward by n.lag positions before
-# differencing, which shrinks the range of usable (non-missing) rows by
-# roughly n.lag + 1 positions from the start of the window. The shared
-# est.start.uk/est.end.uk window (36 days) leaves too little room for the
-# SELECTION block once disjointness from REPORTING is also enforced: the
-# highest lags (16, 18, 21) then have no valid estimation positions left in
-# the SELECTION block and estimate() errors with "start is after end". A
-# separate, wider est.end.cv.uk window is used for the CV section only, so
-# the SELECTION block has enough margin for n.lag = 21; est.end.uk itself is
-# left untouched since other models earlier in this vignette are estimated
-# on that shorter window intentionally.
 est.end.cv.uk <- idx_to_pos(ukitaly_cal, "2020-04-15")
 
 cv_models <- list()
@@ -1455,26 +1422,14 @@ for (i in c(7, 10, 14, 16, 18, 21)) {
 }
 ```
 
-`cross_val()` is run twice with **disjoint** sets of forecast origins,
+`cross_val()` is run twice with disjoint sets of forecast origins,
 spaced by the forecast horizon itself so evaluation windows do not
-overlap: an earlier SELECTION block used only to choose the lag, and a
-later REPORTING block used only to score the selected lag against the
+overlap: an earlier selection block used only to choose the lag, and a
+later reporting block used only to score the selected lag against the
 benchmarks. Using the same folds for both selection and reporting would
 overstate the selected model's accuracy.
 
 ```{r cv-run}
-# cross_val() steps origins FORWARD from est.end by gap each iteration,
-# not backward. cv_models above is now built on the wider est.end.cv.uk
-# window (2020-04-15), not est.end.uk (2020-04-01), specifically so the
-# SELECTION block has enough usable positions left for n.lag = 21 after
-# SSModelLeadingIndicator's lag-shift + differencing (see the comment in
-# the cv-models chunk). Both the SELECTION and REPORTING blocks are laid
-# out to forward-step within that wider window, with REPORTING's forecast
-# horizon landing exactly at est.end.cv.uk and SELECTION's last forecast
-# horizon finishing strictly before REPORTING's origin (not merely before
-# REPORTING's forecast horizon), so the two blocks share no origin and no
-# forecast window - verified by the stopifnot() below, not asserted by
-# comment alone.
 n.ahead.cv  <- 5
 gap.cv      <- n.ahead.cv   # non-overlapping horizons
 n.select.cv <- 2
@@ -1484,9 +1439,7 @@ report.end.cv <- est.end.cv.uk - (n.report.cv - 1) * gap.cv - n.ahead.cv
 # The last SELECTION origin is select.end.cv + (n.select.cv-1)*gap.cv,
 # with its forecast horizon reaching + n.ahead.cv further. Requiring
 # that to finish strictly before the REPORTING origin (report.end.cv)
-# means subtracting n.select.cv * gap.cv (not a single gap.cv) below -
-# subtracting only one gap.cv left the last SELECTION fold's forecast
-# horizon landing exactly ON report.end.cv (touching, not disjoint).
+# means subtracting n.select.cv * gap.cv.
 select.end.cv <- report.end.cv - n.select.cv * gap.cv - n.ahead.cv
 stopifnot(select.end.cv > est.start.uk)
 
@@ -1500,9 +1453,7 @@ stopifnot(last_selection_horizon_end < report.end.cv)
 # estimate() needs at least n.lag + 2 usable positions from est.start.uk
 # before the SELECTION block's origin (n.lag positions consumed by the
 # forward lag-shift, plus at least 1-2 more lost to differencing/NA
-# trimming). This turns an opaque "start is after end" error from deep
-# inside estimate() into an explicit, early, diagnosable failure if the
-# window is ever narrowed again.
+# trimming).
 max_lag_cv <- 21
 stopifnot(select.end.cv - est.start.uk > max_lag_cv + 1)
 
@@ -1740,13 +1691,8 @@ and come directly from $P_{r+1}$.
 # Appendix: How to import data from CSV file
 
 For models that include external regressors, forecasts are conditional
-on future values of those regressors. In this version of the package
-those future values are supplied as an `idx_series`, set directly on the
-fields of a fitted `FilterResults`/`FilterResultsLI` object (`xpred.new`
-for `SSModelDynamicGompertz`, or `xpred_lead.new`/ `xpred_targ.new` for
-`SSModelLeadingIndicator`), rather than through the `supply_xpred.new()`
-helper used previously. If the future regressor values originate in a
-CSV file with a `Date` column, the same `xts_to_idx()` conversion used
+on future values of those regressors. If the future regressor values originate 
+in a CSV file with a `Date` column, the same `xts_to_idx()` conversion used
 elsewhere in this vignette applies: read the CSV, convert the date
 column, coerce to `xts`, and then convert to `idx_series` using the
 model's existing calendar so that the resulting positions line up
@@ -1881,13 +1827,7 @@ reuses a single plot and simply varies `axis`.
 
 ```{r axis-showcase-setup}
 # res/model/estimation.pos.end are re-used, generically-named objects
-# earlier in this vignette: by this point in the document, `res` has
-# already been reassigned by the Reinitialization section above (to
-# the longer-window, 25-June re-estimate), so it no longer refers to
-# the original fixed-q Figure 3 model (estimation ending 3 May 2021).
-# Re-fit that original specification explicitly under its own name so
-# this section's figures do not silently depend on what the ambient
-# `res` object happens to hold by this point in the document.
+# earlier in this vignette.
 res.axis.demo <- estimate(
   SSModelDynamicGompertz$new(Y = Y, q = q, sea.period = 7,
                              start = estimation.pos.start,
