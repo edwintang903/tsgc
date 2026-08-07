@@ -708,7 +708,7 @@ test_that("'date' axis mode is still permitted (calendar is present) but plots a
   end.pos <- idx_to_pos(conv$calendar, as.Date("2020-07-20"))
   model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005, end = end.pos, calendar = cal_np)
   res <- estimate(model)
-  .
+  
   expect_no_error(plot_forecast(res, axis = idx_axis_opts(mode = "date")))
   
   df <- idx_series_df(conv$series, cal_np, idx_axis_opts(mode = "date"))

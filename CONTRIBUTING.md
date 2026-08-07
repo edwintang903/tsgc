@@ -63,4 +63,4 @@ By contributing to this project, you agree to abide by its terms.
 ## Questions
 
 For anything not covered above, or if you're unsure where to start, please
-contact <a href="mailto:p.kattuman@jbs.cam.ac.uk">Paul Kattuman</a>.
+contact <a href="mailto:mwa22@cam.ac.uk">Michael Ashby</a>.

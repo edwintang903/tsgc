@@ -523,7 +523,7 @@ calendar steps" and "Heterogeneous repeating cycles" below.
 The `SSModelDynamicGompertz` class allows the model to be estimated for
 a new wave without losing information from prior waves. It will accept
 the reinitialization position specified by `reinit.idx` (an integer
-position, rather than the calendar date `reinit.date` used previously)
+position)
 or a `FilterResults` object from which it can extract the initial
 values. If the user wishes to reinitialize the model without using prior
 information (i.e. treat the new wave as an entirely separate epidemic),
@@ -558,7 +558,7 @@ Every one of these plotting functions accepts an `axis` argument, of
 class `idx_axis_opts`, which controls how integer positions are
 translated to the x-axis and is described in full in the Appendix
 "Controlling the plot x-axis" below. Left at its default (`NULL`), the
-x-axis reproduces the previous behaviour: real calendar dates whenever a
+x-axis uses real calendar dates whenever a
 suitable `calendar` is attached to the model or results object, and
 plain integer positions otherwise.
 
@@ -664,12 +664,12 @@ follows.
 data(gauteng, package = "tsgc")
 ```
 
-The modelling code in this version of the package works with
-`idx_series` (integer-position data) rather than directly with `xts`
-objects, so that estimation and forecasting are defined purely in terms
-of position, independent of calendar frequency or gaps. Calendar time is
-reintroduced only for plotting, via an optional `idx_calendar` that
-records how integer positions map back to real dates. `xts_to_idx()`
+The modelling code works with `idx_series` (integer-position data)
+rather than directly with `xts` objects, so that estimation and
+forecasting are defined purely in terms of position, independent of
+calendar frequency or gaps. Calendar time is reintroduced only for
+plotting, via an optional `idx_calendar` that records how integer
+positions map back to real dates. `xts_to_idx()`
 performs this conversion in one step for the common case of a series
 with no gaps, returning both the `idx_series` and a matching
 `idx_calendar`; `idx_to_pos()` is its companion for translating a
@@ -1061,9 +1061,8 @@ reinit.pos <- idx_to_pos(cal, "2021-04-21")
 ### Estimating the reinitialized model
 
 A reinitialized `SSModelDynamicGompertz` uses the same arguments as the
-non-reinitialized model, with the addition of the `reinit.idx` argument
--- an integer position, in place of the calendar date `reinit.date` used
-previously.
+non-reinitialized model, with the addition of the `reinit.idx` argument, 
+an integer position.
 
 ```{r reinit_estim}
 model <- SSModelDynamicGompertz$new(

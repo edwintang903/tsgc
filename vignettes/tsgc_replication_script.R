@@ -57,7 +57,7 @@
 #
 # ==========================================
 #
-# This version of the script works with `idx_series` (integer-position
+# This script works with `idx_series` (integer-position
 # data) rather than directly with `xts` objects: estimation and
 # forecasting are defined purely in terms of position, independent of
 # calendar frequency or gaps. Calendar time is reintroduced only for
@@ -219,13 +219,7 @@ ensure_dir <- function(path) {
 invisible(lapply(list(results_dir, tables_dir, images_dir), ensure_dir))
 
 # ---- 1.4b Reproducibility: session/dependency snapshot ----
-# Moved here (from just after the tsgc version/commit check in Section
-# 1.2b) so it runs after ensure_dir(), results_dir, and base_path are
-# actually defined. Previously this block referenced all three before
-# their definitions later in the script, so with SAVE_TABLES = TRUE it
-# would fail immediately with "could not find function 'ensure_dir'" /
-# "object 'results_dir' not found", rather than ever reaching the
-# sessionInfo()/renv::snapshot() calls it exists to run.
+# Runs after ensure_dir(), results_dir, and base_path are defined.
 if (SAVE_TABLES) {
   ensure_dir(results_dir)
   writeLines(
@@ -269,8 +263,8 @@ safe_ggsave <- function(plot, filename, width = FIG_WIDTH,
 # maintained SAVE_PLOTS check here. With the default SAVE_PLOTS = FALSE,
 # no file is written and validate_saved_figure() is correctly skipped;
 # whenever SAVE_PLOTS = TRUE, every saved figure is validated
-# unconditionally, so the previously-missed zero-byte-figure case is
-# always caught, not only when a second flag happens to also be TRUE.
+# unconditionally, so a zero-byte figure is always caught, not only
+# when a second flag happens to also be TRUE.
 save_plot <- function(p, fname = NULL) {
   print(p)
   if (!is.null(fname) && inherits(p, "ggplot")) {
@@ -283,11 +277,8 @@ save_plot <- function(p, fname = NULL) {
 
 # Validate that a saved figure actually rendered: the file must exist,
 # be non-empty, decode as an image, and exceed a plausible minimum
-# pixel size. Two previously rendered figures
-# (3-1-estimation-with-regressors-xpred-4.png and
-# 8-5-annual-3ds-3.png) were zero bytes despite the ZIP/Pandoc build
-# succeeding, so a positive file size alone is not sufficient; the file
-# must also decode.
+# pixel size. A positive file size alone is not sufficient to confirm
+# a figure rendered correctly; the file must also decode.
 validate_saved_figure <- function(filepath, min_dim = 50) {
   if (!file.exists(filepath)) {
     stop("Figure was not created: ", filepath)
@@ -314,17 +305,16 @@ validate_saved_figure <- function(filepath, min_dim = 50) {
 }
 
 # ---- 1.5b Model Diagnostics Helper ----
-# print_model_diagnostics() now lives in the package (utils.R) rather
-# than being defined locally in this script, since it operates purely
-# on public FilterResults/FilterResultsLI accessors and is generically
-# useful, not specific to this replication exercise. It reports the
-# log-likelihood, a matrix-safe variance-boundary check (via
+# print_model_diagnostics() lives in the package (utils.R). It operates
+# purely on public FilterResults/FilterResultsLI accessors and is
+# generically useful, not specific to this replication exercise. It
+# reports the log-likelihood, a matrix-safe variance-boundary check (via
 # check_variance_boundary(), also in utils.R), and recursive-residual
 # diagnostics - none of which summary() on these classes reports.
 
 # ---- 1.6 CSV Export Helpers ----
 # Define CSV-export helpers for forecasts, filtered states, growth rates, R_t outputs, and the manifest used to document exported files.
-# Since estimation now works on idx_series (integer positions) rather
+# Since estimation works on idx_series (integer positions) rather
 # than xts, and models carry an optional idx_calendar, dates for export
 # are recovered via idx_to_date(calendar, idx_positions(x)) when a
 # calendar is available, falling back to raw integer positions otherwise.
@@ -815,9 +805,8 @@ gauteng_weather_future <- get_timeframe(
   est.end.1 + n.forecasts
 )
 
-# Supply these future regressors to the fitted model. Where the
-# previous version of the package required a dedicated
-# supply_xpred.new() call, the xpred.new field is now set directly on
+# Supply these future regressors to the fitted model. The 
+# xpred.new field is set directly on
 # the fitted FilterResults object.
 res_weather$xpred.new <- gauteng_weather_future
 
@@ -1012,8 +1001,8 @@ if (SAVE_TABLES) {
   message("Saved gauteng_gompertz_q005_rt.csv")
 }
 
-# Build the R_t plot explicitly (estimate_r0() no longer takes a
-# show_plot/title argument).
+# Build the R_t plot explicitly, since estimate_r0() does not take a
+# show_plot/title argument.
 fit <- lower <- upper <- NULL
 p <- ggplot(data.frame(x = r.t.df$Date, fit = r.t.df$Rt,
                        lower = r.t.df[[3]], upper = r.t.df[[4]]),
@@ -1269,8 +1258,6 @@ save_plot(p_trigger, "gauteng_cases_gomp_q005_reinit_trigger.png")
 reinit.pos <- idx_to_pos(gauteng_cal, as.Date("2021-04-21"))
 
 # Fit the dynamic Gompertz model with reinitialisation activated at the selected position.
-# reinit.idx (an integer position) replaces the previous reinit.date
-# (calendar-date) argument.
 model_reinit <- tsgc::SSModelDynamicGompertz(  
   Y = cumulative_cases, q = q.default,
   start = est.start.1, end = est.end.2,
@@ -1439,10 +1426,7 @@ res_eng_x <- tsgc::estimate(mod_eng_x)
 summary(res_eng_x)
 tsgc::print_model_diagnostics(res_eng_x)
 
-# Supply future regressors for the lead and target equations. Where the
-# previous version required a supply_xpred.new(idx = "lead"/"targ")
-# call, the corresponding fields are now set directly on the fitted
-# FilterResultsLI object.
+# Supply future regressors for the lead and target equations. 
 res_eng_x$xpred_lead.new <- england_weather_idx
 res_eng_x$xpred_targ.new <- england_weather_idx
 
@@ -1638,13 +1622,8 @@ report.end.cv <- est.end.cv - (n.report.cv - 1) * gap.cv - n.ahead.cv
 #   select.end.cv + (n.select.cv - 1)*gap.cv + n.ahead.cv < report.end.cv
 # i.e.
 #   select.end.cv < report.end.cv - (n.select.cv - 1)*gap.cv - n.ahead.cv
-# An earlier version subtracted only one gap.cv + n.ahead.cv regardless
-# of n.select.cv, which for n.select.cv = 2 made the last SELECTION
-# fold's forecast horizon land EXACTLY on report.end.cv (touching, not
-# disjoint - the REPORTING model's estimation window would then include
-# the same day used to score the SELECTION-winning model). Subtracting
-# n.select.cv * gap.cv (rather than a single gap.cv) leaves a full
-# extra gap between the last SELECTION horizon and the REPORTING
+# Subtracting n.select.cv * gap.cv (rather than a single gap.cv) leaves
+# a full extra gap between the last SELECTION horizon and the REPORTING
 # origin, giving strict separation for any n.select.cv/n.report.cv.
 select.end.cv <- report.end.cv - n.select.cv * gap.cv - n.ahead.cv
 stopifnot(select.end.cv > est.start)
@@ -2440,13 +2419,9 @@ tsgc::idx_offset_to_pos(cal_ps, 12.5)
 # positions are still worth translating to and from the anchor's own
 # numeric scale.
 
-#' 
 # Wrap-up
 # Validate every figure written to images_dir this run: must exist,
 # be non-empty, decode as a PNG, and exceed a plausible minimum size.
-# This is what should have caught the two previously empty figures
-# (3-1-estimation-with-regressors-xpred-4.png, 8-5-annual-3ds-3.png)
-# despite the ZIP/Pandoc build reporting success.
 if (SAVE_PLOTS) {
   saved_figs <- list.files(images_dir, pattern = "\\.png$", full.names = TRUE)
   bad <- character(0)

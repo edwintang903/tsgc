@@ -54,7 +54,6 @@ Suggests:
     latex2exp,
     here,
     testthat,
-    kableExtra,
     dplyr,
     ggthemes
 Config/testthat/edition: 3
@@ -68,7 +67,8 @@ Imports:
     methods,
     abind,
     purrr,
-    scales
+    scales,
+    kableExtra
 BugReports: https://github.com/edwintang903/tsgc/issues
 Depends:
     R (>= 3.5.0)

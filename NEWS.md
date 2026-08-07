@@ -2,69 +2,112 @@
 
 ## Breaking changes
 
-* The internal computational engine no longer relies on `xts`/`zoo` for
-  representing time series during estimation and filtering. Series are now
-  represented internally with a new, lightweight `idx_series` class, and
-  calendar handling is provided by a companion `idx_calendar` class. This is
-  purely an internal architectural change for most users, but code that
-  relied on the internal (non-exported) representation of series may need
-  to be updated.
-* The `plot()` method has been removed from the `SSModelDynamicGompertz`
-  and `SSModelLeadingIndicator` R6 classes. Plotting is now handled
+* Internal computation no longer relies on `xts`/`zoo`. Series used during
+  estimation and filtering are now represented with a new, dependency-free
+  `idx_series` class, with calendar handling provided by a companion
+  `idx_calendar` class. Bundled datasets are unaffected and remain `xts`
+  objects; `xts_to_idx()` is provided to convert user-supplied `xts`/`zoo`
+  data to `idx_series` where needed. Code that relied on the internal
+  (non-exported) representation of series may need to be updated.
+
+* `SSModelDynGompertzReinit` has been removed. Its functionality is now
+  provided directly by `SSModelDynamicGompertz` via the `reinit.idx`,
+  `original.results`, and `use.presample.info` fields, so a single class
+  now covers both the standard and reinitialised model. `SSModelBase` has
+  also been removed, with its logic folded into `SSModelDynamicGompertz`.
+
+* `plot()` methods have been removed from the `SSModelDynamicGompertz` and
+  `SSModelLeadingIndicator` reference classes. Plotting is now handled
   exclusively via the S3 methods `plot.SSModelDynamicGompertz()` and
   `plot.SSModelLeadingIndicator()`, which continue to work with the usual
   `plot(model, ...)` syntax.
-* The `timetk` package is no longer a dependency.
-* `estimate_r0()` now returns a data frame, including dates from
-  `res$calendar` when available. The redundant `estimate_r0_df()` wrapper
-  has been removed.
+
+* In `FilterResults`, the `confidence_level` argument to `predict_all()`
+  and `get_gy_ci()` has been renamed to `confidence.level`, for
+  consistency with naming elsewhere in the package. Calls that pass this
+  argument by name will need to be updated. The default value of
+  `sea.on` in `predict_all()` has also changed, from `FALSE` to `TRUE`.
+
+* `estimate_r0()` now returns a data frame directly, including dates from
+  the model's calendar where available. The separate `estimate_r0_df()`
+  wrapper has been removed as redundant.
+
+* `forecast_peak()`, `forecast.peak()`, and `plot_new_cases()` have been
+  removed.
 
 ## New features
 
+* Added a leading indicator model, via the new `SSModelLeadingIndicator`
+  and `FilterResultsLI` reference classes, for modelling a target series
+  using a leading series (see Harvey, A. (2021). "Time Series Modelling
+  of Epidemics: Leading Indicators, Control Groups and Policy
+  Assessment." *National Institute Economic Review*, 257, 83-100).
+  `FilterResultsLI` provides `predict_level()`, `predict_all()`,
+  `get_growth_y()`, `get_gy_ci()`, `print()`, `summary()`, and `mapes()`
+  methods, paralleling `FilterResults` for the standard model.
+
+* Added five new example datasets: `ukitaly`, `gauteng_weather_2021`,
+  `england_weather_2021`, `nintendo_sales`, and `etrading_apps`, including
+  weather data to support leading indicator examples.
+
 * Added `idx_series()` and supporting methods (`idx_cbind()`, `idx_rbind()`,
   `idx_diff()`, `idx_lag()`, `idx_range()`, `idx_values()`,
-  `idx_positions()`, and standard methods such as `length()`, `head()`,
-  `tail()`, `as.matrix()`, `as.numeric()`, `as.double()`, and `print()`) as
-  a dependency-free replacement for calendar-indexed objects in internal
+  `idx_positions()`, and standard methods including `length()`, `head()`,
+  `tail()`, `as.matrix()`, `as.numeric()`, `as.double()`, and `print()`)
+  as a dependency-free representation of time series for internal
   computation.
-* Added `idx_calendar()` and supporting helpers (`idx_step()`, `idx_to_date()`,
-  `idx_calendar_offset()`, `idx_calendar_step()`, `idx_calendar_multi_step()`,
-  and related utilities) providing a single, consistent translation layer
-  between integer positions and calendar dates for daily, weekly, monthly,
-  quarterly, and annual data.
-* Added `get_time_resolution()`-style helpers `get_timeframe()`,
-  `idx_to_pos()`, `idx_offset_to_pos()`, and
-  `idx_detect_calendar_pattern()` to `utils.R` to support the new indexing
-  system.
+
+* Added `idx_calendar()` and supporting helpers (`idx_step()`,
+  `idx_to_date()`, `idx_calendar_offset()`, `idx_calendar_step()`,
+  `idx_calendar_multi_step()`, and related utilities) providing a
+  consistent translation layer between integer positions and calendar
+  dates for daily, weekly, monthly, quarterly, and annual data.
+
+* Added `get_timeframe()`, `idx_to_pos()`, `idx_offset_to_pos()`, and
+  `idx_detect_calendar_pattern()` to support the new indexing system.
+
 * Added `check_variance_boundary()` and `print_model_diagnostics()` to
-  surface variance boundary conditions and model diagnostics more clearly
-  to users.
-* Added `xts_to_idx()` to convert `xts` objects into the internal
-  `idx_series` representation, easing interoperability for users supplying
-  `xts` data.
+  surface variance boundary conditions and model diagnostics more clearly.
+
+* Added `xts_to_idx()` to convert `xts`/`zoo` objects to the internal
+  `idx_series` representation, for users supplying their own `xts` data.
+
+* Added `cross_val()` for cross-validating one or more models over a
+  series of rolling estimation windows, and `mapes()` for computing mean
+  absolute percentage errors from forecast results.
+
+* Added `add_daily_ldl()` for computing log-differenced-level growth
+  rates on daily data.
+
+* Added `print()` and `summary()` S3 methods for `SSModelDynamicGompertz`,
+  `SSModelLeadingIndicator`, `FilterResults`, and `FilterResultsLI`.
+
+* Added new plotting functions `plot_compare_forecast()` (compare
+  forecasts across models), `plot_log_forecast()` (forecasts on the log
+  scale), and `plot_r0()` (plot estimated reproduction numbers from
+  `estimate_r0()`).
+
+* Added a new set of accessor functions (`accessorFns.R`) for extracting
+  components from fitted model and `KFS` objects, including `output()`,
+  `modelKFS()`, `seasonalComp()`, `att()`, `Ptt()`, `get_V()`, `gety()`,
+  `alphahat()`, and a standalone `estimate()` wrapper around a model's
+  `estimate()` method.
 
 ## Improvements
 
-* Substantially expanded plotting internals (`plotting.R`) with helper
-  functions (`idx_series_df()`, `idx_resolve_axis()`, `idx_axis_opts()`,
+* Substantially expanded plotting internals with helper functions
+  (`idx_series_df()`, `idx_resolve_axis()`, `idx_axis_opts()`,
   `idx_x_scale()`, `idx_x_lab()`, `idx_add_info_box()`, and related
   helpers) to give more consistent, better-labelled axes across all plot
   types, including support for non-daily frequencies.
+
 * Reduced the package's dependency footprint by removing reliance on
-  `xts`/`zoo` from internal computation and dropping the unused `timetk`
-  dependency.
-* Expanded and reorganised the test suite, including a dedicated
-  boundary-conditions test file (`test-boundary-conditions.R`) and new
-  tests for the `idx_series`/`idx_calendar` system.
-* Updated the vignette and replication script to reflect the internal
-  changes above; user-facing behaviour and function signatures for
-  `SSModelDynamicGompertz`, `SSModelLeadingIndicator`, `cross_val()`,
-  and the plotting functions are unchanged.
+  `xts`/`zoo` from internal computation.
 
 ## Bug fixes
 
-* Various small fixes to filtering, forecasting, and plotting uncovered by
-  the expanded test suite (see GitHub commit history for details).
+* Various small fixes to filtering, forecasting, and plotting uncovered
+  during the internal rewrite.
 
 # tsgc 0.0 (2022-02-08)
 

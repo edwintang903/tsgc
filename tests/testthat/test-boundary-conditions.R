@@ -67,7 +67,6 @@ test_that("SSModelDynamicGompertz warns of a degenerate model on an extremely sh
 })
 
 test_that("SSModelDynamicGompertz with sea.period = 0 estimates cleanly, with no degeneracy warning, once given enough data", {
-  # Positive control: trend-only specification with sufficient length.
   Y_ok <- idx_series(exp(seq(4.6, 6, length.out = 25)), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_ok, q = 0.01, sea.period = 0)
@@ -94,7 +93,6 @@ test_that("SSModelDynamicGompertz with sea.period = 7 warns of a degenerate mode
 })
 
 test_that("SSModelDynamicGompertz with sea.period = 7 estimates cleanly, with no degeneracy warning, once given enough data", {
-  # Positive control: 8 states to estimate, comfortable series length.
   Y_ok <- idx_series(exp(seq(4.6, 7, length.out = 40)), start = 1L)
   
   model <- SSModelDynamicGompertz$new(Y = Y_ok, q = 0.01, sea.period = 7)
@@ -120,9 +118,7 @@ test_that("estimate_r0 reproduces the documented decline toward Rt = 1 approachi
   rt_vals <- r_t$fit
   
   expect_equal(nrow(r_t), 7)
-  # Decline over the first six days of the documented window.
   expect_true(all(diff(rt_vals[1:6]) <= 1e-8))
-  # Ensure the window as a whole approaches Rt = 1 at the end.
   expect_true(abs(tail(rt_vals, 1) - 1) < abs(rt_vals[1] - 1))
 })
 
@@ -166,11 +162,10 @@ test_that("SSModelLeadingIndicator: a genuine decrease in the target series is c
 })
 
 test_that("SSModelLeadingIndicator: a decrease in the LEAD series is caught by the same df2ldl message", {
-  # Confirms check applies symmetrically to both columns.
   targ <- seq(50, 200, length.out = 50)
   
   lead <- seq(100, 400, length.out = 50)
-  lead[35] <- lead[34] - 1  # genuine decrease in the lead column
+  lead[35] <- lead[34] - 1
   
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
@@ -179,9 +174,6 @@ test_that("SSModelLeadingIndicator: a decrease in the LEAD series is caught by t
 })
 
 test_that("SSModelLeadingIndicator: an exact plateau (not a decrease) in the target series produces an interior-gap error rather than the strictly-increasing message", {
-  # An exact plateau makes LDLtarg = log(0) = -Inf at that position, which
-  # is treated as missing and dropped, leaving a gap idx_series cannot
-  # represent, rather than tripping the strictly-increasing check.
   n_lag <- 5
   lead  <- seq(100, 400, length.out = 50)
   
@@ -195,7 +187,6 @@ test_that("SSModelLeadingIndicator: an exact plateau (not a decrease) in the tar
 })
 
 test_that("SSModelLeadingIndicator accepts a jittered version of the same plateaued series", {
-  # Positive control: plateaued segment nudged up by epsilon.
   n_lag <- 5
   lead  <- seq(100, 400, length.out = 50)
   
@@ -212,8 +203,6 @@ test_that("SSModelLeadingIndicator accepts a jittered version of the same platea
 ## 2.2 Gaps in the position index after trimming missing/infinite values ----
 
 test_that("SSModelLeadingIndicator errors when removing missing/infinite values leaves a gap in the position index", {
-  # Interior NA leaves the remaining valid positions non-contiguous after
-  # trimming, which idx_series cannot represent.
   lead <- seq(100, 400, length.out = 50)
   targ <- seq(50, 200, length.out = 50)
   targ[25] <- NA
@@ -251,7 +240,6 @@ test_that("SSModelLeadingIndicator accepts n.lag = 0 (contemporaneous alignment,
 })
 
 test_that("SSModelLeadingIndicator does NOT error on a negative n.lag, but silently reverses the intended lead/lag direction", {
-  # Documents risk: negative shift reverses alignment rather than throwing error.
   lead <- seq(100, 400, length.out = 40)
   targ <- seq(50, 200, length.out = 40)
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
@@ -271,13 +259,10 @@ test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds 
 })
 
 test_that("SSModelLeadingIndicator errors clearly, naming n.lag and the row count, when the estimation window collapses to a single usable row", {
-  # A single-row estimation window previously failed deep inside
-  # KFAS::SSModel() with an opaque error; now checked explicitly.
   lead <- seq(100, 300, length.out = 30)
   targ <- seq(50, 150, length.out = 30)
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
-  # start == end leaves exactly one row in y.estimate regardless of n.lag.
   mod <- SSModelLeadingIndicator$new(
     Y = Y_li, n.lag = 3, LeadIndCol = 1, start = 10L, end = 10L
   )
@@ -365,7 +350,6 @@ test_that("calendar must be NULL or an idx_calendar object, in both classes", {
     "calendar"
   )
 })
-
 
 ## 4. SHARED UTILITY BOUNDARIES: get_timeframe() ----
 
