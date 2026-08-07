@@ -154,30 +154,23 @@ FilterResults <- setRefClass(
       
       timespan <- n + 0:n.ahead
       
-      # Calculate g.t as exponent of y.t
       yhat_mat <- idx_values(gety.hat(filtered.out))
       g.t <- exp(yhat_mat[,1])
       g.t.lwr <- exp(yhat_mat[,2])
       g.t.upr <- exp(yhat_mat[,3])
       
-      # Forecast positions: last position of estimation window through
-      # n.ahead positions beyond it.
       last.pos <- idx_range(y.cum)[2]
       fc.positions <- seq.int(last.pos, length.out = n.ahead + 1)
       
       y.hat <- matrix(NA_real_, nrow = n.ahead + 1, ncol = 3)
       y.hat[1, 1] <- idx_values(y.cum[last.pos])
       for (i in seq_len(n.ahead)) {
-        # Update level
         y.hat[i + 1, 1] <- y.hat[i, 1] * (1 + g.t[i])
-        
-        # Make prediction intervals
         y.hat[i + 1, 2] <- y.hat[i, 1] * (1 + g.t.lwr[i])
         y.hat[i + 1, 3] <- y.hat[i, 1] * (1 + g.t.upr[i])
       }
       y.hat <- idx_series(y.hat, start = fc.positions[1])
       
-      # Difference output if requested
       d <- if (return.diff) { idx_diff(idx_series(y.hat$data[,1], start=y.hat$start), 1L) } else {
         idx_series(y.hat$data[-1, 1], start = y.hat$start + 1L)
       }
@@ -272,15 +265,8 @@ FilterResults <- setRefClass(
         } else {
           firstpred <- tail(index,1) + 1L
           
-          # get_timeframe() clamps start/end to the range actually present
-          # in xpred.new rather than erroring (start <- max(start, rng[1]);
-          # end <- min(end, rng[2])), so a regressor series that runs out
-          # before firstpred + n.ahead - 1L would otherwise be silently
-          # truncated here, then positionally recycled into the
-          # fixed-size n.ahead newZ array below with no error - a
-          # regressor series a few rows short would misalign undetected.
-          # Check the row count explicitly and fail clearly instead (same
-          # fix as xpred_lead.new/xpred_targ.new in filterResultsLI.R).
+          # Explicitly check xpred.new covers the full forecast horizon;
+          # get_timeframe() clamps rather than errors on a short window.
           xpred.new.window <- get_timeframe(
             xpred.new, firstpred, firstpred + n.ahead - 1L)
           if (length(idx_positions(xpred.new.window)) != n.ahead) {

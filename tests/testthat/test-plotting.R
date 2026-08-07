@@ -3,7 +3,7 @@ test_that("forecast plots keep angled date labels clear of the axis title", {
   conv <- xts_to_idx(gauteng)
   model <- tsgc::SSModelDynamicGompertz$new(Y = get_timeframe(conv$series, conv$series$start, conv$series$start + 49), q = 0.005, calendar = conv$calendar)
   res <- model$estimate()
-
+  
   plots <- list(
     plot_forecast(res),
     plot_log_forecast(res, conv$series)
@@ -79,7 +79,7 @@ test_that("plot.SSModelLeadingIndicator uses the forecast date-label style", {
     end = idx_to_pos(conv$calendar, as.Date("2021-07-24")),
     calendar = conv$calendar
   )
-
+  
   p <- plot(model)
   expect_equal(p$theme$axis.text.x$angle, 45)
   expect_equal(p$theme$axis.text.x$hjust, 1)

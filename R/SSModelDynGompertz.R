@@ -184,14 +184,11 @@ SSModelDynamicGompertz <- setRefClass(
       estH <- any(is.na(model$H))
       estQ <- any(is.na(model$Q))
       if ((!estH) & (!estQ)) {
-        # If nothing to update then return model
         return(model)
       } else {
         nparQ <- 0
-        # 1. Set seasonal noise
         if (estQ) {
           Q <- as.matrix(model$Q[, , 1])
-          # Update diagonal elements
           naQd <- which(is.na(diag(Q)))
           if (ar1) {
             i.ar1 <- nrow(Q)
@@ -202,14 +199,12 @@ SSModelDynamicGompertz <- setRefClass(
             nparQ <- 1
             Q[naQd, naQd][lower.tri(Q[naQd, naQd])] <- 0
             diag(Q)[naQd] <- exp(0.5 * pars[nparQ])
-            # Check for off-diagonal elements and raise error if found.
             naQnd <- which(upper.tri(Q[naQd, naQd]) & is.na(Q[naQd, naQd]))
             if (length(naQnd) > 0) {
               stop("NotImplmentedError: Unexpected off-diagonal element updating")
             }
           }
           
-          # 2. Set observation noise
           H <- as.matrix(model$H[, , 1])
           if (estH) {
             naHd <- which(is.na(diag(H)))
@@ -219,11 +214,8 @@ SSModelDynamicGompertz <- setRefClass(
             model$H[naHd, naHd, 1] <- crossprod(H[naHd, naHd])
           }
           
-          # 3. Set slope noise
-          # Get index of slope, 1 before the seasonal component.
           model$Q[naQd, naQd, 1] <- crossprod(Q[naQd, naQd])
           i.slope <- 2
-          # Estimate slope if no signal to noise ratio specified.
           if (is.null(q)) {
             nparQ<-nparQ+1
             Q.slope <- exp(0.5 * pars[nparQ])
@@ -232,7 +224,6 @@ SSModelDynamicGompertz <- setRefClass(
             model$Q[i.slope, i.slope, 1] <- crossprod(H[naHd, naHd]) * q
           }
           
-          # 4. Set AR1 noise
           if (ar1){
             nparQ<-nparQ+1
             i.ar1 <- nrow(Q)
@@ -261,11 +252,6 @@ SSModelDynamicGompertz <- setRefClass(
     newZ=NULL)
       { "Obtain the model object which is then used for 
         estimation."
-        # Named `xreg` rather than `xpred` to avoid shadowing the
-        # SSModelDynamicGompertz RefClass field `xpred`. KFAS's
-        # SSMregression(~xreg) names the fitted coefficient state after
-        # this formula variable name, so it is also user-visible in
-        # print()/summary() output.
         if (is_idx_series(xreg) && is_idx_series(y)) {
           xreg <- xreg[idx_positions(y)]
         }
@@ -278,23 +264,17 @@ SSModelDynamicGompertz <- setRefClass(
         }
         Qt.ar1 <- if (is.null(Q)) { NA } else {Q[dim(Q)[1],dim(Q)[2]]}
         
-        # 1. Set prior on state as ~ N(a1, P1) if a1 supplied.
         use.prior <- if (!is.null(a1)) { TRUE } else { FALSE }
-        
-        # 2. Check whether there are exogenous predictors in model
         need.xpred<-!is.null(xreg)
         
         if (ar1){
-          # 3. When needed, extract the AR1 coefficient
           ar1_coeff<-T[dim(T)[1],dim(T)[2]]
         }
         
-        #Write out the model depending on case
         if (use.prior) {
           seasonal_idx<-grep("sea_trig", rownames(a1))
           trend_idx<-c(grep("level", rownames(a1)), 
                        grep("slope", rownames(a1)))
-          #Case 1: With prior info, seasonality, xpred
           if (sea.period>1) {
             if (need.xpred){
               if (ar1){
@@ -335,7 +315,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               }
             } else {
-              #Case 2: With prior info, seasonality, no xpred
+              # prior, seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~
@@ -376,7 +356,7 @@ SSModelDynamicGompertz <- setRefClass(
               }
             }
           } else {
-            #Case 3: With prior info, no seasonality, yes xpred
+            # prior, no seasonal, xpred
             if (need.xpred){
               if (ar1){
                 ss_model <-SSModel(
@@ -402,7 +382,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = Ht)
               }
             } else {
-              #Case 4: With prior info, no seasonality, no xpred
+              # prior, no seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
@@ -426,7 +406,7 @@ SSModelDynamicGompertz <- setRefClass(
           } 
           n.pars <- 0
         } else {
-          #Case 5: No prior info, yes seasonality, yes xpred
+          # no prior, seasonal, xpred
           if (need.xpred){
             if (sea.period>1) {
               if(ar1){
@@ -457,7 +437,7 @@ SSModelDynamicGompertz <- setRefClass(
                   H = matrix(Ht)
                 )
               }
-              #Case 6: No prior info, no seasonality, yes xpred
+              # no prior, no seasonal, xpred
             } else {
               if (ar1){
                 ss_model <- SSModel(
@@ -481,7 +461,7 @@ SSModelDynamicGompertz <- setRefClass(
               }
             } 
           } else {
-            #Case 7: No prior info, yes seasonality, no xpred
+            # no prior, seasonal, no xpred
             if (sea.period>1) {
               if (ar1){
                 ss_model <- SSModel(
@@ -512,7 +492,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               }
             } else {
-              #Case 8: No prior info, no seasonality, no xpred
+              # no prior, no seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
@@ -558,20 +538,13 @@ SSModelDynamicGompertz <- setRefClass(
           xpred2 <- if (any(xpred_pos > reinit.idx)) xpred[xpred_pos[xpred_pos > reinit.idx]] else NULL
         }
         
-        # 4.1. Position for reinitialisation, t_0
         stopifnot(reinit.idx %in% idx_positions(Y))
-        # Coerce to a plain numeric scalar: idx_values() on a single-row
-        # idx_series can return a 1x1 matrix, which does not broadcast
-        # against the n x 1 matrix idx_values(lag.Y) below.
         Y.t.r_0 <- as.numeric(idx_values(Y[reinit.idx - 1]))
         
-        # 4.2 Reinitialisation:
-        #   ln g_t^r = ln g_t + ln (Y_{t-1}/Y_{t-1}^r), where Y_t^r=Y_t-Y_{r_0}.
+        # ln g_t^r = ln g_t + ln(Y_{t-1}/Y_{t-1}^r), where Y_t^r = Y_t - Y_{r_0}.
         y_pos <- idx_positions(y)
         reinit_pos <- y_pos[y_pos > reinit.idx]
         lag.Y <- idx_lag(Y, 1L)[reinit_pos]
-        # Coerce to plain numeric vectors before arithmetic, since y$data
-        # and Y$data may differ in shape (plain vector vs matrix).
         y.vals <- as.numeric(idx_values(y[reinit_pos]))
         lag.Y.vals <- as.numeric(idx_values(lag.Y))
         y.reinit <- idx_series(
@@ -579,11 +552,8 @@ SSModelDynamicGompertz <- setRefClass(
           start = reinit_pos[1]
         )
         
-        # 4.3 Run Kalman filter/smoother on new series with non-diffuse prior
         if (use.presample.info) {
-          # Either estimate full model here or take results from previous model.
           if (is.null(original.results)) {
-            # NB. Restrict sample to t<=r - position of reinitialisation.
             model <- SSModelDynamicGompertz$new(Y = Y,
                                                 sea.period=sea.period, 
                                                 xpred=xpred1, q = q, ar1=ar1,
@@ -596,8 +566,6 @@ SSModelDynamicGompertz <- setRefClass(
             model_output <- output(original.results)
           }
           
-          # 4.3 Reset slope to 0 and add constant to initial value for level.
-          # where reinit.idx is t=r
           idx <- which(reinit.idx == idx_positions(y))
           stopifnot(length(idx) == 1)
           att <- att(model_output)[idx,]
@@ -607,17 +575,13 @@ SSModelDynamicGompertz <- setRefClass(
           Qt <- drop(matrixKFS(model_output,"Q"))
           Ht <- drop(matrixKFS(model_output,"H"))
           
-          # a. Take a_{r|r} and P_{r|r} through prediction step to get a_{r+1}
-          # and P_{r+1}
           a1 <- Tt %*% att
           P1 <- Tt %*% Ptt %*% t(Tt) + Rt %*% Qt %*% t(Rt)
           
-          # b. Set slope to 0 and add correction (\ln(Y_r/y_r) to level.
           a1["slope",] <- 0
           a1["level",] <- a1["level",] + log(idx_values(Y[reinit.idx]) / (idx_values(Y[reinit.idx]) - Y.t.r_0))
           
         } else {
-          # Don't use presample info
           a1 <- NULL; P1 <- NULL; Qt <- NULL; Ht <- NULL; Tt<- NULL
         }
         out <- get_dynamic_gompertz_model(
@@ -629,23 +593,12 @@ SSModelDynamicGompertz <- setRefClass(
       }
     }
     
-    # 1. Get LDL of cumulative series Y.
     y <- df2ldl(Y)
-    
-    # 2. Obtain the SSModel 
     model <- get_model(y, xpred=xpred)
-    
-    # 3. Add update methods to enforce signal-to-noise ratio
     updatefn <- purrr::partial(update, ... =, q = q)
-    
-    # Estimate via MLE unknown params
     model_fit <- fitSSM(model$model, inits = model$inits, updatefn = updatefn,
                         method = 'BFGS')
-    
-    # 4. Run smoother/filter
     model_output <- KFS(model_fit$model)
-    
-    # 5. Get truncated index from model if using a reinitialisation in model
     idx.positions <- if (!is.null(model$index)) { model$index } else { idx_positions(y) }
     
     results <- FilterResults$new(
@@ -720,7 +673,7 @@ SSModelDynamicGompertz <- setRefClass(
     "Provides a quick description of the SSModelDynamicGompertz object, providing 
       model states and standard errors."
     reinit<-!is.null(reinit.idx)
-    out <- output(.self$estimate()) #KFS object
+    out <- output(.self$estimate())
     if(is.null(q)){
       qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
     }

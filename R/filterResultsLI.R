@@ -153,8 +153,8 @@ FilterResultsLI <- setRefClass(
       
       LDLtarg_fc <- forcout$LDLtarg
       
-      # Forecasts computed as per (7) in Harvey and Kattuman (2021); the
-      # confidence intervals follow Harvey, Kattuman and Thamotheram (2021).
+      # Forecasts as per (7) in Harvey and Kattuman (2021); confidence
+      # intervals follow Harvey, Kattuman and Thamotheram (2021).
       forecasts[1, 1] = last_admit*exp(LDLtarg_fc[1,1])
       forecasts[2:n.ahead, 1] = last_admit*exp(LDLtarg_fc[2:n.ahead,1])*cumprod(1+exp(LDLtarg_fc[1:(n.ahead-1),1]))
       
@@ -260,14 +260,8 @@ FilterResultsLI <- setRefClass(
         if (xpred_logical[1]){
           if (is_idx_series(xpred_lead.new)){
             xpred_lead.new.lagged <- idx_lag(xpred_lead.new, n.lag)
-            # get_timeframe() clamps start/end to the range actually
-            # available in its input rather than erroring, so a
-            # regressor series that does not extend across the full
-            # forecast horizon (end+1 .. end+n.ahead) would otherwise
-            # be silently truncated here, then positionally recycled
-            # into newZ[1, 1:d1, ] below - producing a misaligned
-            # forecast without any error. Check the returned window
-            # actually has n.ahead rows before proceeding.
+            # Explicitly check the window covers the full forecast horizon;
+            # get_timeframe() clamps rather than errors on a short window.
             xpred_lead.new.window <- get_timeframe(
               xpred_lead.new.lagged, end + 1L, end + n.ahead)
             if (length(idx_positions(xpred_lead.new.window)) != n.ahead) {
@@ -287,7 +281,6 @@ FilterResultsLI <- setRefClass(
         }
         if (xpred_logical[2]){
           if (is_idx_series(xpred_targ.new)){
-            # Same silent-clamping concern as xpred_lead.new above.
             xpred_targ.new.window <- get_timeframe(
               xpred_targ.new, end + 1L, end + n.ahead)
             if (length(idx_positions(xpred_targ.new.window)) != n.ahead) {
@@ -524,11 +517,6 @@ FilterResultsLI <- setRefClass(
       cat("  - Model States and Standard Errors\n")
       base::print(output)
       cat("  - Variance parameter estimates\n")
-      # H is a K x K matrix (K = number of observation equations - 2 for
-      # this leading-indicator model: lead and target), not a scalar.
-      # Flattening it into cat() would silently print all elements
-      # run together with no row/column labelling; print it as a
-      # matrix instead so each observation equation's noise is legible.
       cat("Observation equation noise:\n")
       base::print(round(H, digits = 4))
       cat("State transition equation noise:", format(Q_gamma, digits = 4))

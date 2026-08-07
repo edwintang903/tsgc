@@ -25,11 +25,8 @@ test_that("xts_to_idx detects a plain daily pattern", {
 })
 
 test_that("xts_to_idx detects a business-day pattern (weekends skipped)", {
-  # idx_detect_calendar_pattern()'s find_pattern() only recognises a cycle
-  # length that evenly divides the number of gaps, so the number of
-  # business days must be chosen accordingly: 2024-01-01 is a Monday, and
-  # 41 business days (Mon 1 Jan through Mon 4 Mar) gives exactly 40 gaps,
-  # a whole multiple of the 5-day Mon-Fri cycle length.
+  # 41 business days from Mon 1 Jan gives 40 gaps, a whole multiple of
+  # the 5-day Mon-Fri cycle length that find_pattern() requires.
   bdays <- seq(as.Date("2024-01-01"), by = "day", length.out = 60)
   bdays <- bdays[!weekdays(bdays) %in% c("Saturday", "Sunday")][1:41]
   x <- xts::xts(cumsum(rpois(length(bdays), 5)) + 1, order.by = bdays)
@@ -77,10 +74,7 @@ test_that("xts_to_idx detects a yearmon index", {
 })
 
 test_that("xts_to_idx errors on an irregular index when detect = TRUE", {
-  # A handful of gaps trivially "repeats" (the whole gap vector is its own
-  # length-m cycle), so use enough gaps that no cycle length up to
-  # idx_detect_calendar_pattern()'s default max_pattern_len (7) evenly
-  # tiles them - this is genuinely irregular from the detector's point of view.
+  # Enough gaps that no cycle length up to max_pattern_len (7) tiles them.
   gaps <- c(1, 2, 1, 6, 1, 3, 2, 5, 1, 1, 4, 2)
   irregular_dates <- as.Date("2024-01-01") + c(0, cumsum(gaps))
   x <- xts::xts(seq_along(irregular_dates), order.by = irregular_dates)
@@ -257,9 +251,9 @@ test_that("estimate_r0 retains positions when no calendar is available", {
   set.seed(2)
   Y <- idx_series(cumsum(rpois(80, 8)) + 1, start = 1L)
   res <- estimate(SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 60))
-
+  
   r_t <- estimate_r0(res, gen_int = 5, n.ahead = 5)
-
+  
   expect_equal(names(r_t), c("Position", "fit", "lower", "upper"))
   expect_equal(nrow(r_t), 5)
 })
@@ -391,11 +385,6 @@ test_that("check_variance_boundary flags a scalar variance at or below the toler
 })
 
 test_that("check_variance_boundary works on a matrix-valued variance parameter (e.g. leading-indicator H) without erroring, unlike a direct && on a multi-element value", {
-  # Regression test for the bug fixed in changelog #26:
-  # !is.na(H) && H <= boundary_tol errors with "'length = 4' in
-  # coercion to 'logical(1)'" when H is a 2x2 matrix, since && requires
-  # a length-1 logical on both sides. check_variance_boundary() must
-  # handle this without erroring.
   H_scalar <- matrix(0.05, 1, 1)
   H_matrix_ok <- matrix(c(0.05, 0.001, 0.001, 0.03), nrow = 2)
   H_matrix_boundary <- matrix(c(0.05, 0.001, 0.001, 1e-8), nrow = 2)
@@ -427,11 +416,6 @@ test_that("print_model_diagnostics runs without error on a FilterResults object 
 })
 
 test_that("print_model_diagnostics runs without error on a FilterResultsLI object, where H is a 2x2 matrix rather than a scalar", {
-  # This is the exact scenario changelog #26 fixed: a live render of
-  # print_model_diagnostics() on a leading-indicator model errored at
-  # the boundary check because H is a 2x2 matrix here (lead + target
-  # observation equations), not a scalar as in the plain
-  # SSModelDynamicGompertz case above.
   lead <- seq(100, 400, length.out = 40)
   targ <- seq(50, 200, length.out = 40)
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
@@ -449,12 +433,6 @@ test_that("print_model_diagnostics errors clearly when res is not a FilterResult
 })
 
 test_that("FilterResultsLI's summary() prints the 2x2 observation-noise matrix as a labelled matrix, not flattened into a single cat() line", {
-  # Companion to the print_model_diagnostics matrix-H tests above:
-  # summary() had the same scalar assumption (H formatted directly via
-  # format(H, digits = 4) inside cat()), which silently ran all matrix
-  # elements together with no row/column labelling rather than
-  # erroring. This pins the fixed behaviour, which prints H via
-  # base::print() so it is legible as a matrix.
   lead <- seq(100, 400, length.out = 40)
   targ <- seq(50, 200, length.out = 40)
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
@@ -464,9 +442,8 @@ test_that("FilterResultsLI's summary() prints the 2x2 observation-noise matrix a
   
   out <- capture.output(res$summary())
   expect_true(any(grepl("Observation equation noise", out)))
-  # A matrix printed via base::print() produces row labels like
-  # "[1,]"/"[2,]" - confirming H was printed as a matrix, not
-  # flattened into the "Observation equation noise:" line itself.
+  # A matrix printed via base::print() produces row labels like "[1,]",
+  # confirming H was printed as a matrix, not flattened into one line.
   noise_line <- grep("Observation equation noise", out)
   expect_true(any(grepl("\\[1,\\]", out[(noise_line + 1):length(out)][1:3])))
 })

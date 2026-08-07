@@ -1,12 +1,8 @@
 library(tsgc)
 
-# #############################################################################
-# 1. THEORETICAL BOUNDARIES: SSModelDynamicGompertz
-# #############################################################################
+## 1. THEORETICAL BOUNDARIES: SSModelDynamicGompertz ----
 
-# -----------------------------------------------------------------------
-# 1.1 Strictly increasing Y (Boundary is exactly zero difference)
-# -----------------------------------------------------------------------
+## 1.1 Strictly increasing Y (Boundary is exactly zero difference) ----
 
 test_that("SSModelDynamicGompertz errors on a plateaued or decreasing series at estimate(), not at construction", {
   cum <- c(seq(100, 200, length.out = 20), rep(200, 3), seq(205, 250, length.out = 7))
@@ -36,9 +32,7 @@ test_that("SSModelDynamicGompertz accepts a series with an arbitrarily small but
   expect_true(inherits(res, "FilterResults"))
 })
 
-# -----------------------------------------------------------------------
-# 1.2 reinit.idx must correspond to a position actually present in Y
-# -----------------------------------------------------------------------
+## 1.2 reinit.idx must correspond to a position actually present in Y ----
 
 test_that("SSModelDynamicGompertz accepts a reinit.idx that is a position within the series", {
   Y <- idx_series(exp(seq(4, 7, length.out = 60)), start = 1L)
@@ -60,9 +54,7 @@ test_that("SSModelDynamicGompertz fails with a reinit.idx that does not exist in
   expect_error(model$estimate())
 })
 
-# -----------------------------------------------------------------------
-# 1.3 Minimal length and degeneracy checks
-# -----------------------------------------------------------------------
+## 1.3 Minimal length and degeneracy checks ----
 
 test_that("SSModelDynamicGompertz warns of a degenerate model on an extremely short series (sea.period = 0)", {
   Y_short <- idx_series(c(100, 110, 125), start = 1L)
@@ -111,9 +103,7 @@ test_that("SSModelDynamicGompertz with sea.period = 7 estimates cleanly, with no
   expect_true(inherits(res, "FilterResults"))
 })
 
-# -----------------------------------------------------------------------
-# 1.4 Peak / turning-point boundary via estimate_r0() proxy
-# -----------------------------------------------------------------------
+## 1.4 Peak / turning-point boundary via estimate_r0() proxy ----
 
 test_that("estimate_r0 reproduces the documented decline toward Rt = 1 approaching a known peak", {
   data(gauteng, package = "tsgc")
@@ -150,7 +140,7 @@ test_that("estimate_r0 output brackets Rt = 1 as growth decelerates through a kn
   )
   res <- model$estimate()
   r_t <- estimate_r0(res, gen_int = 4, n.ahead = 30)
-
+  
   expect_s3_class(r_t, "data.frame")
   expect_true(all(c("fit", "lower", "upper") %in% names(r_t)))
   expect_true(any(r_t$fit > 1) || any(r_t$fit < 1))
@@ -160,13 +150,9 @@ test_that("estimate_r0 output brackets Rt = 1 as growth decelerates through a kn
 })
 
 
-# #############################################################################
-# 2. THEORETICAL BOUNDARIES: SSModelLeadingIndicator
-# #############################################################################
+## 2. THEORETICAL BOUNDARIES: SSModelLeadingIndicator ----
 
-# -----------------------------------------------------------------------
-# 2.1 Strictly increasing series: DECREASE vs PLATEAU
-# -----------------------------------------------------------------------
+## 2.1 Strictly increasing series: DECREASE vs PLATEAU ----
 
 test_that("SSModelLeadingIndicator: a genuine decrease in the target series is caught by df2ldl's own on-topic message", {
   lead <- seq(100, 400, length.out = 50)
@@ -194,11 +180,9 @@ test_that("SSModelLeadingIndicator: a decrease in the LEAD series is caught by t
 })
 
 test_that("SSModelLeadingIndicator: an exact plateau (not a decrease) in the target series produces an interior-gap error rather than the strictly-increasing message", {
-  # An exact plateau (newTarg == 0) makes LDLtarg = log(0) = -Inf at that
-  # single interior position, which is treated as missing and dropped -
-  # leaving a gap that idx_series cannot represent - rather than tripping
-  # the "> 0" strictly-increasing check (which only sees the surviving,
-  # already-finite rows). This documents the current, verified behaviour.
+  # An exact plateau makes LDLtarg = log(0) = -Inf at that position, which
+  # is treated as missing and dropped, leaving a gap idx_series cannot
+  # represent, rather than tripping the strictly-increasing check.
   n_lag <- 5
   lead  <- seq(100, 400, length.out = 50)
   
@@ -226,14 +210,11 @@ test_that("SSModelLeadingIndicator accepts a jittered version of the same platea
   expect_true(inherits(res, "FilterResultsLI"))
 })
 
-# -----------------------------------------------------------------------
-# 2.2 Gaps in the position index after trimming missing/infinite values
-# -----------------------------------------------------------------------
+## 2.2 Gaps in the position index after trimming missing/infinite values ----
 
 test_that("SSModelLeadingIndicator errors when removing missing/infinite values leaves a gap in the position index", {
-  # Deliberately introduce an interior NA in one column so that, after
-  # add_daily_ldl()/idx_lag() trim NAs, the remaining valid positions are
-  # not contiguous -- this can no longer be represented by idx_series.
+  # Interior NA leaves the remaining valid positions non-contiguous after
+  # trimming, which idx_series cannot represent.
   lead <- seq(100, 400, length.out = 50)
   targ <- seq(50, 200, length.out = 50)
   targ[25] <- NA
@@ -258,9 +239,7 @@ test_that("SSModelLeadingIndicator accepts fully regular, contiguous series (pai
   expect_true(inherits(res, "FilterResultsLI"))
 })
 
-# -----------------------------------------------------------------------
-# 2.3 n.lag validation risks (Zero, Negative, OOB)
-# -----------------------------------------------------------------------
+## 2.3 n.lag validation risks (Zero, Negative, OOB) ----
 
 test_that("SSModelLeadingIndicator accepts n.lag = 0 (contemporaneous alignment, a valid edge case)", {
   lead <- seq(100, 400, length.out = 40)
@@ -293,19 +272,13 @@ test_that("SSModelLeadingIndicator fails in a controlled way when n.lag exceeds 
 })
 
 test_that("SSModelLeadingIndicator errors clearly, naming n.lag and the row count, when the estimation window collapses to a single usable row", {
-  # Regression test for the CV-driven bug where a single-row SELECTION
-  # fold (start == end) silently collapsed data_mat to a plain vector
-  # via matrix subsetting without drop = FALSE, then failed deep inside
-  # KFAS::SSModel() with an opaque "Misspecified H" error instead of a
-  # clear message pointing at n.lag / the estimation window. The fix
-  # added drop = FALSE plus an explicit nrow(data_mat) < 2 check.
+  # A single-row estimation window previously failed deep inside
+  # KFAS::SSModel() with an opaque error; now checked explicitly.
   lead <- seq(100, 300, length.out = 30)
   targ <- seq(50, 150, length.out = 30)
   Y_li <- idx_series(cbind(lead_col = lead, targ_col = targ), start = 1L)
   
-  # start == end leaves exactly one row in y.estimate regardless of
-  # n.lag, reproducing the single-row SELECTION-fold scenario from
-  # cross_val() without needing to invoke cross_val() itself.
+  # start == end leaves exactly one row in y.estimate regardless of n.lag.
   mod <- SSModelLeadingIndicator$new(
     Y = Y_li, n.lag = 3, LeadIndCol = 1, start = 10L, end = 10L
   )
@@ -316,9 +289,7 @@ test_that("SSModelLeadingIndicator errors clearly, naming n.lag and the row coun
 })
 
 
-# #############################################################################
-# 3. STRUCTURAL / TYPE-VALIDATION BOUNDARIES (both classes)
-# #############################################################################
+## 3. STRUCTURAL / TYPE-VALIDATION BOUNDARIES (both classes) ----
 
 test_that("sea.period validation is identical and correctly enforced in both model classes", {
   Y1 <- idx_series(exp(seq(4, 6, length.out = 30)), start = 1L)
@@ -397,13 +368,10 @@ test_that("calendar must be NULL or an idx_calendar object, in both classes", {
 })
 
 
-# #############################################################################
-# 4. SHARED UTILITY BOUNDARIES: get_timeframe()
-# #############################################################################
+## 4. SHARED UTILITY BOUNDARIES: get_timeframe() ----
 
 test_that("get_timeframe errors when start > end (both fall within the available range)", {
-  # Unlike the old xts version, an out-of-order but in-range start/end
-  # is now caught explicitly rather than silently returning zero rows.
+  # An out-of-order but in-range start/end is caught explicitly.
   x <- idx_series(1:20, start = 1L)
   expect_error(get_timeframe(x, 15, 5), "start is after end")
 })

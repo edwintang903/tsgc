@@ -18,9 +18,7 @@ test_that("xpred.new field can be assigned directly on a FilterResults object", 
   
   conv_g <- xts_to_idx(gauteng)
   
-  # Align the weather series onto the SAME position scale as gauteng by
-  # converting it to a position using gauteng's own calendar (rather than
-  # assuming the two xts objects start on the same calendar date).
+  # Align the weather series onto gauteng's position scale via its calendar.
   w_start_pos <- idx_to_pos(conv_g$calendar, zoo::index(gauteng_weather_2021)[1])
   conv_w <- xts_to_idx(gauteng_weather_2021[, c(1, 3)], start.pos = w_start_pos)
   
@@ -34,8 +32,6 @@ test_that("xpred.new field can be assigned directly on a FilterResults object", 
   res_weather <- estimate(model_weather)
   expect_null(res_weather$xpred.new)
   
-  # Feed future weather data into the results object directly via field
-  # assignment (the RefClass analogue of the old supply_xpred.new()).
   res_weather$xpred.new <- conv_w$series
   expect_equal(res_weather$xpred.new, conv_w$series)
 })
@@ -46,8 +42,7 @@ test_that("xpred_lead.new / xpred_targ.new fields can be assigned directly on a 
   
   conv_e <- xts_to_idx(england[, 1:2])
   
-  # Align the weather series onto england's own position scale via its
-  # actual calendar date, rather than assuming a shared start position.
+  # Align the weather series onto england's position scale via its calendar.
   w_start_pos <- idx_to_pos(conv_e$calendar, zoo::index(england_weather_2021)[1])
   conv_w <- xts_to_idx(england_weather_2021[, 1:2], start.pos = w_start_pos)
   conv_w3 <- xts_to_idx(england_weather_2021[, 3], start.pos = w_start_pos)

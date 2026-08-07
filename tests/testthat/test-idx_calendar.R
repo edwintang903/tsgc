@@ -72,7 +72,6 @@ test_that("idx_to_date handles month/quarter/year units exactly (variable-length
   cal <- idx_calendar(anchor = as.Date("2024-01-31"), anchor_pos = 1L,
                       amount = 1, unit = "months", posixct = TRUE)
   out <- idx_to_date(cal, 1:3)
-  # seq.Date with by="month" from Jan 31 correctly lands on leap-Feb 29 and Mar 31.
   expect_equal(out, seq(as.Date("2024-01-31"), by = "month", length.out = 3))
 })
 
@@ -139,24 +138,20 @@ test_that("idx_to_date falls back to plain arithmetic for yearqtr/yearmon anchor
                           amount = 1, unit = "quarters", posixct = FALSE)
   cal_mon <- idx_calendar(anchor = zoo::as.yearmon("2024-01"), anchor_pos = 1L,
                           amount = 1, unit = "months", posixct = FALSE)
-  # Plain arithmetic: yearqtr/yearmon are numeric under the hood (fractional
-  # years), so anchor + offset * amount happens to still land close to the
-  # right value here, but goes through the generic branch, not the
-  # calendar-aware one.
+  # yearqtr/yearmon are numeric under the hood, so plain arithmetic still
+  # lands close to the right value here, via the generic branch.
   expect_equal(idx_to_date(cal_qtr, 1:3), zoo::as.yearqtr("2024 Q1") + 0:2)
   expect_equal(idx_to_date(cal_mon, 1:3), zoo::as.yearmon("2024-01") + 0:2)
 })
 
 test_that("idx_to_date respects a repeating pattern for a yearqtr anchor", {
-  # 4-quarter cycle where the 3rd slot (Q3) has weight 2 instead of 1,
-  # i.e. stepping onto/past that slot advances calendar time by 2 quarters.
+  # 3rd slot (Q3) has weight 2: stepping onto/past it advances 2 quarters.
   cal <- idx_calendar(anchor = zoo::as.yearqtr("2024 Q1"), anchor_pos = 1L,
                       amount = 1, unit = "quarters",
                       pattern = c(1, 1, 2, 1), pattern_start = 1L,
                       posixct = TRUE)
   out <- idx_to_date(cal, 1:4)
-  # Pattern-weighted offsets from idx_calendar_offset() at positions 1:4
-  # (pattern_start = 1, pattern = 1,1,2,1) are 0, 1, 2, 4.
+  # Pattern-weighted offsets at positions 1:4 are 0, 1, 2, 4.
   expect_equal(out, zoo::as.yearqtr("2024 Q1") + c(0, 1, 2, 4) * 0.25)
 })
 
@@ -168,9 +163,8 @@ test_that("idx_to_date falls back to plain arithmetic when posixct is FALSE even
 })
 
 test_that("idx_to_date errors on non-integer number of calendar-unit steps (fractional pattern weights)", {
-  # idx_calendar_offset() pattern-weights the integer step count; a
-  # fractional pattern can therefore produce a non-integer offset even
-  # though pos itself is a whole integer position.
+  # A fractional pattern can produce a non-integer offset from an
+  # otherwise whole integer position.
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                       amount = 1, unit = "days",
                       pattern = c(0.5, 1.5), pattern_start = 1L,
@@ -192,11 +186,8 @@ test_that("idx_to_pos handles month/quarter/year calendar-relative units", {
 })
 
 test_that("idx_to_pos errors when date does not fall on a whole quarter boundary", {
-  # With unit = "quarters", steps = months_diff / 3; a date exactly one
-  # calendar month off the anchor's quarter cadence is not a whole number
-  # of quarters away, so this trips the boundary check. (cal$amount only
-  # affects the final position-spacing division, not this check, so
-  # amount alone can't be used to construct a failing case here.)
+  # A date one calendar month off the anchor's quarter cadence is not a
+  # whole number of quarters away.
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                       amount = 1, unit = "quarters", posixct = TRUE)
   expect_error(idx_to_pos(cal, as.Date("2024-02-01")), "whole")
@@ -422,12 +413,9 @@ test_that("idx_to_date walks a multi_step_pattern (3 days, 3 days, 1 month) forw
 })
 
 test_that("idx_to_date walks a multi_step_pattern backward from a later anchor", {
-  # Stepping backward from anchor_pos undoes the slot immediately before
-  # the current slot pointer (see idx_multi_step_offset_to_date's slot
-  # bookkeeping), so - with pattern_start = 1 (the default) - walking
-  # backward from position 5 does NOT retrace the same slot sequence as
-  # the forward walk from position 1 in the sibling test above; it walks
-  # slots 3, 2, 1, 3 (months-1, days-3, days-3, months-1) undone in turn.
+  # Walking backward from position 5 undoes the slot before the current
+  # pointer, so it doesn't retrace the forward walk's slot sequence;
+  # here it walks slots 3, 2, 1, 3 undone in turn.
   msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
   cal <- idx_calendar_multi_step(anchor = as.Date("2024-02-10"), anchor_pos = 5L,
                                  multi_step = msp, posixct = TRUE)
@@ -437,10 +425,8 @@ test_that("idx_to_date walks a multi_step_pattern backward from a later anchor",
 })
 
 test_that("idx_to_date walks a multi_step_pattern backward as the exact inverse of the forward walk, when pattern_start is set to match", {
-  # To make the backward walk retrace the forward walk's slots exactly,
   # pattern_start must identify the slot whose step leads OUT of
-  # anchor_pos in the forward direction - i.e. one slot before where the
-  # forward-from-position-1 walk would be pointing after reaching position 5.
+  # anchor_pos in the forward direction for the walks to match exactly.
   msp <- multi_step_pattern(idx_step(days = 3), idx_step(days = 3), idx_step(months = 1))
   cal_fwd <- idx_calendar_multi_step(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                                      multi_step = msp, posixct = TRUE)
@@ -534,10 +520,7 @@ test_that("idx_axis_opts modes 'steps', 'time_since' and 'date' require a calend
   expect_error(plot_gy_ci(res, axis = idx_axis_opts(mode = "time_since")), "requires a calendar")
   expect_no_error(plot_gy_ci(res, axis = idx_axis_opts(mode = "position")))
 })
-## ----------------------------------------------------------------------
-## Non-posixct mode: calendar core (idx_to_date, idx_to_pos,
-## idx_offset_to_pos, idx_calendar_offset, idx_resolve_axis)
-## ----------------------------------------------------------------------
+## Non-posixct mode: calendar core (idx_to_date, idx_to_pos, idx_offset_to_pos, idx_calendar_offset, idx_resolve_axis) ----
 
 test_that("a non-posixct calendar can be built with a Date anchor and used end-to-end", {
   data(gauteng, package = "tsgc")
@@ -569,9 +552,8 @@ test_that("idx_to_pos rejects a non-posixct calendar even with a Date anchor", {
 test_that("idx_offset_to_pos is the correct inverse lookup for non-posixct calendars", {
   cal_np <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                          amount = 1, unit = "days", posixct = FALSE)
-  # idx_to_date's plain-arithmetic branch fires for posixct = FALSE
-  # regardless of anchor class, so idx_offset_to_pos (not idx_to_pos) is
-  # the correct inverse here.
+  # idx_to_date's plain-arithmetic branch fires regardless of anchor class
+  # when posixct = FALSE, so idx_offset_to_pos is the correct inverse.
   d <- idx_to_date(cal_np, 1:10)
   expect_equal(idx_offset_to_pos(cal_np, d[7]), 7L)
   
@@ -592,29 +574,25 @@ test_that("non-posixct calendars respect a repeating pattern via idx_calendar_of
 })
 
 test_that("non-posixct calendars fall back to plain arithmetic for month/quarter/year units (no calendar-aware stepping)", {
-  # With posixct = TRUE this would use seq.Date's calendar-aware stepping;
-  # with posixct = FALSE it must NOT, even though unit is a recognised
-  # calendar-relative unit and the anchor is a Date.
   cal_np <- idx_calendar(anchor = as.Date("2024-01-31"), anchor_pos = 1L,
                          amount = 1, unit = "months", posixct = FALSE)
   out <- idx_to_date(cal_np, 1:3)
-  # Plain arithmetic: anchor + offset * amount, offset in raw step counts,
-  # NOT seq.Date(by = "month") calendar-aware stepping.
+  # Plain arithmetic (anchor + offset * amount), not calendar-aware
+  # seq.Date(by = "month") stepping.
   expect_equal(out, as.Date("2024-01-31") + 0:2)
   expect_false(isTRUE(all.equal(out, seq(as.Date("2024-01-31"), by = "month", length.out = 3))))
 })
 
 test_that("idx_to_date: posixct=TRUE but a numeric (non-Date/POSIXct) anchor still falls back to plain arithmetic", {
-  # is_calendar_anchor is FALSE here, so posixct = TRUE alone is not
-  # sufficient to trigger calendar-aware stepping.
+  # posixct = TRUE alone is not sufficient without a real calendar anchor.
   cal <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 1,
                       unit = "days", posixct = TRUE)
   expect_equal(idx_to_date(cal, 1:3), c(0, 1, 2))
 })
 
 test_that("idx_to_date: posixct=TRUE + Date anchor + non-standard unit still falls back to plain arithmetic", {
-  # by_unit is NULL for a non-standard unit, so calendar-aware stepping is
-  # skipped even though posixct = TRUE and the anchor is a Date.
+  # A non-standard unit has no recognised by_unit, so calendar-aware
+  # stepping is skipped even with posixct = TRUE and a Date anchor.
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                       amount = 10, unit = "fortnights", posixct = TRUE)
   out <- idx_to_date(cal, 1:3)
@@ -627,10 +605,8 @@ test_that("idx_to_date: posixct=TRUE + POSIXct anchor + standard sub-day unit us
                       amount = 1, unit = "hours", posixct = TRUE)
   out <- idx_to_date(cal, 1:5)
   expected <- seq(anchor, by = "hour", length.out = 5)
-  # Compare by underlying instant (numeric seconds since epoch), not by
-  # class/attributes: idx_to_date()'s vapply(..., FUN.VALUE = cal$anchor[1])
-  # does not preserve the POSIXct class or tzone through coercion, even
-  # though the represented time instants are correct.
+  # Compare by underlying instant, not class/attributes: idx_to_date()
+  # does not preserve POSIXct class or tzone through coercion.
   expect_equal(as.numeric(out), as.numeric(expected))
 })
 
@@ -647,17 +623,15 @@ test_that("idx_to_date: calendar-aware stepping covers the five Date-compatible 
 
 test_that("idx_to_date: calendar-aware stepping covers the sub-day standard units for a POSIXct anchor (contrast case)", {
   anchor <- as.POSIXct("2024-01-01 00:00:00", tz = "UTC")
-  # seq.POSIXt's `by` string wants the abbreviated forms "sec"/"min" for
-  # these two (not the full singular words "second"/"minute", which are
-  # invalid) - matching exactly what idx_calendar_by_unit() maps to.
+  # seq.POSIXt wants abbreviated "sec"/"min" forms, matching
+  # idx_calendar_by_unit()'s mapping.
   by_strings <- c(seconds = "sec", minutes = "min", hours = "hour")
   for (u in names(by_strings)) {
     cal <- idx_calendar(anchor = anchor, anchor_pos = 1L,
                         amount = 1, unit = u, posixct = TRUE)
     out <- idx_to_date(cal, 1:3)
     expected <- seq(anchor, by = by_strings[[u]], length.out = 3)
-    # Compare by underlying instant, not strict object equality - see the
-    # tzone-attribute note in the single-unit "hours" test above.
+    # Compare by underlying instant, not strict object equality.
     expect_equal(as.numeric(out), as.numeric(expected), info = paste("unit =", u))
   }
 })
@@ -689,8 +663,6 @@ test_that("idx_to_date: plain-arithmetic fallback is vectorized and handles nega
 })
 
 test_that("idx_to_date: non-integer step check is bypassed entirely when posixct = FALSE", {
-  # The 'non-integer number of steps' guard only fires in the calendar-aware
-  # branch; plain arithmetic has no such restriction.
   cal <- idx_calendar(anchor = as.Date("2024-01-01"), anchor_pos = 1L,
                       amount = 2.5, unit = "days", posixct = FALSE)
   expect_no_error(out <- idx_to_date(cal, 2))
@@ -746,9 +718,8 @@ test_that("idx_resolve_axis: explicit mode='position' works with a posixct=FALSE
 })
 
 test_that("idx_resolve_axis: explicit mode='date' succeeds even with a numeric (non-Date/POSIXct) posixct=FALSE anchor", {
-  # idx_resolve_axis() itself only checks is_idx_calendar(); the fact that
-  # this calendar could never produce a real date is only surfaced (as a
-  # silent fallback, not an error) downstream in idx_to_date().
+  # idx_resolve_axis() only checks is_idx_calendar(); the fallback to
+  # plain arithmetic happens downstream in idx_to_date().
   cal <- idx_calendar(anchor = 0, anchor_pos = 1L, amount = 1,
                       unit = "widgets", posixct = FALSE)
   ax <- idx_resolve_axis(idx_axis_opts(mode = "date"), cal)
@@ -771,8 +742,7 @@ test_that("'date' axis mode is still permitted (calendar is present) but plots a
   model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005, end = end.pos, calendar = cal_np)
   res <- estimate(model)
   
-  # "date" mode does not require posixct = TRUE, only a calendar object -
-  # idx_to_date() itself falls back to plain arithmetic when posixct = FALSE.
+  # "date" mode only requires a calendar object, not posixct = TRUE.
   expect_no_error(plot_forecast(res, axis = idx_axis_opts(mode = "date")))
   
   df <- idx_series_df(conv$series, cal_np, idx_axis_opts(mode = "date"))
@@ -784,10 +754,7 @@ test_that("xts_to_idx() always sets posixct = TRUE (contrast case documenting wh
   conv <- xts_to_idx(gauteng)
   expect_true(conv$calendar$posixct)
 })
-## ----------------------------------------------------------------------
-## Non-posixct mode: idx_series_df / idx_x_lab / idx_x_scale /
-## idx_info_box_caption / idx_add_info_box
-## ----------------------------------------------------------------------
+## Non-posixct mode: idx_series_df / idx_x_lab / idx_x_scale / idx_info_box_caption / idx_add_info_box ----
 
 test_that("idx_series_df: mode='position' returns raw positions regardless of calendar/posixct", {
   x <- idx_series(c(10, 20, 30), start = 5L)
@@ -1072,7 +1039,7 @@ test_that("idx_to_pos exactly inverts numeric-pattern calendars", {
   bdays <- bdays[!weekdays(bdays) %in% c("Saturday", "Sunday")]
   x <- xts::xts(seq_along(bdays), order.by = bdays)
   cal <- xts_to_idx(x)$calendar
-
+  
   back <- vapply(seq_along(bdays), function(i) idx_to_pos(cal, bdays[i]), integer(1))
   expect_equal(back, seq_along(bdays))
 })

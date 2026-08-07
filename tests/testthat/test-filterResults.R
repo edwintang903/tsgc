@@ -10,7 +10,7 @@ test_that("forecasting does not truncate supplied future regressors", {
   res <- estimate(model)
   res$xpred.new <- xpred
   original_xpred <- res$xpred.new
-
+  
   expect_no_error(res$predict_all(5))
   expect_identical(res$xpred.new, original_xpred)
   expect_no_error(res$predict_all(10))
@@ -357,9 +357,7 @@ test_that("predict_level computes predictions correctly - seasonal + xpred + AR1
 
 test_that("predict_level works - quarterly data", {
   data(nintendo_sales, package = "tsgc")
-  # nintendo_sales is indexed by zoo::yearqtr; xts_to_idx() assumes a daily
-  # Date/POSIXct index, so build the idx_series/idx_calendar directly with
-  # unit = "quarters" instead.
+  # yearqtr-indexed; build the calendar directly with unit = "quarters".
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, 1]), start = 1L),
@@ -510,12 +508,8 @@ test_that("xpred.new fails clearly when the supplied regressor series does not e
   )
   res <- estimate(model)
   
-  # get_timeframe() clamps rather than errors on an out-of-range
-  # request, so simulate a regressor feed that stops a few days short
-  # of the forecast horizon by truncating the available future window,
-  # rather than trying to punch an internal gap in an idx_series
-  # (which is not possible - idx_series positions are always a
-  # contiguous run by construction).
+  # Simulate a regressor feed that runs short of the forecast horizon by
+  # truncating the future window (idx_series positions must be contiguous).
   full_future <- get_timeframe(conv_w$series, est.end + 1, est.end + nf)
   short_future <- idx_series(
     idx_values(full_future)[1:(nf - 5), , drop = FALSE],
@@ -525,12 +519,7 @@ test_that("xpred.new fails clearly when the supplied regressor series does not e
   
   res$xpred.new <- short_future
   
-  # predict_all()/predict_level() now check (see filterResults.R) that
-  # get_timeframe(xpred.new, firstpred, firstpred + n.ahead - 1L)
-  # actually returns n.ahead rows before using it, rather than relying
-  # on get_timeframe()'s own silent start/end clamping, which would
-  # otherwise let a too-short regressor series be positionally
-  # recycled into the fixed-size n.ahead array with no error.
+  # predict_level() checks that xpred.new covers the full forecast horizon.
   expect_error(res$predict_level(n.ahead = nf, sea.on = TRUE),
                "does not cover the full forecast horizon")
 })

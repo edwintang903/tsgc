@@ -51,8 +51,7 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
   is_yearqtr <- inherits(idx, "yearqtr")
   is_yearmon <- inherits(idx, "yearmon")
   
-  # Finds the shortest repeating cycle in a vector of positive whole-unit
-  # gap multiples; shared by every unit branch below.
+  # Shortest repeating cycle in a vector of positive whole-unit gap multiples.
   find_pattern <- function(mult) {
     if (any(mult <= 0) || !isTRUE(all.equal(mult, round(mult)))) return(NULL)
     mult <- round(mult)
@@ -76,10 +75,8 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
   }
   
   if (is_yearqtr || is_yearmon) {
-    # yearqtr/yearmon are fractional-year numerics with a natural base
-    # unit (0.25 or 1/12 of a year); try that unit, then the coarser
-    # years unit (an amount = 4 quarters/12 months cycle is really just
-    # "years").
+    # yearqtr/yearmon are fractional-year numerics; try the native unit
+    # (quarters/months), then the coarser years unit.
     base_step <- if (is_yearqtr) 0.25 else (1 / 12)
     native_unit <- if (is_yearqtr) "quarters" else "months"
     gaps <- diff(as.numeric(idx))
@@ -95,13 +92,8 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
     return(NULL)
   }
   
-  # Date/POSIXct: try calendar-relative units first (largest to smallest),
-  # since those are what a human would actually write for e.g. a monthly
-  # or quarterly Date index (as opposed to reporting it in raw days). Only
-  # attempted when idx has no time-of-day component to lose - a POSIXct
-  # value with a non-midnight time cannot be represented by a plain
-  # calendar-month step at all (idx_step's months/quarters/years
-  # components have no time-of-day, consistent with idx_to_date()).
+  # Date/POSIXct: try calendar-relative units first (largest to smallest).
+  # Only attempted when idx has no time-of-day component to lose.
   no_time_of_day <- if (inherits(idx, "POSIXct")) {
     all(format(idx, "%H:%M:%S") == "00:00:00")
   } else {
@@ -111,9 +103,7 @@ idx_detect_calendar_pattern <- function(idx, max_pattern_len = 7L) {
     ymd <- as.Date(idx)
     ym <- as.integer(format(ymd, "%Y")) * 12L + (as.integer(format(ymd, "%m")) - 1L)
     months_gaps <- diff(ym)
-    # A Date index only carries calendar-relative meaning if every value
-    # falls on the first of its month (otherwise "whole months apart" is
-    # ambiguous - e.g. the 15th of consecutive months vs. the 31st).
+    # Only calendar-relative if every value falls on the first of its month.
     on_month_start <- all(as.integer(format(ymd, "%d")) == 1L)
     if (on_month_start && all(months_gaps > 0)) {
       for (per_year in c(1, 4, 12)) {
@@ -368,12 +358,8 @@ idx_to_pos <- function(cal, date) {
     return(idx_multi_step_date_to_offset(cal, date))
   }
   if (is.na(cal$amount)) {
-    # Built via idx_calendar_step(): a single compound idx_step repeated
-    # every position. idx_step_add(anchor, step, n) is strictly monotonic
-    # in n (every idx_step field is non-negative and at least one is
-    # non-zero), so - unlike the general multi_step case - this can be
-    # inverted by binary search on n directly, in O(log distance) rather
-    # than walking one hop at a time.
+    # A single compound idx_step repeated every position: strictly
+    # monotonic in n, so invertible by binary search rather than walking.
     return(idx_step_date_to_offset(cal, date))
   }
   
@@ -432,7 +418,7 @@ idx_offset_to_pos <- function(cal, value) {
 }
 
 #' @title Compute log growth rate of cumulated dataset
-#
+#'
 #' @description Helper method to compute the log growth rates of cumulated
 #' variables.
 #'
@@ -466,13 +452,12 @@ df2ldl <- function(dt) {
   }
   lag.aligned <- lagged[idx_positions(d)]
   ldl <- log(idx_values(d) / idx_values(lag.aligned))
-  # Pad with a leading NA at dt's start position, since the first
-  # observation has no preceding value to compute a growth rate from.
+  # Leading NA at dt's start position: no preceding value to compute from.
   idx_series(c(NA_real_, ldl), start = dt$start)
 }
 
 #' @title Subsetting \code{idx_series} objects given start and end positions
-#
+#'
 #' @description Helper method to subset an \code{idx_series} for a
 #' specified range of integer positions.
 #'
@@ -514,7 +499,7 @@ get_timeframe <- function(df, start, end = NULL) {
 
 #' @title Compute successive increments and log growth rate of 2-variable
 #' cumulated dataset
-#
+#'
 #' @description Helper method to compute the successive increments and log
 #' growth rates of cumulated variables. It will compute the successive
 #' increments and log cumulative growth rate for each column in the
@@ -1213,8 +1198,7 @@ print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
   }
   cat("---- Model diagnostics ----\n")
   
-  # Parameter estimates: delegate to the package's own accessor, which
-  # already reports the fitted variance parameters (unlike summary()).
+  # Parameter estimates.
   tryCatch(res$print_estimation_results(), error = function(e) {
     cat("  (print_estimation_results unavailable: ", conditionMessage(e), ")\n", sep = "")
   })
@@ -1223,11 +1207,8 @@ print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
   ll <- tryCatch(stats::logLik(res$output$model), error = function(e) NA)
   cat("  Log-likelihood:", if (is.na(ll)) "unavailable" else format(ll, digits = 6), "\n")
   
-  # Boundary/degeneracy check: flag estimated variances at or near zero.
-  # H can be a K x K matrix (K > 1) for models with more than one
-  # observation-equation variance (e.g. FilterResultsLI's leading-
-  # indicator model), not just a scalar; check_variance_boundary()
-  # handles both without assuming H is a single value.
+  # Flag estimated variances at or near a degeneracy boundary. H may be a
+  # K x K matrix for multi-equation models (e.g. FilterResultsLI).
   H  <- tryCatch(res$output$model$H[, , 1], error = function(e) NULL)
   Qg <- tryCatch(res$output$model$Q[2, 2, 1], error = function(e) NULL)
   boundary_hit <- check_variance_boundary(H, Qg, boundary_tol = boundary_tol)

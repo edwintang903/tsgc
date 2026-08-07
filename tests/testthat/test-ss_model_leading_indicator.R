@@ -216,8 +216,7 @@ test_that("LI + xpred_lead + xpred_targ + seasonal has correct number of element
 
 test_that("LI with quarterly data has correct number of components", {
   data(nintendo_sales, package = "tsgc")
-  # nintendo_sales is indexed by zoo::yearqtr; build the idx_series/idx_calendar
-  # directly with unit = "quarters" (xts_to_idx() assumes a daily index).
+  # yearqtr-indexed; build the calendar directly with unit = "quarters".
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, c("wii", "switch_all")]), start = 1L),
@@ -250,17 +249,13 @@ test_that("LI works with a plain, non-calendar idx_series (arbitrary integer pos
   res <- estimate(mod)
   
   expect_true(inherits(res, "FilterResultsLI"))
-  # The requested start = 1L is clamped upward: add_daily_ldl()'s own
-  # differencing drops the first position, and lagging the leading
-  # indicator by n.lag further shifts the earliest usable position forward.
+  # start is clamped upward: differencing and lagging shift the earliest
+  # usable position forward.
   expect_true(res$start > 1L)
   expect_equal(res$end, 100L)
 })
 
-## ----------------------------------------------------------------------
-## Non-posixct calendar coverage: estimation equivalence,
-## quarterly/monthly frequency
-## ----------------------------------------------------------------------
+## Non-posixct calendar coverage: estimation equivalence, quarterly/monthly frequency ----
 
 test_that("SSModelLeadingIndicator estimates identically regardless of calendar posixct flag", {
   data(england, package = "tsgc")
@@ -293,18 +288,16 @@ test_that("quarterly-frequency data works under a non-posixct calendar (plain in
   y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
   nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
   
-  # posixct = FALSE here means idx_to_date/plotting must NOT attempt
-  # calendar-aware quarter stepping; positions are just integers 1..n.
+  # posixct = FALSE: plain integer step, not calendar-aware quarter stepping.
   nintendo_cal_np <- idx_calendar(
     anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
     anchor_pos = 1L, amount = 1, unit = "quarters", posixct = FALSE
   )
   expect_error(idx_to_pos(nintendo_cal_np, "2017-01-01"), "not a calendar-anchored")
   
-  # Positions/lag can only be derived via idx_to_pos() on a posixct = TRUE
-  # calendar (same anchor as above, per the vignette's worked example);
-  # the resulting integers are then reused with the non-posixct calendar,
-  # which is purely cosmetic and does not affect estimation.
+  # Positions can only be derived via idx_to_pos() on a posixct = TRUE
+  # calendar; the resulting integers are then reused with the
+  # non-posixct calendar, which is purely cosmetic here.
   nintendo_cal_helper <- idx_calendar(
     anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
     anchor_pos = 1L, amount = 1, unit = "quarters", posixct = TRUE
@@ -358,10 +351,10 @@ test_that("repeated LI estimation does not shift or truncate lead regressors", {
     xpred_lead = xpred
   )
   original_xpred <- mod$xpred_lead
-
+  
   first <- estimate(mod)
   second <- estimate(mod)
-
+  
   expect_identical(mod$xpred_lead, original_xpred)
   expect_equal(first$output$alphahat, second$output$alphahat)
 })

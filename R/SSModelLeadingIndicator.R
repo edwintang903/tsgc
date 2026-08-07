@@ -133,18 +133,13 @@ SSModelLeadingIndicator <- setRefClass(
       containing the result output for the estimated Leading Indicator
       model.}"
       
-      # Compute LDL and lag data appropriately
       y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
       
       y$newLead <- idx_lag(y$newLead, n.lag)
       y$LDLlead <- idx_lag(y$LDLlead, n.lag)
       y$cLead <- idx_lag(y$cLead, n.lag)
       
-      # Combine into a single, position-aligned idx_series (inner join on
-      # position, i.e. keep only positions present in every component
-      # series - cLead/cTarg span the full range but newLead/LDLlead etc.
-      # are one position shorter due to differencing, and now additionally
-      # shifted forward by n.lag positions).
+      # Inner join on position across all component series.
       common_pos <- Reduce(intersect, lapply(y, idx_positions))
       if (length(common_pos) == 0) {
         stop("No overlapping positions remain across the leading indicator ",
@@ -155,20 +150,13 @@ SSModelLeadingIndicator <- setRefClass(
       colnames(combined_mat) <- names(y)
       y_combined <- idx_series(combined_mat, start = common_pos[1])
       
-      # Treat +/-Inf (e.g. from log(0) in df2ldl when an increment happens
-      # to be recorded as exactly matching the prior level) as missing,
-      # then drop any position with a missing value in any column - the
-      # idx_series analogue of xts's na.omit().
+      # Treat +/-Inf as missing and drop any position with a missing value
+      # in any column.
       finite_rows <- apply(idx_values(y_combined), 1, function(row) all(is.finite(row)))
       keep_pos <- idx_positions(y_combined)[finite_rows]
       if (length(keep_pos) == 0) {
         stop("No positions remain after removing missing/infinite values (check n.lag and the estimation range).")
       }
-      # keep_pos may not be contiguous if interior rows were dropped; the
-      # idx_series class only supports contiguous ranges, so we require
-      # contiguity here (matching the implicit assumption in the original
-      # xts-based code, which relied on na.omit() typically only trimming
-      # from the ends when only the lag-induced leading NAs are present).
       if (!identical(keep_pos, seq.int(keep_pos[1], keep_pos[length(keep_pos)]))) {
         stop("Missing/infinite values leave gaps in the middle of the series after filtering, which idx_series cannot represent. Consider a different n.lag or estimation range.")
       }
@@ -208,12 +196,6 @@ SSModelLeadingIndicator <- setRefClass(
       }
       y.estimate <- get_timeframe(y.estimate, est_pos[1], tail(est_pos,1))
       data_mat <- idx_values(y.estimate)[, c("LDLlead","LDLtarg"), drop = FALSE]
-      # A single (or zero) usable row after lagging/trimming leaves too
-      # little information to estimate this two-equation state-space
-      # model, and previously surfaced many calls downstream as an
-      # opaque SSModel() "Misspecified H" error rather than pointing at
-      # the real cause (an estimation window too narrow relative to
-      # n.lag, or too little overlap with xpred_lead/xpred_targ).
       if (nrow(data_mat) < 2) {
         stop("SSModelLeadingIndicator: only ", nrow(data_mat), " usable row(s) ",
              "remain in the estimation window after lagging by n.lag = ", n.lag,
@@ -231,10 +213,9 @@ SSModelLeadingIndicator <- setRefClass(
       xreg_lead <- if (!is.null(xpred_lead_est)) idx_values(xpred_lead_est) else NULL
       xreg_targ <- if (!is.null(xpred_targ_est)) idx_values(xpred_targ_est) else NULL
       
-      # Update function allowing the signal-to-noise ratio to be targeted.
-      # The signal-to-noise ratio is the variance of the trend component of
-      # order 'order' (1 = level, 2 = slope, etc) relative to the variance
-      # of the irregular of series 'index' (1 = first column, 2 = second).
+      # snr is the variance of the trend component of order 'order'
+      # (1 = level, 2 = slope, etc) relative to the irregular variance of
+      # series 'index' (1 = first column, 2 = second).
       updatesn=function(pars, model, snr, order, index){
         if(any(is.na(model$Q))){
           Q <- as.matrix(model$Q[,,1])
@@ -260,10 +241,6 @@ SSModelLeadingIndicator <- setRefClass(
         }
         model
       }
-      # Create the state-space model: a common trend and slope (common
-      # trend of degree 2), an extra trend [random walk] in LDLtarg only
-      # [degree = 1], and a trigonometric seasonal (period = sea.period,
-      # if > 1).
       if (sea.period<2){
         if (is.null(xreg_lead)){
           if (is.null(xreg_targ)){
@@ -323,7 +300,6 @@ SSModelLeadingIndicator <- setRefClass(
         }
       }
       
-      # Number of parameters to estimate: the number of NAs in Q and H.
       npar = sum(is.na(mod$Q)) + sum(is.na(mod$H))
       
       if (is.null(q)){
@@ -376,7 +352,7 @@ SSModelLeadingIndicator <- setRefClass(
       "Provides a quick description of the SSModelLeadingIndicator object, providing 
       model states and standard errors."
       
-      out <- output(.self$estimate()) #KFS object
+      out <- output(.self$estimate())
       cat("SSModelLeadingIndicator Model")
       cat("\n")
       cat("\n")

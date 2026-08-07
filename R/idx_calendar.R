@@ -259,9 +259,7 @@ idx_step_add <- function(anchor, step, n) {
     if (inherits(a, "POSIXct")) {
       a <- a + fixed_days * 86400 + fixed_secs
     } else {
-      # plain Date: only whole-day fixed components are valid without
-      # promoting to POSIXct (which idx_step_needs_posixct already forces
-      # when hours/minutes/seconds are non-zero, so fixed_secs is 0 here).
+      # fixed_secs is always 0 here for a plain Date anchor.
       a <- a + fixed_days
     }
     a
@@ -488,10 +486,7 @@ idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
   }
   idx_calendar_validate_common(anchor_name, anchor_pos, pattern_start, posixct,
                                cycle_len = length(pattern))
-  # Build the canonical compound-step representation from the single
-  # amount/unit pair, so idx_to_date only ever has to deal with one kind
-  # of step object (idx_step), whether it came from this primary
-  # constructor or from idx_calendar_step().
+  # Canonical compound-step representation of the amount/unit pair.
   canonical <- idx_canonical_unit(unit)
   step_obj <- if (!is.null(canonical)) {
     args <- setNames(list(amount), canonical$plural)
@@ -769,23 +764,12 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
   ms <- cal$multi_step
   plen <- length(ms)
   
-  # idx_step_add() only promotes its *return value* to POSIXct when the
-  # step itself has a nonzero hours/minutes/seconds component
-  # (idx_step_needs_posixct()); a step built only from
-  # days/weeks/months/quarters/years leaves a plain Date anchor as a
-  # plain Date. But idx_to_date() dispatches here only when
-  # cal$posixct is TRUE, which is a caller-level promise that the
-  # *calendar's* output should always be POSIXct, independent of
-  # whether any individual step happens to need sub-day precision.
-  # So promote the anchor to POSIXct up front, before walking, rather
-  # than trying to infer the right output class after the fact from
-  # idx_step_add()'s return value (which may still be a plain Date).
+  # Promote the anchor to POSIXct up front so a date-only step (which
+  # idx_step_add() does not itself promote) still yields POSIXct output
+  # whenever cal$posixct is TRUE.
   anchor0 <- if (isTRUE(cal$posixct)) as.POSIXct(cal$anchor) else cal$anchor
   
-  # Walks from anchor_pos to a single target position, one slot-step at a
-  # time, and returns the resulting date. Caches nothing across calls, by
-  # design (this is a straightforward, if not maximally fast, reference
-  # implementation for the general heterogeneous-step case).
+  # Walk from anchor_pos to target, one slot-step at a time.
   walk_to <- function(target) {
     delta <- target - cal$anchor_pos
     if (delta == 0) return(anchor0)
@@ -799,9 +783,7 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
         a <- idx_step_add(a, step_i, 1)
         slot <- (slot %% plen) + 1
       } else {
-        # Stepping backward: the step *out of* the slot immediately before
-        # the current one is what separates it from the current position,
-        # so move the slot pointer back first, then undo that step.
+        # Undo the step out of the slot immediately before the current one.
         slot <- ((slot - 2) %% plen) + 1
         step_i <- ms[[slot]]
         a <- idx_step_add(a, step_i, -1)
@@ -810,14 +792,8 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
     a
   }
   
-  # vapply() coerces its result to the bare storage mode of FUN.VALUE and
-  # drops class attributes, so a Date/POSIXct FUN.VALUE template loses
-  # its class here, silently returning raw numeric day/second counts
-  # instead of dates. Build the result as a plain numeric vector and
-  # restore class/attributes from anchor0 (already promoted to POSIXct
-  # above when cal$posixct is TRUE, so this is always the correct,
-  # consistent output type - not derived from idx_step_add()'s return
-  # value, which does not itself promote for date-only steps).
+  # vapply() would drop the Date/POSIXct class from FUN.VALUE; build a
+  # plain numeric vector and restore class/attributes from anchor0.
   raw <- vapply(pos, function(p) unclass(walk_to(p)), FUN.VALUE = numeric(1))
   out <- raw
   attributes(out) <- attributes(anchor0)
@@ -1020,7 +996,7 @@ idx_calendar_date_to_pos <- function(cal, date) {
   } else {
     as.Date(date)
   }
-
+  
   calendar_month_granularity <- kind$is_date_posix &&
     cal$unit %in% c("months", "quarters", "years")
   comparable <- function(x) {
@@ -1040,7 +1016,7 @@ idx_calendar_date_to_pos <- function(cal, date) {
   at_delta <- function(delta) {
     comparable(idx_to_date(cal, cal$anchor_pos + delta))
   }
-
+  
   lo <- 0
   hi <- 1
   repeat {
@@ -1056,7 +1032,7 @@ idx_calendar_date_to_pos <- function(cal, date) {
   }
   lo_delta <- if (fwd) lo else -lo
   hi_delta <- if (fwd) hi else -hi
-
+  
   while (abs(hi_delta - lo_delta) > 1) {
     mid_delta <- lo_delta + (hi_delta - lo_delta) %/% 2
     value <- at_delta(mid_delta)

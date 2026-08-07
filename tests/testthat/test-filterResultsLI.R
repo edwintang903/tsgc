@@ -55,8 +55,7 @@ test_that("xpred_lead.new and xpred_targ.new can be assigned and used in predict
   data(england_weather_2021, package = "tsgc")
   conv <- xts_to_idx(england[, 1:2])
   
-  # Align the weather series onto england's own position scale via its
-  # actual calendar date, rather than assuming a shared start position.
+  # Align the weather series onto england's position scale via its calendar.
   w_start_pos <- idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1])
   conv_lead <- xts_to_idx(england_weather_2021[, 1:2], start.pos = w_start_pos)
   conv_targ <- xts_to_idx(england_weather_2021[, 3], start.pos = w_start_pos)
@@ -128,10 +127,6 @@ test_that("all standalone plot functions work on a FilterResultsLI object", {
 })
 
 test_that("plot_gy_ci and plot_gy_components default plt.start to the start of the estimation sample for a FilterResultsLI object", {
-  # FilterResultsLI has no `index` field (unlike FilterResults); plt.start
-  # defaults via idx_range(res$data)[1] instead, which should equal res$start.
-  # fit$res$calendar is set, so the plotted x-axis is calendar dates, not
-  # raw positions - convert res$start to a date for the comparison.
   fit <- make_li_fit(sea.period = 7)
   
   p_ci <- plot_gy_ci(fit$res)
@@ -144,10 +139,6 @@ test_that("plot_gy_ci and plot_gy_components default plt.start to the start of t
 })
 
 test_that("plot_gy_ci and plot_gy_components give the same results for FilterResults and FilterResultsLI given equivalent plt.start semantics", {
-  # Both classes should compute the same default start position via
-  # idx_range(res$data)[1], mirroring the parity between the two classes'
-  # (now-retired) RefClass plot_gy_ci()/plot_gy_components() methods in the
-  # xts-based version of the package.
   fit <- make_li_fit(sea.period = 0)
   
   expect_equal(idx_range(fit$res$data)[1], fit$res$start)
@@ -191,9 +182,8 @@ test_that("xpred_lead.new/xpred_targ.new select forecast rows by exact date, not
   est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
   est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   
-  # Weather regressor series begins several months before the model's
-  # own estimation sample, so a positional (row-count) selection would
-  # misalign against a date-based selection.
+  # Weather series begins months before the estimation sample, so a
+  # positional selection would misalign against a date-based one.
   weather_idx <- xts_to_idx(
     england_weather_2021[, "temperature_C", drop = FALSE],
     start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1])
@@ -211,40 +201,21 @@ test_that("xpred_lead.new/xpred_targ.new select forecast rows by exact date, not
   nf <- 14
   future_dates <- idx_to_date(conv$calendar, (est.end.eng + 1):(est.end.eng + nf))
   
-  # FilterResultsLI has no `xpred.new` field - only `xpred_lead.new` and
-  # `xpred_targ.new` (see the class definition in filterResultsLI.R).
-  # An earlier version of this test assigned to `res$xpred.new`, a
-  # field that does not exist on this setRefClass object, so the
-  # assignment never reached the fields predict_all() actually reads
-  # and the test exercised get_timeframe() against itself rather than
-  # the model's real internal alignment logic.
-  #
-  # We deliberately hand the model the FULL, unsliced weather series
-  # (still starting months before the estimation sample) rather than a
-  # pre-sliced window, so predict_all()'s own internal
-  # get_timeframe(xpred_*.new, end+1, end+n.ahead) call (see
-  # filterResultsLI.R) is what performs the date-based selection here,
-  # not the test.
+  # FilterResultsLI has no `xpred.new` field; predict_all() reads
+  # xpred_lead.new / xpred_targ.new instead. The full, unsliced weather
+  # series is supplied so predict_all()'s internal date-based selection
+  # is what's under test, not any pre-slicing done here.
   res$xpred_lead.new <- weather_idx
   res$xpred_targ.new <- weather_idx
   
   out <- res$predict_all(nf, sea.on = TRUE, return.all = FALSE)
   
-  # Independently compute the expected forecast dates/values via
-  # get_timeframe, to compare against what predict_all() actually used
-  # internally. This is now a genuine check that the model's own
-  # alignment logic (not the test's pre-slicing) selected the correct
-  # rows, since res$xpred_lead.new/xpred_targ.new were supplied in full,
-  # unsliced form above.
   expected_future <- get_timeframe(weather_idx, est.end.eng + 1, est.end.eng + nf)
   sel_dates <- idx_to_date(conv$calendar, idx_positions(expected_future))
   expect_equal(sel_dates, future_dates)
   expect_equal(length(unique(sel_dates)), nf)
   
-  # The forecast output itself must exist and cover exactly the
-  # expected forecast horizon - i.e. predict_all() successfully
-  # resolved dates from the full, unsliced regressor series without
-  # erroring or silently truncating.
+  # The forecast output must cover exactly the expected forecast horizon.
   expect_true(is_idx_series(out) || is.list(out))
   out_positions <- if (is_idx_series(out)) idx_positions(out) else idx_positions(out[[1]])
   expect_equal(range(out_positions), c(est.end.eng + 1, est.end.eng + nf))
@@ -262,18 +233,8 @@ test_that("xpred date alignment fails clearly when the supplied regressor series
     start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1])
   )$series
   
-  # idx_series objects are always a contiguous run of positions by
-  # construction (idx_series(data, start) implies positions
-  # start:(start+nrow(data)-1); idx_rbind() requires its two inputs to
-  # be adjoining and errors otherwise) - there is no way to build an
-  # idx_series with an actual internal gap. What CAN happen in
-  # practice is a regressor series that simply does not extend far
-  # enough to cover the requested forecast horizon (e.g. a weather
-  # forecast feed that stops a few days short, or that was
-  # accidentally sliced too early). Simulate that directly by
-  # truncating the series a few positions before the forecast horizon
-  # ends, rather than trying (and failing, since it isn't possible) to
-  # punch an internal hole in it.
+  # Simulate a regressor feed that runs short of the forecast horizon by
+  # truncating the future window (idx_series positions must be contiguous).
   nf <- 14
   full_future <- get_timeframe(weather_idx, est.end.eng + 1, est.end.eng + nf)
   short_future <- idx_series(
@@ -289,37 +250,20 @@ test_that("xpred date alignment fails clearly when the supplied regressor series
     calendar = conv$calendar
   )
   res <- mod$estimate()
-  # FilterResultsLI has no `xpred.new` field; the fields predict_all()
-  # actually reads are xpred_lead.new and xpred_targ.new (see
-  # filterResultsLI.R). Assigning to xpred_lead.new/xpred_targ.new here
-  # ensures the truncated series is genuinely what gets fed into the
-  # model's internal date-based alignment, rather than being silently
-  # ignored because it was written to a field the class doesn't have.
+  # predict_all() reads xpred_lead.new / xpred_targ.new, not xpred.new.
   res$xpred_lead.new <- short_future
   res$xpred_targ.new <- short_future
   
-  # predict_all() now checks (see filterResultsLI.R) that
-  # get_timeframe(xpred_*.new, end+1, end+n.ahead) actually returns
-  # n.ahead rows before using it, rather than relying on
-  # get_timeframe()'s own start/end clamping (which silently returns
-  # fewer rows instead of erroring, and would otherwise let a
-  # too-short regressor series be positionally recycled into a
-  # fixed-size n.ahead array without any error).
+  # predict_all() checks that get_timeframe() returned the full horizon,
+  # rather than relying on its silent start/end clamping.
   expect_error(res$predict_all(nf, sea.on = TRUE, return.all = FALSE),
                "does not cover the full forecast horizon")
 })
 
 test_that("get_timeframe silently clamps to the available range rather than erroring - documented so callers relying on it for validation are aware", {
-  # This is not a bug fix test - it pins get_timeframe()'s actual,
-  # current behaviour (silent clamping via start <- max(start, rng[1]);
-  # end <- min(end, rng[2])), which is why predict_all() in
-  # filterResultsLI.R cannot rely on get_timeframe() alone to detect an
-  # incomplete forecast-horizon window and instead checks the returned
-  # window's length explicitly (see the test above). If this test ever
-  # fails because get_timeframe() has been changed to error on an
-  # out-of-range request instead of clamping, the explicit length
-  # check added to predict_all() would become redundant (but harmless)
-  # defence-in-depth, not incorrect.
+  # Pins get_timeframe()'s clamping behaviour, which is why predict_all()
+  # checks the returned window's length explicitly rather than relying on
+  # get_timeframe() alone to detect an incomplete forecast window.
   x <- idx_series(matrix(1:5, ncol = 1), start = 1L)
   out <- get_timeframe(x, start = 3, end = 10)
   expect_equal(idx_positions(out), 3:5)
@@ -327,16 +271,6 @@ test_that("get_timeframe silently clamps to the available range rather than erro
 })
 
 test_that("xts_to_idx errors clearly on a duplicated date in its input index", {
-  # xts_to_idx()'s source (utils.R) checks
-  #   if (anyDuplicated(idx)) stop("xts_to_idx: x's index contains ",
-  #                                "duplicate values.")
-  # unconditionally, before any detection/construction logic runs - so
-  # a duplicated index date always errors clearly; it is never
-  # silently de-duplicated or allowed to produce an idx_series with an
-  # ambiguous position-to-date mapping. This test pins that behaviour
-  # directly against a genuinely malformed xts input (two source rows
-  # sharing one date, as could occur from concatenating overlapping
-  # series), rather than only asserting it as a requirement.
   data(england_weather_2021, package = "tsgc")
   base_xts <- england_weather_2021[, "temperature_C", drop = FALSE]
   
@@ -349,13 +283,6 @@ test_that("xts_to_idx errors clearly on a duplicated date in its input index", {
 })
 
 test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, matches the documented (Actual + Forecast) denominator formula and its [0, 100] scale, not the textbook [0, 200] sMAPE", {
-  # Unlike a purely formula-level check, this test fits a real model,
-  # calls the package's actual mapes() method, independently
-  # reconstructs Actual/Forecast using the same public building blocks
-  # mapes() itself uses (predict_level(), idx_diff(), get_timeframe()),
-  # and compares the resulting sMAPE against res$mapes()$smape. This
-  # way a regression inside FilterResults$mapes() itself - not just in
-  # a standalone reimplementation of the formula - would be caught.
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng$cum_cases)
   
@@ -371,8 +298,7 @@ test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, m
   
   errs <- res$mapes(n.ahead = n.ahead, Y = conv$series)
   
-  # Reconstruct Actual/Forecast exactly as FilterResults$mapes() does
-  # internally (see filterResults.R), using only public methods.
+  # Reconstruct Actual/Forecast the same way FilterResults$mapes() does.
   eval.window <- get_timeframe(conv$series, est.end, est.end + n.ahead)
   y.eval.diff <- idx_diff(eval.window, 1L)
   y.hat.diff.final <- res$predict_level(n.ahead = n.ahead, confidence.level = 0.68, sea.on = TRUE)
@@ -386,9 +312,8 @@ test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, m
   Actual <- as.numeric(idx_values(y.eval.diff[common_pos]))
   Forecast <- forecast_mat[match(common_pos, forecast_pos), 1]
   
-  # The documented formula: mean(100 * |Actual - Forecast| / (Actual + Forecast)),
-  # ranging over [0, 100] - not the textbook (|A|+|F|)/2 denominator,
-  # which would range over [0, 200].
+  # Documented formula uses (Actual + Forecast), ranging over [0, 100],
+  # not the textbook (|A|+|F|)/2 denominator which ranges over [0, 200].
   expected_smape <- mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
   textbook_smape <- mean(100 * abs(Actual - Forecast) / ((abs(Actual) + abs(Forecast)) / 2))
   
@@ -396,23 +321,19 @@ test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, m
   expect_false(isTRUE(all.equal(errs$smape, textbook_smape)))
   expect_true(errs$smape >= 0 && errs$smape <= 100)
   
-  # mape and rmse from the same call, reconstructed the same way, catch
-  # a regression that shifted denominators/indexing across all five
-  # metrics rather than just smape.
+  # Same reconstruction catches a regression across all five metrics.
   expect_equal(errs$mape, mean(100 * abs(Actual - Forecast) / Actual))
   expect_equal(errs$rmse, sqrt(mean((Actual - Forecast)^2)))
 })
 
 test_that("sMAPE formula, in isolation, uses (Actual + Forecast) in the denominator and ranges over [0, 100], not the conventional [0, 200] scale", {
-  # Complements the end-to-end test above with worked-example arithmetic
-  # that is easy to hand-verify and does not require fitting a model.
   smape_as_implemented <- function(actual, forecast) {
     mean(100 * abs(actual - forecast) / (actual + forecast))
   }
   
   expect_equal(smape_as_implemented(c(100, 200, 300), c(100, 200, 300)), 0)
   
-  # Textbook worked example: Actual = 100, Forecast = 110.
+  # Worked example: Actual = 100, Forecast = 110.
   #   As implemented: 100 * |100-110| / (100+110) = 100 * 10/210 = 4.7619...
   #   Textbook sMAPE (0-200 scale): 100 * |100-110| / ((100+110)/2) = 9.5238...
   implemented_val <- smape_as_implemented(100, 110)

@@ -582,9 +582,8 @@ test_that("Reinitialised model with xpred, seasonal and AR1 uses prior informati
 
 test_that("Model works with quarterly, position-based data (no calendar attached)", {
   data(nintendo_sales, package = "tsgc")
-  # nintendo_sales is indexed by zoo::yearqtr; xts_to_idx() assumes a daily
-  # Date/POSIXct index, so build the idx_series/idx_calendar directly with
-  # unit = "quarters" instead.
+  # yearqtr-indexed; build the calendar directly with unit = "quarters"
+  # rather than via xts_to_idx() (which assumes a daily index).
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, 1]), start = 1L),
@@ -607,8 +606,7 @@ test_that("Model works with quarterly, position-based data (no calendar attached
 
 test_that("Model works with monthly data converted via xts_to_idx", {
   data(etrading_apps, package = "tsgc")
-  # etrading_apps is indexed by zoo::yearmon; build the idx_series/idx_calendar
-  # directly with unit = "months" (xts_to_idx() assumes a daily index).
+  # yearmon-indexed; build the calendar directly with unit = "months".
   first_mon <- zoo::index(etrading_apps)[1]
   conv <- list(
     series = idx_series(zoo::coredata(etrading_apps[, 1]), start = 1L),
@@ -642,9 +640,7 @@ test_that("Model works with a plain, non-calendar idx_series (arbitrary integer 
   expect_equal(tail(res$index, 1), 1050L)
 })
 
-## ----------------------------------------------------------------------
-## Non-posixct calendar coverage: estimation equivalence, xpred.new
-## ----------------------------------------------------------------------
+## Non-posixct calendar coverage: estimation equivalence, xpred.new ----
 
 test_that("SSModelDynamicGompertz estimates identically regardless of calendar posixct flag", {
   data(gauteng, package = "tsgc")

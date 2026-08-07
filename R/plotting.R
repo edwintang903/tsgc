@@ -1,13 +1,8 @@
-## ----------------------------------------------------------------------
 ## Internal helpers: idx_series -> plottable data.frame
 ##
-## All plot functions below go through these helpers so that there is a
-## single place where the "position -> x-axis value" translation happens.
-## If a calendar is available, the x-axis is real dates (via idx_to_date());
-## otherwise it falls back to plain integer positions. Either way the
-## resulting data.frame has an "x" column that ggplot's x aesthetic maps to,
-## and an x-axis label/scale chosen to match.
-## ----------------------------------------------------------------------
+## Translates idx_series positions (and an optional idx_calendar) into an
+## x-axis column, using real dates when a calendar is available and
+## falling back to integer positions otherwise.
 
 #' @title Options controlling how the x-axis of \code{idx_series} plots is
 #' displayed
@@ -132,17 +127,13 @@ idx_series_df <- function(x, calendar = NULL, axis = NULL) {
 idx_x_scale <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # scales::breaks_pretty(n) targets ~n breaks regardless of the span of
-    # the series, so a two-year daily series and a two-week daily series
-    # both get a readable, non-overlapping number of x-axis labels.
+    # scales::breaks_pretty(n) targets ~n breaks regardless of series span.
     if (inherits(calendar$anchor, "POSIXct")) {
       ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"),
                                 breaks = scales::breaks_pretty(n = 8))
     } else if (inherits(calendar$anchor, "yearqtr")) {
-      # idx_to_date() returns a plain numeric (fractional-year) vector for
-      # yearqtr/yearmon anchors, not a Date/POSIXct, so there is no
-      # scale_x_yearqtr(); format the continuous breaks as "YYYY Qn"
-      # instead via zoo's as.yearqtr.
+      # idx_to_date() returns a fractional-year numeric for yearqtr/yearmon
+      # anchors, so format continuous breaks as "YYYY Qn" via zoo.
       ggplot2::scale_x_continuous(
         breaks = scales::breaks_pretty(n = 8),
         labels = function(v) as.character(zoo::as.yearqtr(v))
@@ -166,9 +157,7 @@ idx_x_scale <- function(calendar = NULL, axis = NULL) {
 idx_x_theme <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # Angled labels avoid overlapping/unreadable dates (e.g. "1 Jul 1701")
-    # on plots with many or wide date labels; applies to every plot that
-    # uses idx_x_scale() in "date" mode.
+    # Angled labels avoid overlapping dates on plots with many/wide labels.
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   } else {
     ggplot2::theme()
@@ -180,9 +169,7 @@ idx_x_theme <- function(calendar = NULL, axis = NULL) {
 idx_forecast_x_theme <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # Forecast plots commonly show fairly dense dates. Anchor each angled
-    # label beneath its tick, then leave a clear gap before the axis title so
-    # that "Date" cannot sit among the tick labels.
+    # Anchor angled labels beneath their ticks with a gap before the title.
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(
         angle = 45, hjust = 1, vjust = 1,
@@ -203,9 +190,6 @@ idx_x_lab <- function(calendar = NULL, axis = NULL) {
          date       = "Date",
          position   = "Position",
          steps      = paste0("Steps from ", idx_anchor_label(calendar)),
-         # idx_resolve_axis() already rejects time_since for step/multi_step
-         # calendars (calendar$unit is NA_character_ for those), so
-         # calendar$unit is always a real unit string by the time we get here.
          time_since = paste0("Time since ", idx_anchor_label(calendar), " (", calendar$unit, ")")
   )
 }
@@ -222,8 +206,7 @@ idx_info_box_caption <- function(calendar, axis) {
   }
   
   if (!is.null(calendar$multi_step)) {
-    # multi_step_pattern calendars have no single amount/unit or numeric
-    # pattern - describe each slot's idx_step instead.
+    # No single amount/unit or numeric pattern; describe each slot instead.
     step_lines <- vapply(seq_along(calendar$multi_step), function(i) {
       paste0("  [", i, "] ", idx_step_label(calendar$multi_step[[i]]))
     }, character(1))
@@ -236,8 +219,6 @@ idx_info_box_caption <- function(calendar, axis) {
   }
   
   step_str <- if (is.na(calendar$amount)) {
-    # Built via idx_calendar_step(): a compound idx_step, not a single
-    # amount/unit pair.
     idx_step_label(calendar$step)
   } else {
     paste(calendar$amount, calendar$unit)
@@ -263,17 +244,14 @@ idx_info_box_caption <- function(calendar, axis) {
 idx_add_info_box <- function(p, calendar, axis) {
   cap <- idx_info_box_caption(calendar, axis)
   if (is.null(cap)) return(p)
-  # Append to (rather than overwrite) any caption already set by the plot,
-  # e.g. MAPE/RMSE captions on forecast-evaluation plots.
+  # Append to any existing caption rather than overwrite it.
   existing <- p$labels$caption
   full_cap <- if (!is.null(existing) && nzchar(existing)) paste(existing, cap, sep = "\n\n") else cap
   p + ggplot2::labs(caption = full_cap) +
     ggplot2::theme(plot.caption = ggplot2::element_text(hjust = 0, size = 7, family = "mono"))
 }
 
-## ----------------------------------------------------------------------
-## SSModelDynamicGompertz / SSModelLeadingIndicator: plot(model)
-## ----------------------------------------------------------------------
+## SSModelDynamicGompertz / SSModelLeadingIndicator: plot(model) ----
 
 #' @title Plot the cumulated dataset underlying a fitted Gompertz model
 #'
@@ -327,7 +305,7 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
   }
   
   p <- ggplot(data = df, aes(x = x)) +
-    geom_line(aes(y = New.Cases), colour = "grey50", linewidth = 0.2) +
+    geom_line(aes(y = New.Cases), colour = "grey50", linewidth = 0.2, na.rm = TRUE) +
     scale_y_continuous(n.breaks = 10) +
     labs(x = idx_x_lab(calendar, axis), y = paste("New", series.name), title = title) +
     idx_x_scale(calendar, axis) +
@@ -343,7 +321,7 @@ plot.SSModelDynamicGompertz <- function(x, title = NULL,
       plot.margin = margin(t = 5, l = 5)
     )
   if (MA_period > 1) {
-    p <- p + geom_line(aes(y = Centered.MA, colour = "Centered MA"), linewidth = 1) + 
+    p <- p + geom_line(aes(y = Centered.MA, colour = "Centered MA"), linewidth = 1, na.rm = TRUE) + 
       scale_color_manual(values = c("Centered MA" = "red"))
   }
   idx_add_info_box(p, calendar, axis)
@@ -404,8 +382,8 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
   
   p <- ggplot(data = df, aes(x = x)) +
     labs(title = title, x = idx_x_lab(calendar, axis), y = y.lab, color = "Legend") +
-    geom_line(aes(y = newLead, color = series.name.lead), linewidth = 0.85) +
-    geom_line(aes(y = newTarg, color = series.name.target), linewidth = 0.85) +
+    geom_line(aes(y = newLead, color = series.name.lead), linewidth = 0.85, na.rm = TRUE) +
+    geom_line(aes(y = newTarg, color = series.name.target), linewidth = 0.85, na.rm = TRUE) +
     scale_color_manual(values = c("red", "blue")) +
     idx_x_scale(calendar, axis) +
     theme(
@@ -419,9 +397,7 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
   idx_add_info_box(p, calendar, axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_forecast
-## ----------------------------------------------------------------------
+## plot_forecast ----
 
 #' @title Plots the forecast of new cases (the difference of the cumulated
 #' variable)
@@ -500,10 +476,8 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   names(df_plot)[1] <- "Data"
   df_plot$Forecast <- NA_real_
   fc_df <- idx_series_df(idx_series(idx_values(y.hat.ci)[, 1], start = y.hat.ci$start), calendar, axis)
-  # Forecast positions may extend beyond the estimation data (they always
-  # will, since this is a genuine out-of-sample forecast); assign forecast
-  # values to matching existing rows, and append new rows for any forecast
-  # positions not already present in df_plot.
+  # Assign forecast values to matching existing rows; append new rows for
+  # any forecast positions beyond the estimation data.
   match_idx <- match(fc_df$x, df_plot$x)
   matched <- !is.na(match_idx)
   df_plot$Forecast[match_idx[matched]] <- fc_df[matched, 1]
@@ -517,8 +491,8 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   
   Data <- Forecast <- lower <- upper <- NULL
   p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = Data, color = "Data"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = Data, color = "Data"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
@@ -569,8 +543,8 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   
   newTarg <- Forecast <- lwr <- upr <- NULL
   p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = newTarg, color = "Data"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = newTarg, color = "Data"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci_plot, ggplot2::aes(x = x, ymin = lwr, ymax = upr),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
@@ -605,9 +579,7 @@ idx_cbind_union <- function(...) {
   idx_series(mat, start = all_pos[1])
 }
 
-## ----------------------------------------------------------------------
-## plot_log_forecast
-## ----------------------------------------------------------------------
+## plot_log_forecast ----
 
 #' @title Plots forecast and realised values of the log cumulative growth
 #' rate
@@ -693,15 +665,15 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
   
   EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
   p1 <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = EstimationSample, color = "Estimation\nSample"), linewidth = 0.85)
+    ggplot2::geom_line(ggplot2::aes(y = EstimationSample, color = "Estimation\nSample"), linewidth = 0.85, na.rm = TRUE)
   
   if (!res$xpred_logical) {
-    p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85)
+    p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85, na.rm = TRUE)
   }
   
   p1 <- p1 +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
     idx_x_scale(calendar, axis) +
@@ -771,15 +743,15 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
   
   EstimationSample <- FilteredLevel <- Forecast <- RealisedData <- NULL
   p1 <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = EstimationSample, color = "Estimation\nSample"), linewidth = 0.85)
+    ggplot2::geom_line(ggplot2::aes(y = EstimationSample, color = "Estimation\nSample"), linewidth = 0.85, na.rm = TRUE)
   
   if (!any(res$xpred_logical)) {
-    p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85)
+    p1 <- p1 + ggplot2::geom_line(ggplot2::aes(y = FilteredLevel, color = "Filtered\nLevel"), linewidth = 0.85, na.rm = TRUE)
   }
   
   p1 <- p1 +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = RealisedData, color = "Realised\nData"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = color_values) +
     ggplot2::scale_linetype_manual(values = linetype_values) +
     idx_x_scale(calendar, axis) +
@@ -797,9 +769,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
   idx_add_info_box(p1, calendar, axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_gy_components
-## ----------------------------------------------------------------------
+## plot_gy_components ----
 
 #' @title Plots the growth rate, level and slope of the log cumulative
 #' growth rate
@@ -857,7 +827,7 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
                                  names_to = "Variable", values_to = "Value")
   
   p <- ggplot2::ggplot(df_long, ggplot2::aes(x = x, y = Value, color = Variable)) +
-    ggplot2::geom_line(linewidth = 0.85) +
+    ggplot2::geom_line(linewidth = 0.85, na.rm = TRUE) +
     ggplot2::facet_wrap(~ factor(Variable, c("gy.t", "g.t", "gamma.t")), ncol = 1, scales = "free_y") +
     ggplot2::labs(title = title, x = idx_x_lab(calendar, axis), y = ggplot2::element_blank()) +
     ggplot2::scale_color_manual(values = c("#AA2045", "darkgrey", "black")) +
@@ -872,9 +842,7 @@ plot_gy_components <- function(res, plt.start = NULL, smoothed = FALSE, title = 
   idx_add_info_box(p, calendar, axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_gy_ci
-## ----------------------------------------------------------------------
+## plot_gy_ci ----
 
 #' @title Plots the growth rate of the cumulative variable with confidence
 #' intervals
@@ -923,7 +891,7 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
   
   fit <- upper <- lower <- NULL
   p1 <- ggplot2::ggplot(df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = fit), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = fit), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::geom_hline(yintercept = 0, linetype = "solid", color = "green", linewidth = 1) +
     ggplot2::geom_ribbon(ggplot2::aes(ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.3) +
@@ -958,9 +926,7 @@ plot_gy_ci <- function(res, plt.start = NULL, smoothed = FALSE, title = NULL,
   idx_add_info_box(p1, calendar, resolved_axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_holdout
-## ----------------------------------------------------------------------
+## plot_holdout ----
 
 #' @title Plots the forecast of new cases over a holdout sample
 #'
@@ -1052,8 +1018,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   
   Actual <- Forecast <- lower <- upper <- NULL
   p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
@@ -1119,8 +1085,8 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   
   Actual <- Forecast <- lower <- upper <- NULL
   p <- ggplot2::ggplot(data = df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85) +
-    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = Actual, color = "Actual"), linewidth = 0.85, na.rm = TRUE) +
+    ggplot2::geom_line(ggplot2::aes(y = Forecast, color = "Forecast"), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::scale_color_manual(values = c("black", "#AA2045")) +
     ggplot2::geom_ribbon(data = ci_plot, ggplot2::aes(x = x, ymin = lower, ymax = upper),
                          linetype = 0, linewidth = 0, fill = "#AA2045", alpha = 0.1) +
@@ -1144,9 +1110,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   idx_add_info_box(p, calendar, axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_compare_forecast
-## ----------------------------------------------------------------------
+## plot_compare_forecast ----
 
 #' @title Forecast comparison plot
 #'
@@ -1195,13 +1159,10 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   } else {
     labels <- names(results)
     if (is.null(labels)) {
-      # Fall back to the deparsed expression for each element of the
-      # results list, e.g. plot_compare_forecast(list(res, res.reinit))
-      # labels the lines "res" and "res.reinit". This inspects the call
-      # used to build `results` (typically a literal list(...) call), so
-      # it only works when that structure is visible to match.call(); if
-      # results was itself passed through as an opaque variable, this
-      # falls back to positional "model" labels below.
+      # Fall back to the deparsed call expression for each element, e.g.
+      # plot_compare_forecast(list(res, res.reinit)) labels the lines
+      # "res" and "res.reinit". Only works if `results` is a literal
+      # list(...) call visible to match.call().
       results_expr <- match.call()$results
       call_args <- if (is.call(results_expr)) as.list(results_expr)[-1] else NULL
       if (!is.null(call_args) && length(call_args) == length(results)) {
@@ -1252,7 +1213,7 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   
   model <- forecast <- NULL
   p <- ggplot2::ggplot(data = df_forecasts, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = forecast, color = model), linewidth = 0.85) +
+    ggplot2::geom_line(ggplot2::aes(y = forecast, color = model), linewidth = 0.85, na.rm = TRUE) +
     ggplot2::labs(x = idx_x_lab(calendar, axis), y = "Forecast", title = title) +
     ggplot2::theme(legend.title = ggplot2::element_blank()) +
     ggplot2::theme(
@@ -1269,9 +1230,7 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   idx_add_info_box(p, calendar, axis)
 }
 
-## ----------------------------------------------------------------------
-## plot_r0
-## ----------------------------------------------------------------------
+## plot_r0 ----
 
 #' @title Plot the estimated reproduction number \eqn{R_t}
 #'
@@ -1333,7 +1292,7 @@ plot_r0 <- function(res, gen_int, n.ahead = 7, smoothed = FALSE,
   
   fit <- lower <- upper <- NULL
   p <- ggplot2::ggplot(df_plot, ggplot2::aes(x = x)) +
-    ggplot2::geom_line(ggplot2::aes(y = fit, colour = "Rt")) +
+    ggplot2::geom_line(ggplot2::aes(y = fit, colour = "Rt"), na.rm = TRUE) +
     ggplot2::geom_point(ggplot2::aes(y = fit), colour = "red", size = 3) +
     ggplot2::geom_segment(ggplot2::aes(xend = x, yend = lower, y = fit), colour = "blue") +
     ggplot2::geom_segment(ggplot2::aes(xend = x, yend = upper, y = fit), colour = "blue") +
