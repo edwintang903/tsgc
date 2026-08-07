@@ -582,8 +582,6 @@ test_that("Reinitialised model with xpred, seasonal and AR1 uses prior informati
 
 test_that("Model works with quarterly, position-based data (no calendar attached)", {
   data(nintendo_sales, package = "tsgc")
-  # yearqtr-indexed; build the calendar directly with unit = "quarters"
-  # rather than via xts_to_idx() (which assumes a daily index).
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, 1]), start = 1L),
@@ -606,7 +604,6 @@ test_that("Model works with quarterly, position-based data (no calendar attached
 
 test_that("Model works with monthly data converted via xts_to_idx", {
   data(etrading_apps, package = "tsgc")
-  # yearmon-indexed; build the calendar directly with unit = "months".
   first_mon <- zoo::index(etrading_apps)[1]
   conv <- list(
     series = idx_series(zoo::coredata(etrading_apps[, 1]), start = 1L),

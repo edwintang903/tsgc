@@ -265,8 +265,6 @@ FilterResults <- setRefClass(
         } else {
           firstpred <- tail(index,1) + 1L
           
-          # Explicitly check xpred.new covers the full forecast horizon;
-          # get_timeframe() clamps rather than errors on a short window.
           xpred.new.window <- get_timeframe(
             xpred.new, firstpred, firstpred + n.ahead - 1L)
           if (length(idx_positions(xpred.new.window)) != n.ahead) {

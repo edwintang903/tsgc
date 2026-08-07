@@ -486,7 +486,6 @@ idx_calendar <- function(anchor, anchor_pos = 1L, amount = 1, unit = "days",
   }
   idx_calendar_validate_common(anchor_name, anchor_pos, pattern_start, posixct,
                                cycle_len = length(pattern))
-  # Canonical compound-step representation of the amount/unit pair.
   canonical <- idx_canonical_unit(unit)
   step_obj <- if (!is.null(canonical)) {
     args <- setNames(list(amount), canonical$plural)
@@ -697,12 +696,9 @@ idx_calendar_offset <- function(cal, pos) {
   pat <- cal$pattern
   plen <- length(pat)
   
-  # Cumulative pattern weight ending at each cycle slot.
   cum_from_start <- cumsum(pat)
   cycle_total <- cum_from_start[plen]
   
-  # Pattern-weighted steps from cycle slot a to cycle slot b, moving
-  # forward and wrapping around the pattern if necessary.
   weight_between <- function(a, b) {
     if (b >= a) {
       if (a == 1) cum_from_start[b] else cum_from_start[b] - cum_from_start[a - 1]
@@ -764,12 +760,8 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
   ms <- cal$multi_step
   plen <- length(ms)
   
-  # Promote the anchor to POSIXct up front so a date-only step (which
-  # idx_step_add() does not itself promote) still yields POSIXct output
-  # whenever cal$posixct is TRUE.
   anchor0 <- if (isTRUE(cal$posixct)) as.POSIXct(cal$anchor) else cal$anchor
   
-  # Walk from anchor_pos to target, one slot-step at a time.
   walk_to <- function(target) {
     delta <- target - cal$anchor_pos
     if (delta == 0) return(anchor0)
@@ -783,7 +775,6 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
         a <- idx_step_add(a, step_i, 1)
         slot <- (slot %% plen) + 1
       } else {
-        # Undo the step out of the slot immediately before the current one.
         slot <- ((slot - 2) %% plen) + 1
         step_i <- ms[[slot]]
         a <- idx_step_add(a, step_i, -1)
@@ -792,8 +783,6 @@ idx_multi_step_offset_to_date <- function(cal, pos) {
     a
   }
   
-  # vapply() would drop the Date/POSIXct class from FUN.VALUE; build a
-  # plain numeric vector and restore class/attributes from anchor0.
   raw <- vapply(pos, function(p) unclass(walk_to(p)), FUN.VALUE = numeric(1))
   out <- raw
   attributes(out) <- attributes(anchor0)
@@ -839,10 +828,7 @@ idx_multi_step_date_to_offset <- function(cal, date) {
   } else {
     as.Date(date)
   }
-  
-  # Numeric comparator for "how far past date have we walked" - yearqtr/
-  # yearmon are already fractional-year numerics; Date/POSIXct compare
-  # natively via as.numeric() (seconds/days since the epoch).
+
   as_num <- function(x) as.numeric(x)
   target_num <- as_num(date)
   anchor_num <- as_num(cal$anchor)
@@ -878,8 +864,6 @@ idx_multi_step_date_to_offset <- function(cal, date) {
     if (isTRUE(all.equal(a_num, target_num))) {
       return(as.integer(pos))
     }
-    # Overshot without an exact match: date does not fall on a step
-    # boundary of this multi_step_pattern.
     if ((fwd && a_num > target_num) || (!fwd && a_num < target_num)) {
       stop("idx_to_pos: date does not fall on a whole step boundary of ",
            "cal's multi_step_pattern.")
@@ -936,8 +920,6 @@ idx_step_date_to_offset <- function(cal, date) {
   }
   fwd <- target_num > anchor_num
   
-  # Expand a bracket [lo, hi] (in n) that straddles the target, doubling
-  # each time - exploits strict monotonicity of idx_step_add() in n.
   lo <- 0L; hi <- 1L
   repeat {
     probe <- if (fwd) hi else -hi
@@ -954,8 +936,6 @@ idx_step_date_to_offset <- function(cal, date) {
   lo_n <- if (fwd) lo else -lo
   hi_n <- if (fwd) hi else -hi
   
-  # Standard integer binary search for the exact n with at_n(n) == target,
-  # relying on monotonicity between lo_n and hi_n.
   while (abs(hi_n - lo_n) > 1) {
     mid_n <- lo_n + (hi_n - lo_n) %/% 2L
     v <- at_n(mid_n)

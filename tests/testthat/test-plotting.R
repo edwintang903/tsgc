@@ -168,10 +168,6 @@ test_that("plot_r0() respects axis modes and honours n.ahead/smoothed/confidence
                           smoothed = TRUE, confidence.level = 0.9))
 })
 
-## ----------------------------------------------------------------------
-## Non-posixct calendar coverage: every plot.*/plot_* entry point
-## ----------------------------------------------------------------------
-
 test_that("plot(model) methods work with a non-posixct calendar (Gompertz and LeadingIndicator)", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng)

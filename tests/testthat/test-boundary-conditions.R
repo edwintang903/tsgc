@@ -47,7 +47,6 @@ test_that("SSModelDynamicGompertz accepts a reinit.idx that is a position within
 test_that("SSModelDynamicGompertz fails with a reinit.idx that does not exist in the series", {
   Y <- idx_series(exp(seq(4, 7, length.out = 60)), start = 1L)
   
-  # One position beyond the end of the series.
   model <- SSModelDynamicGompertz$new(
     Y = Y, q = 0.01, reinit.idx = 61L
   )
@@ -371,7 +370,6 @@ test_that("calendar must be NULL or an idx_calendar object, in both classes", {
 ## 4. SHARED UTILITY BOUNDARIES: get_timeframe() ----
 
 test_that("get_timeframe errors when start > end (both fall within the available range)", {
-  # An out-of-order but in-range start/end is caught explicitly.
   x <- idx_series(1:20, start = 1L)
   expect_error(get_timeframe(x, 15, 5), "start is after end")
 })

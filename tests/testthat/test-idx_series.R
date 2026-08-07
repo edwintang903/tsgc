@@ -108,10 +108,7 @@ test_that("head.idx_series returns the first n observations by count, not by pos
   expect_equal(idx_values(h), 101:103)
   expect_equal(h$start, 5L)
   
-  # n larger than length(x) returns the full series, not an error.
   expect_equal(idx_values(head(x, 100)), idx_values(x))
-  
-  # Default n = 6.
   expect_equal(length(head(x)), 6)
 })
 

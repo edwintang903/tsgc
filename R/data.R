@@ -19,8 +19,6 @@
 #' plot(diff(gauteng))
 "gauteng"
 
-
-
 #' Daily Covid-19 metrics for England.
 #'
 #' @docType data
@@ -44,9 +42,6 @@
 #' # plot daily cases
 #' plot(diff(england))
 "england"
-
-
-
 
 #' Cumulative daily cases of Covid-19 in Italy and UK, before 14 Dec 2020.
 #'

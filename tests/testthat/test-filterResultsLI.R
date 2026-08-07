@@ -182,8 +182,6 @@ test_that("xpred_lead.new/xpred_targ.new select forecast rows by exact date, not
   est.start.eng <- idx_to_pos(conv$calendar, as.Date("2021-04-30"))
   est.end.eng   <- idx_to_pos(conv$calendar, as.Date("2021-07-24"))
   
-  # Weather series begins months before the estimation sample, so a
-  # positional selection would misalign against a date-based one.
   weather_idx <- xts_to_idx(
     england_weather_2021[, "temperature_C", drop = FALSE],
     start.pos = idx_to_pos(conv$calendar, zoo::index(england_weather_2021)[1])
@@ -201,10 +199,6 @@ test_that("xpred_lead.new/xpred_targ.new select forecast rows by exact date, not
   nf <- 14
   future_dates <- idx_to_date(conv$calendar, (est.end.eng + 1):(est.end.eng + nf))
   
-  # FilterResultsLI has no `xpred.new` field; predict_all() reads
-  # xpred_lead.new / xpred_targ.new instead. The full, unsliced weather
-  # series is supplied so predict_all()'s internal date-based selection
-  # is what's under test, not any pre-slicing done here.
   res$xpred_lead.new <- weather_idx
   res$xpred_targ.new <- weather_idx
   
@@ -250,20 +244,14 @@ test_that("xpred date alignment fails clearly when the supplied regressor series
     calendar = conv$calendar
   )
   res <- mod$estimate()
-  # predict_all() reads xpred_lead.new / xpred_targ.new, not xpred.new.
   res$xpred_lead.new <- short_future
   res$xpred_targ.new <- short_future
   
-  # predict_all() checks that get_timeframe() returned the full horizon,
-  # rather than relying on its silent start/end clamping.
   expect_error(res$predict_all(nf, sea.on = TRUE, return.all = FALSE),
                "does not cover the full forecast horizon")
 })
 
 test_that("get_timeframe silently clamps to the available range rather than erroring - documented so callers relying on it for validation are aware", {
-  # Pins get_timeframe()'s clamping behaviour, which is why predict_all()
-  # checks the returned window's length explicitly rather than relying on
-  # get_timeframe() alone to detect an incomplete forecast window.
   x <- idx_series(matrix(1:5, ncol = 1), start = 1L)
   out <- get_timeframe(x, start = 3, end = 10)
   expect_equal(idx_positions(out), 3:5)
@@ -312,8 +300,6 @@ test_that("sMAPE, as returned by FilterResults$mapes() on a real fitted model, m
   Actual <- as.numeric(idx_values(y.eval.diff[common_pos]))
   Forecast <- forecast_mat[match(common_pos, forecast_pos), 1]
   
-  # Documented formula uses (Actual + Forecast), ranging over [0, 100],
-  # not the textbook (|A|+|F|)/2 denominator which ranges over [0, 200].
   expected_smape <- mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
   textbook_smape <- mean(100 * abs(Actual - Forecast) / ((abs(Actual) + abs(Forecast)) / 2))
   

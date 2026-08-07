@@ -139,7 +139,6 @@ SSModelLeadingIndicator <- setRefClass(
       y$LDLlead <- idx_lag(y$LDLlead, n.lag)
       y$cLead <- idx_lag(y$cLead, n.lag)
       
-      # Inner join on position across all component series.
       common_pos <- Reduce(intersect, lapply(y, idx_positions))
       if (length(common_pos) == 0) {
         stop("No overlapping positions remain across the leading indicator ",
@@ -150,8 +149,6 @@ SSModelLeadingIndicator <- setRefClass(
       colnames(combined_mat) <- names(y)
       y_combined <- idx_series(combined_mat, start = common_pos[1])
       
-      # Treat +/-Inf as missing and drop any position with a missing value
-      # in any column.
       finite_rows <- apply(idx_values(y_combined), 1, function(row) all(is.finite(row)))
       keep_pos <- idx_positions(y_combined)[finite_rows]
       if (length(keep_pos) == 0) {
@@ -213,9 +210,6 @@ SSModelLeadingIndicator <- setRefClass(
       xreg_lead <- if (!is.null(xpred_lead_est)) idx_values(xpred_lead_est) else NULL
       xreg_targ <- if (!is.null(xpred_targ_est)) idx_values(xpred_targ_est) else NULL
       
-      # snr is the variance of the trend component of order 'order'
-      # (1 = level, 2 = slope, etc) relative to the irregular variance of
-      # series 'index' (1 = first column, 2 = second).
       updatesn=function(pars, model, snr, order, index){
         if(any(is.na(model$Q))){
           Q <- as.matrix(model$Q[,,1])

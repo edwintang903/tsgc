@@ -216,7 +216,6 @@ test_that("LI + xpred_lead + xpred_targ + seasonal has correct number of element
 
 test_that("LI with quarterly data has correct number of components", {
   data(nintendo_sales, package = "tsgc")
-  # yearqtr-indexed; build the calendar directly with unit = "quarters".
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, c("wii", "switch_all")]), start = 1L),
@@ -249,8 +248,6 @@ test_that("LI works with a plain, non-calendar idx_series (arbitrary integer pos
   res <- estimate(mod)
   
   expect_true(inherits(res, "FilterResultsLI"))
-  # start is clamped upward: differencing and lagging shift the earliest
-  # usable position forward.
   expect_true(res$start > 1L)
   expect_equal(res$end, 100L)
 })
@@ -288,16 +285,12 @@ test_that("quarterly-frequency data works under a non-posixct calendar (plain in
   y_q_xts <- nintendo_sales[, c("wii", "switch_all")]
   nintendo_idx <- idx_series(zoo::coredata(y_q_xts), start = 1L)
   
-  # posixct = FALSE: plain integer step, not calendar-aware quarter stepping.
   nintendo_cal_np <- idx_calendar(
     anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
     anchor_pos = 1L, amount = 1, unit = "quarters", posixct = FALSE
   )
   expect_error(idx_to_pos(nintendo_cal_np, "2017-01-01"), "not a calendar-anchored")
   
-  # Positions can only be derived via idx_to_pos() on a posixct = TRUE
-  # calendar; the resulting integers are then reused with the
-  # non-posixct calendar, which is purely cosmetic here.
   nintendo_cal_helper <- idx_calendar(
     anchor = zoo::as.Date(zoo::index(y_q_xts)[1]),
     anchor_pos = 1L, amount = 1, unit = "quarters", posixct = TRUE

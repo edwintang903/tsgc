@@ -541,7 +541,6 @@ SSModelDynamicGompertz <- setRefClass(
         stopifnot(reinit.idx %in% idx_positions(Y))
         Y.t.r_0 <- as.numeric(idx_values(Y[reinit.idx - 1]))
         
-        # ln g_t^r = ln g_t + ln(Y_{t-1}/Y_{t-1}^r), where Y_t^r = Y_t - Y_{r_0}.
         y_pos <- idx_positions(y)
         reinit_pos <- y_pos[y_pos > reinit.idx]
         lag.Y <- idx_lag(Y, 1L)[reinit_pos]

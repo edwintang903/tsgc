@@ -1,9 +1,3 @@
-## Internal helpers: idx_series -> plottable data.frame
-##
-## Translates idx_series positions (and an optional idx_calendar) into an
-## x-axis column, using real dates when a calendar is available and
-## falling back to integer positions otherwise.
-
 #' @title Options controlling how the x-axis of \code{idx_series} plots is
 #' displayed
 #'
@@ -127,13 +121,10 @@ idx_series_df <- function(x, calendar = NULL, axis = NULL) {
 idx_x_scale <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # scales::breaks_pretty(n) targets ~n breaks regardless of series span.
     if (inherits(calendar$anchor, "POSIXct")) {
       ggplot2::scale_x_datetime(labels = scales::date_format("%d %b %y"),
                                 breaks = scales::breaks_pretty(n = 8))
     } else if (inherits(calendar$anchor, "yearqtr")) {
-      # idx_to_date() returns a fractional-year numeric for yearqtr/yearmon
-      # anchors, so format continuous breaks as "YYYY Qn" via zoo.
       ggplot2::scale_x_continuous(
         breaks = scales::breaks_pretty(n = 8),
         labels = function(v) as.character(zoo::as.yearqtr(v))
@@ -157,7 +148,6 @@ idx_x_scale <- function(calendar = NULL, axis = NULL) {
 idx_x_theme <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # Angled labels avoid overlapping dates on plots with many/wide labels.
     ggplot2::theme(axis.text.x = ggplot2::element_text(angle = 45, hjust = 1))
   } else {
     ggplot2::theme()
@@ -169,7 +159,6 @@ idx_x_theme <- function(calendar = NULL, axis = NULL) {
 idx_forecast_x_theme <- function(calendar = NULL, axis = NULL) {
   axis <- idx_resolve_axis(axis, calendar)
   if (axis$mode == "date") {
-    # Anchor angled labels beneath their ticks with a gap before the title.
     ggplot2::theme(
       axis.text.x = ggplot2::element_text(
         angle = 45, hjust = 1, vjust = 1,
@@ -206,7 +195,6 @@ idx_info_box_caption <- function(calendar, axis) {
   }
   
   if (!is.null(calendar$multi_step)) {
-    # No single amount/unit or numeric pattern; describe each slot instead.
     step_lines <- vapply(seq_along(calendar$multi_step), function(i) {
       paste0("  [", i, "] ", idx_step_label(calendar$multi_step[[i]]))
     }, character(1))
@@ -244,7 +232,6 @@ idx_info_box_caption <- function(calendar, axis) {
 idx_add_info_box <- function(p, calendar, axis) {
   cap <- idx_info_box_caption(calendar, axis)
   if (is.null(cap)) return(p)
-  # Append to any existing caption rather than overwrite it.
   existing <- p$labels$caption
   full_cap <- if (!is.null(existing) && nzchar(existing)) paste(existing, cap, sep = "\n\n") else cap
   p + ggplot2::labs(caption = full_cap) +
@@ -476,8 +463,6 @@ plot_forecast <- function(res, n.ahead = 14, confidence.level = 0.68,
   names(df_plot)[1] <- "Data"
   df_plot$Forecast <- NA_real_
   fc_df <- idx_series_df(idx_series(idx_values(y.hat.ci)[, 1], start = y.hat.ci$start), calendar, axis)
-  # Assign forecast values to matching existing rows; append new rows for
-  # any forecast positions beyond the estimation data.
   match_idx <- match(fc_df$x, df_plot$x)
   matched <- !is.na(match_idx)
   df_plot$Forecast[match_idx[matched]] <- fc_df[matched, 1]
@@ -1159,10 +1144,6 @@ plot_compare_forecast <- function(results, n.ahead = 14, sea.on = TRUE,
   } else {
     labels <- names(results)
     if (is.null(labels)) {
-      # Fall back to the deparsed call expression for each element, e.g.
-      # plot_compare_forecast(list(res, res.reinit)) labels the lines
-      # "res" and "res.reinit". Only works if `results` is a literal
-      # list(...) call visible to match.call().
       results_expr <- match.call()$results
       call_args <- if (is.call(results_expr)) as.list(results_expr)[-1] else NULL
       if (!is.null(call_args) && length(call_args) == length(results)) {

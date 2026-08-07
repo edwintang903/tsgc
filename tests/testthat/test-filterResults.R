@@ -357,7 +357,6 @@ test_that("predict_level computes predictions correctly - seasonal + xpred + AR1
 
 test_that("predict_level works - quarterly data", {
   data(nintendo_sales, package = "tsgc")
-  # yearqtr-indexed; build the calendar directly with unit = "quarters".
   first_qtr <- zoo::index(nintendo_sales)[1]
   conv <- list(
     series = idx_series(zoo::coredata(nintendo_sales[, 1]), start = 1L),

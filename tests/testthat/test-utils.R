@@ -74,7 +74,6 @@ test_that("xts_to_idx detects a yearmon index", {
 })
 
 test_that("xts_to_idx errors on an irregular index when detect = TRUE", {
-  # Enough gaps that no cycle length up to max_pattern_len (7) tiles them.
   gaps <- c(1, 2, 1, 6, 1, 3, 2, 5, 1, 1, 4, 2)
   irregular_dates <- as.Date("2024-01-01") + c(0, cumsum(gaps))
   x <- xts::xts(seq_along(irregular_dates), order.by = irregular_dates)
@@ -131,15 +130,11 @@ test_that("df2ldl errors on negative levels or genuinely negative increments", {
   x_neg <- idx_series(c(10, -5, 20, 30), start = 1L)
   expect_error(df2ldl(x_neg), "negative")
   
-  # A genuine decrease (negative increment) is caught explicitly.
   x_dec <- idx_series(c(10, 20, 15, 30), start = 1L)
   expect_error(df2ldl(x_dec), "nonpositive increments")
 })
 
 test_that("df2ldl does not error on an exact plateau (zero increment), but produces -Inf at that position", {
-  # The increment check in df2ldl only rejects strictly negative increments
-  # (idx_values(d) < 0); a zero increment passes it and instead surfaces as
-  # log(0 / lag) = -Inf downstream, since it isn't itself an invalid input.
   x_flat <- idx_series(c(10, 20, 20, 30), start = 1L)
   ldl <- df2ldl(x_flat)
   expect_true(is.infinite(idx_values(ldl)[3]) && idx_values(ldl)[3] < 0)
@@ -178,8 +173,6 @@ test_that("reinitialise_dataframe rebases a series relative to the value just be
   x <- idx_series(c(100, 110, 125, 140, 160), start = 1L)
   reinit <- reinitialise_dataframe(x, 3L)
   expect_equal(reinit$start, 3L)
-  # reinit.idx itself is included in the output, rebased relative to the
-  # value at reinit.idx - 1 (not to itself), so it is not necessarily zero.
   expect_equal(idx_values(reinit), idx_values(x)[3:5] - idx_values(x)[2])
   expect_equal(idx_values(reinit)[1], 15)
 })
@@ -442,8 +435,6 @@ test_that("FilterResultsLI's summary() prints the 2x2 observation-noise matrix a
   
   out <- capture.output(res$summary())
   expect_true(any(grepl("Observation equation noise", out)))
-  # A matrix printed via base::print() produces row labels like "[1,]",
-  # confirming H was printed as a matrix, not flattened into one line.
   noise_line <- grep("Observation equation noise", out)
   expect_true(any(grepl("\\[1,\\]", out[(noise_line + 1):length(out)][1:3])))
 })

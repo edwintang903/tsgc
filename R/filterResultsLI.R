@@ -260,8 +260,6 @@ FilterResultsLI <- setRefClass(
         if (xpred_logical[1]){
           if (is_idx_series(xpred_lead.new)){
             xpred_lead.new.lagged <- idx_lag(xpred_lead.new, n.lag)
-            # Explicitly check the window covers the full forecast horizon;
-            # get_timeframe() clamps rather than errors on a short window.
             xpred_lead.new.window <- get_timeframe(
               xpred_lead.new.lagged, end + 1L, end + n.ahead)
             if (length(idx_positions(xpred_lead.new.window)) != n.ahead) {
@@ -360,7 +358,6 @@ FilterResultsLI <- setRefClass(
         attr(new.model, 'n') <- as.integer(oldn + n.ahead)
         model_output <- KFS(new.model)
         
-        # Create forecast model object
         if (sea.period<2) {
           forcmodel = SSModel(na_vals ~ SSMtrend(degree = 2, 
                                                  Q = matrix(c(0,0,0,Qf[2,2]),2,2),
@@ -386,7 +383,6 @@ FilterResultsLI <- setRefClass(
             output$model, interval = 'prediction',
             newdata = forcmodel, level = confidence.level, states = 'level')
         }
-        # Assumes time invariant Z.t
         y.t.t <- t(output$att %*% t(drop(matrixKFS(output,"Z"))))
       }
       
