@@ -10,11 +10,11 @@
   data to `idx_series` where needed. Code that relied on the internal
   (non-exported) representation of series may need to be updated.
 
-* `SSModelDynGompertzReinit` has been removed. Its functionality is now
+* `SSModelDynGompertzReinit` has been deprecated. Its functionality is now
   provided directly by `SSModelDynamicGompertz` via the `reinit.idx`,
   `original.results`, and `use.presample.info` fields, so a single class
   now covers both the standard and reinitialised model. `SSModelBase` has
-  also been removed, with its logic folded into `SSModelDynamicGompertz`.
+  also been deprecated, with its logic folded into `SSModelDynamicGompertz`.
 
 * `plot()` methods have been removed from the `SSModelDynamicGompertz` and
   `SSModelLeadingIndicator` reference classes. Plotting is now handled
@@ -30,10 +30,10 @@
 
 * `estimate_r0()` now returns a data frame directly, including dates from
   the model's calendar where available. The separate `estimate_r0_df()`
-  wrapper has been removed as redundant.
+  wrapper has been deprecated as redundant.
 
 * `forecast_peak()`, `forecast.peak()`, and `plot_new_cases()` have been
-  removed.
+  deprecated.
 
 ## New features
 
