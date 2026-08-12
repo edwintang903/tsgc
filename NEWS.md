@@ -23,7 +23,8 @@
   `sea.on` in `predict_all()` has also changed, from `FALSE` to `TRUE`.
 
 * `forecast_peak()`, `forecast.peak()`, and `plot_new_cases()` have been
-  deprecated.
+  deprecated. `plot_new_cases()` has been renamed to `plot_forecast()` as
+  the growth curve theory extends beyond epidemiological settings.
 
 ## New features
 
