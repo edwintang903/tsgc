@@ -133,7 +133,7 @@ SSModelLeadingIndicator <- setRefClass(
       containing the result output for the estimated Leading Indicator
       model.}"
       
-      y<-add_daily_ldl(Y, LeadIndCol=LeadIndCol)
+      y<-df2ldl_lead(Y, LeadIndCol=LeadIndCol)
       
       y$newLead <- idx_lag(y$newLead, n.lag)
       y$LDLlead <- idx_lag(y$LDLlead, n.lag)

@@ -517,7 +517,7 @@ get_timeframe <- function(df, start, end = NULL) {
 #' \code{LDLtarg}.
 #'
 #' @export
-add_daily_ldl <- function(data, LeadIndCol = 1) {
+df2ldl_lead <- function(data, LeadIndCol = 1) {
   if (!is_idx_series(data)) {
     stop("data is not an idx_series object.")
   }

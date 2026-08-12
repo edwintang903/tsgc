@@ -4,7 +4,7 @@
 \alias{print_model_diagnostics}
 \title{Report fitted diagnostics for a FilterResults/FilterResultsLI object}
 \usage{
-print_model_diagnostics(res, boundary_tol = 0.000001)
+print_model_diagnostics(res, boundary_tol = 1e-06)
 }
 \arguments{
 \item{res}{A \code{FilterResults} or \code{FilterResultsLI} object.}

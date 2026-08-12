@@ -255,46 +255,46 @@ test_that("estimate_r0 errors when res is not a FilterResults or FilterResultsLI
   expect_error(estimate_r0(list(), gen_int = 5), "FilterResults")
 })
 
-test_that("add_daily_ldl handles LeadIndCol logic correctly", {
+test_that("df2ldl_lead handles LeadIndCol logic correctly", {
   # Column 1: 10, 20, 40, 70 (increments: NA, 10, 20, 30)
   # Column 2: 5, 15, 25, 35  (increments: NA, 10, 10, 10)
   data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
   x <- idx_series(data_mat, start = 1L)
   
-  res1 <- add_daily_ldl(x, LeadIndCol = 1)
+  res1 <- df2ldl_lead(x, LeadIndCol = 1)
   expect_equal(idx_values(res1$cLead), c(10, 20, 40, 70))
   expect_equal(idx_values(res1$cTarg), c(5, 15, 25, 35))
   
-  res2 <- add_daily_ldl(x, LeadIndCol = 2)
+  res2 <- df2ldl_lead(x, LeadIndCol = 2)
   expect_equal(idx_values(res2$cLead), c(5, 15, 25, 35))
   expect_equal(idx_values(res2$cTarg), c(10, 20, 40, 70))
 })
 
-test_that("add_daily_ldl computes increments correctly", {
+test_that("df2ldl_lead computes increments correctly", {
   data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
   x <- idx_series(data_mat, start = 1L)
   
-  res <- add_daily_ldl(x, LeadIndCol = 1)
+  res <- df2ldl_lead(x, LeadIndCol = 1)
   
   expect_equal(idx_values(res$newLead), c(10, 20, 30))
   expect_equal(idx_values(res$newTarg), c(10, 10, 10))
   expect_equal(res$newLead$start, 2L)
 })
 
-test_that("add_daily_ldl output structure is correct", {
+test_that("df2ldl_lead output structure is correct", {
   data_mat <- cbind(col_a = c(10, 20, 40, 70), col_b = c(5, 15, 25, 35))
   x <- idx_series(data_mat, start = 1L)
   
-  res <- add_daily_ldl(x)
+  res <- df2ldl_lead(x)
   
   expect_equal(names(res), c("cLead", "cTarg", "newLead", "newTarg", "LDLlead", "LDLtarg"))
   expect_true(all(vapply(res, is_idx_series, logical(1))))
 })
 
-test_that("add_daily_ldl errors on non-idx_series or wrong number of columns", {
-  expect_error(add_daily_ldl(1:10), "idx_series")
-  expect_error(add_daily_ldl(idx_series(1:10)), "exactly two series")
-  expect_error(add_daily_ldl(idx_series(matrix(1:10, ncol = 2)), LeadIndCol = 3), "LeadIndCol")
+test_that("df2ldl_lead errors on non-idx_series or wrong number of columns", {
+  expect_error(df2ldl_lead(1:10), "idx_series")
+  expect_error(df2ldl_lead(idx_series(1:10)), "exactly two series")
+  expect_error(df2ldl_lead(idx_series(matrix(1:10, ncol = 2)), LeadIndCol = 3), "LeadIndCol")
 })
 
 test_that("cross_val reports the correct criterion (e.g., 'rmse')", {

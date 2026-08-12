@@ -10,7 +10,7 @@ setOldClass("idx_series")
 #'
 #' @field data An \code{idx_series} object with cumulated variables: lagged leading
 #' indicator and target variable (plus their increments and log-growth rates - see
-#' \code{\link{add_daily_ldl}}).
+#' \code{\link{df2ldl_lead}}).
 #' @field output A \code{KFS} results object obtained after fitting a 
 #' \code{SSModelLeadingIndicator} model.
 #' @field n.lag Number of integer positions the leading indicator is lagged by, inherited
@@ -539,7 +539,7 @@ FilterResultsLI <- setRefClass(
       sea<-.self$predict_level(n.ahead=n.ahead, sea.on=TRUE)
       
       eval_window <- get_timeframe(Y, end)
-      data_validation <- add_daily_ldl(eval_window, LeadIndCol = LeadIndCol)
+      data_validation <- df2ldl_lead(eval_window, LeadIndCol = LeadIndCol)
       newTarg_validation <- data_validation$newTarg
       
       common_pos <- intersect(idx_positions(newTarg_validation), idx_positions(sea))

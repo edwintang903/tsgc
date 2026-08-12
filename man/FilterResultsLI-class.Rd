@@ -16,7 +16,7 @@ of the SSModelLeadingIndicator class is of the class FilterResultsLI.
 \describe{
 \item{\code{data}}{An \code{idx_series} object with cumulated variables: lagged leading
 indicator and target variable (plus their increments and log-growth rates - see
-\code{\link{add_daily_ldl}}).}
+\code{\link{df2ldl_lead}}).}
 
 \item{\code{output}}{A \code{KFS} results object obtained after fitting a
 \code{SSModelLeadingIndicator} model.}

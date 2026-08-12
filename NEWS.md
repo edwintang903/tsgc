@@ -16,21 +16,11 @@
   now covers both the standard and reinitialised model. `SSModelBase` has
   also been deprecated, with its logic folded into `SSModelDynamicGompertz`.
 
-* `plot()` methods have been removed from the `SSModelDynamicGompertz` and
-  `SSModelLeadingIndicator` reference classes. Plotting is now handled
-  exclusively via the S3 methods `plot.SSModelDynamicGompertz()` and
-  `plot.SSModelLeadingIndicator()`, which continue to work with the usual
-  `plot(model, ...)` syntax.
-
 * In `FilterResults`, the `confidence_level` argument to `predict_all()`
   and `get_gy_ci()` has been renamed to `confidence.level`, for
   consistency with naming elsewhere in the package. Calls that pass this
   argument by name will need to be updated. The default value of
   `sea.on` in `predict_all()` has also changed, from `FALSE` to `TRUE`.
-
-* `estimate_r0()` now returns a data frame directly, including dates from
-  the model's calendar where available. The separate `estimate_r0_df()`
-  wrapper has been deprecated as redundant.
 
 * `forecast_peak()`, `forecast.peak()`, and `plot_new_cases()` have been
   deprecated.
@@ -76,8 +66,8 @@
   series of rolling estimation windows, and `mapes()` for computing mean
   absolute percentage errors from forecast results.
 
-* Added `add_daily_ldl()` for computing log-differenced-level growth
-  rates on daily data.
+* Added `df2ldl_lead()` for handling two-column data for leading 
+  indicator models.
 
 * Added `print()` and `summary()` S3 methods for `SSModelDynamicGompertz`,
   `SSModelLeadingIndicator`, `FilterResults`, and `FilterResultsLI`.
@@ -85,7 +75,8 @@
 * Added new plotting functions `plot_compare_forecast()` (compare
   forecasts across models), `plot_log_forecast()` (forecasts on the log
   scale), and `plot_r0()` (plot estimated reproduction numbers from
-  `estimate_r0()`).
+  `estimate_r0()`). Also added plotting functionality for models 
+  (`plot()` takes in a model object)
 
 * Added a new set of accessor functions (`accessorFns.R`) for extracting
   components from fitted model and `KFS` objects, including `output()`,

@@ -347,7 +347,7 @@ plot.SSModelLeadingIndicator <- function(x, title = NULL,
   model <- x
   calendar <- model$calendar
   
-  full <- add_daily_ldl(model$Y, LeadIndCol = model$LeadIndCol)
+  full <- df2ldl_lead(model$Y, LeadIndCol = model$LeadIndCol)
   newLead <- full$newLead
   newTarg <- full$newTarg
   
@@ -684,7 +684,7 @@ plot_log_forecast <- function(res, Y, n.ahead = 14, plt.start = NULL,
   old <- idx_series(idx_values(get_timeframe(res$data, res$start, res$end))[, "LDLtarg"],
                     start = res$start)
   
-  full <- add_daily_ldl(Y, LeadIndCol = res$LeadIndCol)
+  full <- df2ldl_lead(Y, LeadIndCol = res$LeadIndCol)
   ldltarg_future <- full$LDLtarg
   ldltarg_future <- ldltarg_future[idx_positions(ldltarg_future)[idx_positions(ldltarg_future) > res$end]]
   n_take <- min(n.ahead, length(ldltarg_future))
@@ -1038,7 +1038,7 @@ plot_holdout <- function(res, Y, n.ahead = 14, confidence.level = 0.68,
   
   sea <- res$predict_level(n.ahead = n.ahead, confidence.level = confidence.level, sea.on = TRUE)
   
-  future_data <- add_daily_ldl(Y, LeadIndCol = res$LeadIndCol)
+  future_data <- df2ldl_lead(Y, LeadIndCol = res$LeadIndCol)
   newTarg_future <- future_data$newTarg
   newTarg_future <- newTarg_future[idx_positions(newTarg_future)[idx_positions(newTarg_future) > res$end]]
   if (n.ahead > length(newTarg_future)) {

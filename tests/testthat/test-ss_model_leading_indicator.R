@@ -15,7 +15,7 @@ test_that("tsgc produces same LI output as KFAS", {
                                       end = est.end, LeadIndCol = 1)
   tsgc_est <- tsgc_mod$estimate()
   
-  y <- add_daily_ldl(conv$series, LeadIndCol = 1)
+  y <- df2ldl_lead(conv$series, LeadIndCol = 1)
   
   y$newLead <- idx_lag(y$newLead, n.lag)
   y$LDLlead <- idx_lag(y$LDLlead, n.lag)
@@ -86,7 +86,7 @@ test_that("tsgc produces same LI output as KFAS with fixed q", {
   }
   updateli <- updatesn %>% purrr::partial(snr = 0.005, order = 2, index = 2)
   
-  y <- add_daily_ldl(conv$series, LeadIndCol = 1)
+  y <- df2ldl_lead(conv$series, LeadIndCol = 1)
   y$newLead <- idx_lag(y$newLead, n.lag)
   y$LDLlead <- idx_lag(y$LDLlead, n.lag)
   y$cLead   <- idx_lag(y$cLead, n.lag)

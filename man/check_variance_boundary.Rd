@@ -5,7 +5,7 @@
 \title{Check whether estimated variance parameters sit at or near a
 degeneracy boundary}
 \usage{
-check_variance_boundary(..., boundary_tol = 0.000001)
+check_variance_boundary(..., boundary_tol = 1e-06)
 }
 \arguments{
 \item{...}{One or more variance parameters (scalars, vectors, or
