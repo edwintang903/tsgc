@@ -1,0 +1,643 @@
+---
+title: "Tracking the 2026 Bundibugyo Ebola Outbreak with tsgc"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    code_folding: show
+    df_print: kable
+vignette: >
+  %\VignetteIndexEntry{Tracking the 2026 Bundibugyo Ebola Outbreak with tsgc}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 8,
+  fig.height = 5,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+```{r libraries}
+library(tsgc)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(ggthemes)
+
+theme_set(theme_economist_white(gray_bg = FALSE, base_size = 16))
+```
+
+## Introduction
+
+In May 2026 the Democratic Republic of Congo declared an outbreak of
+Bundibugyo ebolavirus centred on Ituri and North Kivu provinces, spreading
+into neighbouring Uganda. WHO declared it a Public Health Emergency of
+International Concern on 16 May 2026. By the most recent national situation
+report bundled with this package (10 August 2026), the outbreak had reached
+4,449 confirmed cases and 2,061 deaths, making it the second-largest Ebola
+outbreak on record after West Africa 2014-16, and the fastest-growing.
+
+This vignette works entirely with the raw INSP SitRep MVE extracts shipped
+in `inst/extdata/ebola`, at two levels of aggregation:
+
+* **National daily cumulative totals** - confirmed cases, confirmed deaths,
+  suspected cases, suspected deaths, and recoveries, one row per report
+  date (`insp_sitrep__national_cumulative_*__daily.csv`).
+* **Health-zone daily cumulative totals** - confirmed cases and confirmed
+  deaths for 61 named health zones, plus a sparser "new confirmed cases"
+  series (`zone_cumulative_confirmed_cases__daily.csv`,
+  `zone_cumulative_confirmed_deaths__daily.csv`,
+  `zone_new_confirmed_cases__daily.csv`).
+
+Two features of this data need to be handled explicitly before any of
+tsgc's state-space machinery is useful:
+
+1. **Reporting is irregular.** Sitreps are not published every calendar
+   day - there are gaps of two, three, sometimes several days. `tsgc`'s
+   `idx_series`/`idx_calendar` framework can express this in two ways: a
+   *patterned* calendar that treats the specific sequence of gaps as a
+   repeating cycle, or a genuine *daily* calendar with explicit `NA` on
+   days with no report. We use the latter throughout, because it is the
+   one that is both accurate (gaps are gaps, not a repeating pattern -
+   the actual reporting cadence has no cycle) and legible in plots (dates
+   on the x-axis are real calendar dates, not "position 37").
+2. **Zone names are inconsistent.** The raw extracts contain both
+   `"Miti Murhesa"` and `"Miti-Murhesa"`, both `"Nia Nia"` and
+   `"Nia-Nia"`, both `"Makiso Kisangani"` and `"Makiso-Kisangani"`, plus
+   the placeholder rows `"NA"` and `"Sans Fiche"` (unassigned cases). We
+   harmonise these once, up front.
+
+## Reading and cleaning the data
+
+```{r paths}
+data_dir <- system.file("extdata", "ebola", package = "tsgc")
+
+national_files <- c(
+  confirmed_cases   = "insp_sitrep__national_cumulative_confirmed_cases__daily.csv",
+  confirmed_deaths  = "insp_sitrep__national_cumulative_confirmed_deaths__daily.csv",
+  suspected_cases   = "insp_sitrep__national_cumulative_suspected_cases__daily.csv",
+  suspected_deaths  = "insp_sitrep__national_cumulative_suspected_deaths__daily.csv",
+  recovered_cases   = "insp_sitrep__national_cumulative_recovered_cases__daily.csv"
+)
+```
+
+### National series
+
+Each national file has one value column named after the metric; we strip
+that down to a common `value` column, tag it with the metric name, and
+row-bind everything into one long data frame.
+
+```{r read-national}
+read_national <- function(metric, file) {
+  df <- read.csv(file.path(data_dir, file), stringsAsFactors = FALSE)
+  names(df)[3] <- "value"
+  df$date <- as.Date(df$date)
+  df$metric <- metric
+  df[, c("date", "metric", "value")]
+}
+
+national_long <- do.call(
+  rbind,
+  Map(read_national, names(national_files), national_files)
+)
+
+national_long <- national_long[order(national_long$metric, national_long$date), ]
+head(national_long)
+```
+
+### Health-zone series
+
+```{r read-zone}
+zone_cases <- read.csv(file.path(data_dir, "zone_cumulative_confirmed_cases__daily.csv"),
+                       stringsAsFactors = FALSE)
+zone_deaths <- read.csv(file.path(data_dir, "zone_cumulative_confirmed_deaths__daily.csv"),
+                        stringsAsFactors = FALSE)
+zone_new <- read.csv(file.path(data_dir, "zone_new_confirmed_cases__daily.csv"),
+                     stringsAsFactors = FALSE)
+
+names(zone_cases)[3]  <- "cum_cases"
+names(zone_deaths)[3] <- "cum_deaths"
+names(zone_new)[3]    <- "new_cases"
+
+# Value columns are read as character because a handful of cells contain
+# "ND" (not reported, per SOURCE_metadata.yaml) or stray transcription
+# artefacts (e.g. "17-"); coerce to numeric so these become explicit NA.
+zone_cases$cum_cases   <- suppressWarnings(as.numeric(zone_cases$cum_cases))
+zone_deaths$cum_deaths <- suppressWarnings(as.numeric(zone_deaths$cum_deaths))
+zone_new$new_cases     <- suppressWarnings(as.numeric(zone_new$new_cases))
+
+zone_cases$date  <- as.Date(zone_cases$date)
+zone_deaths$date <- as.Date(zone_deaths$date)
+zone_new$date    <- as.Date(zone_new$date)
+```
+
+Harmonise the duplicated zone spellings and drop the two placeholder
+labels (`"NA"`, unassigned cases pending zone confirmation, and any
+`"Sans Fiche"` rows, i.e. cases without a case-report form yet - neither
+represents a real health zone):
+
+```{r harmonise-zones}
+harmonise_zone <- function(x) {
+  x <- trimws(x)
+  x <- gsub("Miti Murhesa", "Miti-Murhesa", x, fixed = TRUE)
+  x <- gsub("Nia Nia", "Nia-Nia", x, fixed = TRUE)
+  x <- gsub("Makiso Kisangani", "Makiso-Kisangani", x, fixed = TRUE)
+  x
+}
+
+placeholder <- function(x) x %in% c("NA", "Sans Fiche", "")
+
+zone_cases  <- zone_cases  %>% mutate(nom = harmonise_zone(nom)) %>% filter(!placeholder(nom))
+zone_deaths <- zone_deaths %>% mutate(nom = harmonise_zone(nom)) %>% filter(!placeholder(nom))
+zone_new    <- zone_new    %>% mutate(nom = harmonise_zone(nom)) %>% filter(!placeholder(nom))
+
+length(unique(zone_cases$nom))
+sort(unique(zone_cases$nom))
+```
+
+61 raw labels collapse to `r length(unique(zone_cases$nom))` canonical
+health zones.
+
+### Building a daily, `NA`-padded `idx_series`
+
+The core conversion we need, repeatedly, is: given a data frame of
+irregular `(date, value)` rows for one series, produce an `idx_series`
+whose integer positions correspond to *every calendar day* between the
+first and last report, with `NA` on days that were not reported and (per
+the README) taking the **latest-vintage** value whenever a date is
+duplicated within a file. We anchor every calendar at the same date, so
+that all resulting `idx_series` objects share one common integer axis and
+can be freely combined, lagged and compared with `idx_lag`/`idx_diff`
+without any further date bookkeeping.
+
+```{r build-daily-series}
+outbreak_start <- as.Date("2026-05-14")   # first sitrep date in the data
+outbreak_calendar <- idx_calendar(
+  anchor = as.POSIXct(outbreak_start, tz = "UTC"),
+  anchor_pos = 1L,
+  amount = 1,
+  unit = "days",
+  posixct = TRUE,
+  anchor_name = "outbreak start (2026-05-14)"
+)
+
+#' Turn an irregular (date, value) data frame into a daily idx_series,
+#' anchored at outbreak_calendar, with NA on unreported days.
+to_daily_idx <- function(df, date_col = "date", value_col = "value",
+                         calendar = outbreak_calendar,
+                         from = outbreak_start, to = max(df[[date_col]])) {
+  full_dates <- seq(from, to, by = "day")
+  df <- df[order(df[[date_col]]), ]
+  # latest-vintage: if a date appears more than once, keep the last row
+  df <- df[!duplicated(df[[date_col]], fromLast = TRUE), ]
+  vals <- setNames(df[[value_col]], as.character(df[[date_col]]))
+  daily <- unname(vals[as.character(full_dates)])   # NA where unmatched
+  start_pos <- idx_to_pos(calendar, as.POSIXct(from, tz = "UTC"))
+  idx_series(as.numeric(daily), start = start_pos)
+}
+```
+
+Applying this to the five national series:
+
+```{r national-idx-series}
+national_series <- lapply(names(national_files), function(m) {
+  to_daily_idx(subset(national_long, metric == m), value_col = "value",
+               to = max(national_long$date[national_long$metric == m]))
+})
+names(national_series) <- names(national_files)
+
+sapply(national_series, length)
+```
+
+Each series covers the same 89-day span (14 May - 10 Aug 2026) but the
+number of *reported* (non-`NA`) days differs slightly by metric, since
+not every sitrep restates every table:
+
+```{r national-coverage}
+sapply(national_series, function(s) sum(!is.na(idx_values(s))))
+```
+
+## National picture
+
+### Confirmed cases and deaths
+
+The five national series do not all end on the same date (not every
+sitrep restates every table, and the most recent report(s) may omit some
+metrics), so before combining them into one data frame we pad every
+series out to the widest common span, anchored at the same
+`outbreak_start`.
+
+```{r national-plot-cumulative}
+national_end <- max(vapply(national_series, function(s) idx_range(s)[2], integer(1)))
+
+pad_to <- function(s, end_pos) {
+  if (idx_range(s)[2] >= end_pos) return(s)
+  n_pad <- end_pos - idx_range(s)[2]
+  idx_series(c(idx_values(s), rep(NA_real_, n_pad)), start = s$start)
+}
+
+national_series_aligned <- lapply(national_series, pad_to, end_pos = national_end)
+sapply(national_series_aligned, length)
+
+df_nat <- data.frame(
+  date = seq(outbreak_start, by = "day", length.out = length(national_series_aligned$confirmed_cases)),
+  confirmed_cases  = idx_values(national_series_aligned$confirmed_cases),
+  confirmed_deaths = idx_values(national_series_aligned$confirmed_deaths),
+  suspected_cases  = idx_values(national_series_aligned$suspected_cases),
+  recovered_cases  = idx_values(national_series_aligned$recovered_cases)
+)
+
+df_nat_long <- pivot_longer(df_nat, -date, names_to = "series", values_to = "value")
+
+ggplot(df_nat_long, aes(x = date, y = value, color = series)) +
+  geom_line(na.rm = TRUE) +
+  labs(title = "DRC national cumulative totals, Bundibugyo ebolavirus outbreak 2026",
+       x = NULL, y = "Cumulative count", color = NULL) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+The gaps between markers are the unreported days made explicit - most
+visibly around late June and mid-to-late July, exactly the periods the
+README flags as irregular reporting.
+
+### Setting up the dynamic Gompertz model
+
+`SSModelDynamicGompertz` models the log growth rate of a cumulative series
+as a smooth, evolving trend (with optional day-of-week seasonality). Daily
+sitrep publication has no real weekly pattern (it is driven by field data
+collection and PDF production, not a weekly rhythm) but reporting is
+sparse enough that we turn seasonality off (`sea.period = 0`) and let the
+`NA` gaps be handled by the state-space filter, which naturally skips
+missing observations. Constructing the model object (before calling
+`estimate()`) is enough to use the package's own `plot()` method for a
+first look at daily new confirmed cases, with a centered 7-day moving
+average:
+
+```{r dyngompertz-national-setup}
+Y_confirmed <- national_series$confirmed_cases
+n.forecasts.nat <- 14
+estimation.pos.end.nat <- idx_range(Y_confirmed)[2] - n.forecasts.nat
+
+model_nat <- SSModelDynamicGompertz$new(
+  Y = Y_confirmed, q = NULL, sea.period = 0,
+  start = idx_range(Y_confirmed)[1], end = estimation.pos.end.nat,
+  calendar = outbreak_calendar
+)
+plot(model_nat, series.name = "confirmed cases", MA_period = 7,
+     title = "Daily new confirmed cases (national), with 7-day centered MA")
+```
+
+The last `r n.forecasts.nat` days of the national confirmed-cases series
+are held back as a genuine out-of-sample holdout, so the forecast plots
+below can be compared against what was actually reported.
+
+The **case fatality ratio implied by confirmed counts** is a simple but
+informative derived series (no dedicated package plotting function covers
+a ratio of two series, so this one chart also uses `ggplot2` directly):
+
+```{r cfr}
+cfr <- idx_series(
+  idx_values(national_series_aligned$confirmed_deaths) / idx_values(national_series_aligned$confirmed_cases),
+  start = national_series_aligned$confirmed_cases$start
+)
+df_cfr <- data.frame(date = df_nat$date, cfr = idx_values(cfr))
+ggplot(df_cfr, aes(x = date, y = cfr)) +
+  geom_line(na.rm = TRUE) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = "Implied case fatality ratio (confirmed deaths / confirmed cases)",
+       x = NULL, y = "CFR") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+### Estimating the model
+
+```{r dyngompertz-national, message = FALSE, warning = FALSE}
+res_nat <- estimate(model_nat)
+```
+
+`summary()` reports the estimation window, model states and their
+standard errors; `tsgc::print_model_diagnostics()` supplements this with
+the fitted log-likelihood and a check for estimated variances sitting at
+or near a degenerate boundary.
+
+```{r dyngompertz-national-diagnostics}
+summary(res_nat)
+tsgc::print_model_diagnostics(res_nat)
+```
+
+```{r dyngompertz-national-log-forecast}
+plot_log_forecast(res_nat, Y = Y_confirmed, n.ahead = n.forecasts.nat,
+                  title = "Forecast of log growth rate of confirmed cases (national)")
+```
+
+```{r dyngompertz-national-forecast}
+plot_forecast(res_nat, n.ahead = n.forecasts.nat, series.name = "confirmed cases",
+              title = paste0(n.forecasts.nat, "-day forecast of new confirmed cases (national)"))
+```
+
+```{r dyngompertz-national-holdout}
+plot_holdout(res_nat, Y = Y_confirmed, n.ahead = n.forecasts.nat,
+            series.name = "confirmed cases",
+            title = "Accuracy: forecast of new confirmed cases (national)")
+```
+
+```{r dyngompertz-national-plot}
+plot_gy_ci(res_nat, series.name = "confirmed cases",
+           title = "Smoothed growth rate of national confirmed cases, with 68% CI")
+```
+
+The growth rate has hovered close to, and at times above, zero for most
+of June-August - consistent with the outbreak still expanding rather than
+being brought under control as of the last sitrep in this dataset.
+
+## Health-zone geography
+
+Ituri province (Bunia, Mongbwalu, Rwampara, Nizi, Komanda, Nyankunde,
+Mahagi, Djugu-area zones) has carried the great majority of cases; North
+Kivu (Beni, Butembo, Katwa, Oicha, Kalunguta) is the outbreak's second
+cluster; a scatter of zones in Tshopo/Haut-Uele (Kisangani, Isiro, Rungu,
+Wamba) and a handful of border zones account for the rest.
+
+```{r zone-totals}
+zone_peak <- zone_cases %>%
+  group_by(nom) %>%
+  summarise(peak_cases = max(cum_cases, na.rm = TRUE), .groups = "drop") %>%
+  arrange(desc(peak_cases))
+
+head(zone_peak, 15)
+```
+
+```{r zone-totals-plot}
+ggplot(head(zone_peak, 15), aes(x = reorder(nom, peak_cases), y = peak_cases)) +
+  geom_col() +
+  coord_flip() +
+  labs(title = "15 health zones with the most confirmed cases to date",
+       x = NULL, y = "Cumulative confirmed cases (latest report)")
+```
+
+Four zones dominate: **Bunia** (the provincial capital of Ituri, a major
+urban/transport hub), **Rwampara**, **Mongbwalu** (a gold-mining town
+with high population mobility), and **Nizi**. All four are in Ituri and
+within roughly 30-60km of each other along the same road corridor
+running north from Bunia.
+
+```{r zone-trajectories}
+top_zones <- head(zone_peak$nom, 6)
+
+zone_cases %>%
+  filter(nom %in% top_zones) %>%
+  ggplot(aes(x = date, y = cum_cases, color = nom)) +
+  geom_line(na.rm = TRUE) +
+  labs(title = "Cumulative confirmed cases, top 6 health zones",
+       x = NULL, y = "Cumulative confirmed cases", color = NULL) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+
+## Are some zones leading indicators for others?
+
+The `SSModelLeadingIndicator` class in `tsgc` is designed for exactly this
+question: given two cumulative series sharing one position axis, it
+estimates a common-trend/idiosyncratic-trend state-space model in which
+one series (the leading indicator, lagged by `n.lag` positions) helps
+predict the other (the target). We use it here to ask whether the
+**earliest-affected zone** in the Ituri cluster, Mongbwalu (first report
+2026-05-14, one of only two zones reporting on day one), leads the
+subsequent growth of **Bunia**, the largest and most urban zone, which
+would be epidemiologically plausible: Mongbwalu-Bunia is a known transport
+corridor and Bunia's role as a provincial hub means cases could arrive
+there somewhat after first appearing in a smaller, earlier-affected
+outlying zone.
+
+### Preparing the paired series
+
+Both `df2ldl` (used internally by the leading-indicator model) and the
+Gompertz model require **strictly increasing, gap-free** cumulative
+series over the estimation window - the model cannot itself handle `NA`
+gaps or duplicate values in the training window. We therefore restrict
+estimation to the sub-range where both zones have a complete run of
+distinct daily reports, rather than passing the full `NA`-padded daily
+series straight in. This is a deliberate trade-off: the daily/`NA`
+calendar built above is what makes *presentation* (plots, dates,
+irregular-gap visibility) accurate; the leading-indicator *estimation*
+step needs a clean, monotone sub-window, obtained by restricting to dates
+both zones actually reported on, in order.
+
+```{r li-prep}
+build_zone_series <- function(zone_name, calendar = outbreak_calendar) {
+  df <- zone_cases %>% filter(nom == zone_name) %>% arrange(date)
+  df <- df %>% filter(!is.na(cum_cases))
+  # keep only strictly increasing points (drop any flat/duplicate-date rows)
+  keep <- c(TRUE, diff(df$cum_cases) > 0)
+  df <- df[keep, ]
+  to_daily_idx(df, value_col = "cum_cases", calendar = calendar,
+               from = min(df$date), to = max(df$date))
+}
+
+mongbwalu <- build_zone_series("Mongbwalu")
+bunia     <- build_zone_series("Bunia")
+
+#' Given a sorted vector of integer positions, return the longest run of
+#' consecutive integers it contains, as c(start, end).
+longest_consecutive_run <- function(pos) {
+  pos <- sort(unique(pos))
+  breaks <- which(diff(pos) != 1L)
+  run_starts <- c(pos[1], pos[breaks + 1L])
+  run_ends   <- c(pos[breaks], pos[length(pos)])
+  run_lengths <- run_ends - run_starts + 1L
+  best <- which.max(run_lengths)
+  c(run_starts[best], run_ends[best])
+}
+
+common_pos <- intersect(
+  idx_positions(mongbwalu)[!is.na(idx_values(mongbwalu))],
+  idx_positions(bunia)[!is.na(idx_values(bunia))]
+)
+run <- longest_consecutive_run(common_pos)
+run_start <- run[1]
+run_end   <- run[2]
+
+Y_li <- idx_series(
+  cbind(lead = idx_values(mongbwalu[run_start:run_end]),
+        targ = idx_values(bunia[run_start:run_end])),
+  start = run_start
+)
+idx_range(Y_li)
+```
+
+### Estimating the leading-indicator model
+
+`n.lag = 3` (three days) is used below as a plausible reporting-to-
+confirmation delay for a same-province, short road-distance pair. As in
+the England cases-hospitalisations example, we look at the two series on
+the log scale before formal estimation, and hold back the last few days
+as an out-of-sample check.
+
+```{r li-setup}
+n.lag.li <- 3
+n.forecasts.li <- 7
+estimation.pos.end.li <- idx_range(Y_li)[2] - n.forecasts.li
+
+li_model_plot <- SSModelLeadingIndicator$new(Y_li, n.lag = n.lag.li, calendar = outbreak_calendar)
+plot(li_model_plot, series.name.lead = "Mongbwalu (leading)",
+     series.name.target = "Bunia (target)", take.log = TRUE,
+     title = "Log daily new confirmed cases: Mongbwalu vs Bunia")
+```
+
+```{r li-estimate, message = FALSE, warning = FALSE}
+li_model <- SSModelLeadingIndicator(
+  Y = Y_li, n.lag = n.lag.li, sea.period = 0, LeadIndCol = 1,
+  start = idx_range(Y_li)[1], end = estimation.pos.end.li,
+  calendar = outbreak_calendar
+)
+li_res <- estimate(li_model)
+```
+
+```{r li-diagnostics}
+summary(li_res)
+tsgc::print_model_diagnostics(li_res)
+```
+
+```{r li-log-forecast}
+plot_log_forecast(li_res, Y = Y_li, n.ahead = n.forecasts.li,
+                  title = "Forecast of log growth rate of Bunia cases, led by Mongbwalu")
+```
+
+```{r li-forecast}
+plot_forecast(li_res, n.ahead = n.forecasts.li, series.name = "Bunia confirmed cases",
+             title = paste0(n.forecasts.li, "-day forecast of new confirmed cases in Bunia"))
+```
+
+```{r li-holdout}
+plot_holdout(li_res, Y = Y_li, n.ahead = n.forecasts.li,
+            series.name = "Bunia confirmed cases",
+            title = "Accuracy: forecast of new confirmed cases in Bunia")
+```
+
+```{r li-plot-gy}
+plot_gy_ci(li_res, series.name = "Bunia (led by Mongbwalu, lag = 3 days)",
+           title = "Smoothed growth rate of Bunia confirmed cases, informed by Mongbwalu")
+```
+
+### Does the geography make sense?
+
+Worth being explicit about what this analysis can and cannot claim.
+Mongbwalu and Bunia sit on the same road corridor in Ituri, and Mongbwalu
+was among the first two zones to report any cases at all, so a short lead
+time (days, not weeks) from Mongbwalu into the province's largest urban
+centre is at least directionally consistent with a mining-town-to-hub
+transmission or population-movement pathway. However:
+
+* With daily case counts still in the single-to-low-double digits per
+  zone for much of the outbreak, `n.lag` is hard to pin down precisely
+  from `r diff(idx_range(Y_li)) + 1` overlapping days of data; the model
+  above should be read as illustrative rather than a confirmed causal
+  lead-lag relationship.
+* A genuinely careful version of this analysis would fit the model over a
+  grid of `n.lag` values and compare out-of-sample forecast accuracy
+  (e.g. via `plot_holdout()` or an equivalent of the `mapes()` diagnostic
+  available on the non-leading-indicator `FilterResults` class) rather
+  than picking one lag by inspection, and would also test the *reverse*
+  direction (Bunia leading Mongbwalu) and a genuinely distant pairing
+  (e.g. Bunia vs a North Kivu zone such as Butembo, which has no obvious
+  road-adjacency reason to be linked) as a negative control.
+* Sparse, gap-heavy daily counts for individual health zones are noisy;
+  the smoothed growth-rate confidence bands above are correspondingly
+  wide, and the model's seasonal component was switched off rather than
+  estimated, which is a simplification.
+
+### A same-province comparison: Rwampara and Nizi vs Bunia
+
+As a second, less mining-specific example, we compare how the model's
+short-run forecast for Bunia looks when built from two different, more
+distant Ituri zones as the "leading" series, using `plot_compare_forecast`
+to put multiple fitted models side by side.
+
+```{r li-compare, message = FALSE, warning = FALSE}
+build_li <- function(lead_zone, targ_zone = "Bunia", n.lag = 3) {
+  lead_s <- build_zone_series(lead_zone)
+  targ_s <- build_zone_series(targ_zone)
+  pos <- intersect(idx_positions(lead_s)[!is.na(idx_values(lead_s))],
+                   idx_positions(targ_s)[!is.na(idx_values(targ_s))])
+  run <- longest_consecutive_run(pos)
+  Y <- idx_series(cbind(lead = idx_values(lead_s[run[1]:run[2]]),
+                        targ = idx_values(targ_s[run[1]:run[2]])),
+                  start = run[1])
+  mod <- SSModelLeadingIndicator(Y = Y, n.lag = n.lag, sea.period = 0,
+                                 LeadIndCol = 1, start = idx_range(Y)[1],
+                                 end = idx_range(Y)[2], calendar = outbreak_calendar)
+  estimate(mod)
+}
+
+res_mongbwalu <- li_res
+res_rwampara  <- build_li("Rwampara")
+res_nizi      <- build_li("Nizi")
+
+plot_compare_forecast(
+  list(Mongbwalu = res_mongbwalu, Rwampara = res_rwampara, Nizi = res_nizi),
+  n.ahead = 10, sea.on = FALSE,
+  title = "Bunia forecasts using different Ituri zones as leading indicator"
+)
+```
+
+If the three forecasts diverge noticeably, that is itself informative -
+it would suggest the choice of leading zone matters, i.e. that not all
+nearby zones carry equally useful early signal about Bunia, which is
+plausible given that Mongbwalu, Rwampara and Nizi differ in size,
+road-distance from Bunia, and the timing of their own outbreaks.
+
+## Health-zone confirmed deaths
+
+For completeness, the zone-level deaths file lets us check whether the
+case-heavy zones are also carrying a disproportionate share of deaths, or
+whether fatality is more evenly spread:
+
+```{r zone-deaths}
+zone_deaths_peak <- zone_deaths %>%
+  group_by(nom) %>%
+  summarise(peak_deaths = max(cum_deaths, na.rm = TRUE), .groups = "drop")
+
+zone_combined <- zone_peak %>%
+  left_join(zone_deaths_peak, by = "nom") %>%
+  mutate(cfr = peak_deaths / peak_cases) %>%
+  filter(peak_cases >= 10) %>%
+  arrange(desc(peak_cases))
+
+head(zone_combined, 15)
+```
+
+```{r zone-deaths-plot}
+ggplot(head(zone_combined, 15), aes(x = peak_cases, y = cfr, label = nom)) +
+  geom_point() +
+  geom_text(vjust = -0.6, size = 3) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(title = "Implied CFR vs case burden, zones with 10+ confirmed cases",
+       x = "Cumulative confirmed cases", y = "Cumulative deaths / cases")
+```
+
+## Summary
+
+* National confirmed cases and deaths were reconstructed as daily,
+  `NA`-padded `idx_series` objects on a shared `POSIXct` calendar anchored
+  at the first sitrep date, making the many unreported days visible as
+  genuine gaps rather than an artificial repeating pattern.
+* Growth-rate estimation via `SSModelDynamicGompertz` shows the national
+  outbreak's growth rate remaining near or above zero through most of the
+  available window, consistent with the sustained rise in cumulative
+  totals reported in the README.
+* At health-zone level, four Ituri zones (Bunia, Rwampara, Mongbwalu,
+  Nizi) account for the large majority of confirmed cases; harmonising
+  duplicated zone-name spellings was necessary before any of this
+  aggregation was reliable.
+* A `SSModelLeadingIndicator` fit using Mongbwalu (an early-affected,
+  smaller zone) as a 3-day-lagged leading indicator for Bunia (the
+  provincial hub) is geographically plausible given their road-corridor
+  proximity, but the short, sparse overlap window means this should be
+  read as a demonstration of the method rather than a settled finding;
+  comparing several candidate leading zones and lags, and testing
+  negative-control pairings, would be the natural next step.
