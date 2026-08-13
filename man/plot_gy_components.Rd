@@ -2,46 +2,41 @@
 % Please edit documentation in R/plotting.R
 \name{plot_gy_components}
 \alias{plot_gy_components}
-\title{Plots the growth rates and slope of the log cumulative growth rate
-against the dates in estimation sample}
+\title{Plots the growth rate, level and slope of the log cumulative
+growth rate}
 \usage{
-plot_gy_components(res, plt.start.date = NULL, smoothed = FALSE, title = NULL)
+plot_gy_components(
+  res,
+  plt.start = NULL,
+  smoothed = FALSE,
+  title = NULL,
+  axis = NULL
+)
 }
 \arguments{
-\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
-\code{estimate()} method.}
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object,
+obtained from the \code{estimate()} method.}
 
-\item{plt.start.date}{Plot start date. Default is \code{NULL} which is the
+\item{plt.start}{Plot start position. \code{NULL} (default) is the
 start of the estimation sample.}
 
-\item{smoothed}{Logical value indicating whether to used the smoothed
-estimates of \eqn{\delta} and \eqn{\gamma}. Default is \code{FALSE}, in
-which case the filtered estimates are returned.}
+\item{smoothed}{Logical value indicating whether to use the smoothed
+estimates of \eqn{\delta} and \eqn{\gamma}. Default \code{FALSE}
+(filtered estimates).}
 
-\item{title}{Title for plot. Enter as text string. \code{NULL} (i.e. no
-title) by default.}
+\item{title}{Title for the plot. \code{NULL} (default) for no title.}
+
+\item{axis}{An \code{\link{idx_axis_opts}} object controlling x-axis
+mode and info box, or \code{NULL} (default) for the previous default
+behaviour.}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots the smoothed/filtered growth rate of the difference in
-the cumulated variable (\eqn{g_y}), the smoothed/filtered growth rate of the
-the cumulated variable (\eqn{g}), and the smoothed/filtered slope of
-\eqn{\ln(g)}, \eqn{\gamma}.
-Following Harvey and Kattuman (2021), we compute \eqn{g_{y,t}} as
-\deqn{g_{y,t} = \exp(\delta_t) + \gamma_t.}
-}
-\examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
-res <- model$estimate()
-
-# Plot filtered gy, g and gamma
-plot_gy_components(res, plt.start.date = as.Date("2020-07-06"))
-
+Plots the smoothed/filtered growth rate of the difference
+in the cumulated variable (\eqn{g_y}), the smoothed/filtered growth rate
+of the cumulated variable (\eqn{g}), and the smoothed/filtered slope of
+\eqn{\ln(g)}, \eqn{\gamma}. Following Harvey and Kattuman (2021), we
+compute \eqn{g_{y,t}} as \deqn{g_{y,t} = \exp(\delta_t) + \gamma_t.}
 }

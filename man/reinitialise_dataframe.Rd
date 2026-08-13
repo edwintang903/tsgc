@@ -2,27 +2,27 @@
 % Please edit documentation in R/utils.R
 \name{reinitialise_dataframe}
 \alias{reinitialise_dataframe}
-\title{Reinitialise a data frame by subtracting the \code{reinit.date} row from
-all columns}
+\title{Reinitialise a series at a given position}
 \usage{
-reinitialise_dataframe(dt, reinit.date)
+reinitialise_dataframe(dt, reinit.idx)
 }
 \arguments{
-\item{dt}{Cumulated data series, belonging to the xts class. Must only contain
-1 data column in addition to a date index.}
+\item{dt}{Cumulated data series, as an \code{idx_series} with exactly one
+column.}
 
-\item{reinit.date}{Reinitialisation date, belonging to Date, yearmon or yearqtr classes. E.g. \samp{as.Date('2021-05-12')}.}
+\item{reinit.idx}{Integer position at which reinitialisation should
+occur (i.e. \eqn{t=r}, using the notation in the vignette).}
 }
 \value{
-The reinitialised data frame
+The reinitialised series, as an \code{idx_series} starting at
+\code{reinit.idx}.
 }
 \description{
-Reinitialise a data frame by subtracting the \code{reinit.date} row from
-all columns
+Takes a cumulated series and re-bases it so that it starts
+from zero at \code{reinit.idx - 1}.
 }
 \examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-reinitialise_dataframe(gauteng,as.Date("2021-01-01"))
+x <- idx_series(cumsum(rpois(30, 5)) + 1, start = 1)
+reinitialise_dataframe(x, 10)
 
 }

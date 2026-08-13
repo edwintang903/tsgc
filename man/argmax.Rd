@@ -7,20 +7,21 @@
 argmax(x, decreasing = TRUE)
 }
 \arguments{
-\item{x}{Object to have its maximum found, usually an xts object.}
+\item{x}{Object to have its maximum found; either an \code{idx_series}
+or a plain numeric vector.}
 
 \item{decreasing}{Logical value indicating whether \code{x} should be
 ordered in decreasing order. Default is \code{TRUE}. Setting this to
 \code{FALSE} would find the minimum.}
 }
 \value{
-The maximum value and its index.
+If \code{x} is an \code{idx_series}, a length-1 \code{idx_series}
+at the position of the maximum. Otherwise the maximum value.
 }
 \description{
 Similar to Python's argmax function.
 }
 \examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-argmax(gauteng)
+x <- idx_series(cumsum(rpois(30, 5)) + 1, start = 1)
+argmax(x)
 }

@@ -1,26 +1,10 @@
-# Created by: Craig Thamotheram
-# Created on: 27/07/2022
-
-#  This program is free software; you can redistribute it and/or modify
-#  it under the terms of the GNU General Public License as published by
-#  the Free Software Foundation; either version 2 or 3 of the License
-#  (at your option).
-#
-#  This program is distributed in the hope that it will be useful,
-#  but WITHOUT ANY WARRANTY; without even the implied warranty of
-#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU General Public License for more details.
-#
-#  A copy of the GNU General Public License is available at
-#  http://www.r-project.org/Licenses/
-
-setOldClass("xts")
 setOldClass("KFS")
-#'
+setOldClass("idx_series")
+
 #' @title Class for designing a Dynamic Gompertz Curve State-Space Model
 #'
 #' @description Class for Dynamic Gompertz Curve State-Space Model Object, which encapsulates
-#' model settings and provides methods to obtain a FilterResults object and plot time series.
+#' model settings and provides methods to obtain a FilterResults object.
 #' 
 #' The dynamic Gompertz model with an integrated random walk (IRW) trend is defined as:
 #' \deqn{\ln g_{t}= \delta_{t} + \varepsilon_{t}, \quad
@@ -45,8 +29,8 @@ setOldClass("KFS")
 #' 
 #' This class also supports the implementation of the reinitialisation
 #' procedure, described in the vignette and also summarised below.
-#' Let \eqn{t=r} denote the re-initialization date and \eqn{r_0} denote the
-#' date at which the cumulative series is set to 0. As the growth rate of
+#' Let \eqn{t=r} denote the re-initialization position and \eqn{r_0} denote the
+#' position at which the cumulative series is set to 0. As the growth rate of
 #' cumulative cases is defined as \eqn{g_t\equiv \frac{y_t}{Y_{t-1}}}, we have:
 #' \deqn{\ln g_t = \ln y_t - \ln Y_{t-1} \;\;\;\; t=1, \ldots, r}
 #' \deqn{\ln g_t^r = \ln y_t - \ln Y_{t-1}^r \;\;\;\; t=r+1, \ldots, T}
@@ -58,7 +42,8 @@ setOldClass("KFS")
 #' We reinitialise the model by specifying the prior distribution for the
 #' initial states appropriately. See the vignette for details.
 #' 
-#' @field Y The cumulated variable. Must be strictly increasing in time.
+#' @field Y The cumulated variable, as an \code{idx_series}. Must be
+#'   strictly increasing.
 #' @field q The signal-to-noise ratio (ratio of slope to irregular
 #'   variance). Defaults to \code{'NULL'}, in which case no
 #'   signal-to-noise ratio will be imposed. Instead, it will be estimated.
@@ -67,49 +52,49 @@ setOldClass("KFS")
 #'   data to model day-of-the-week effects. A value of \code{0} disables the seasonal 
 #'   component entirely. The default is \code{7}, which is suitable for capturing 
 #'   weekly seasonality in daily time series.
-#' @field reinit.date (Only needed for reinitialization.) The reinitialisation date \eqn{r}. Should be
-#' specified as an object of class \code{"Date"}. Defaults to NA, which 
-#' represents the non-reinitialized version.
+#' @field reinit.idx (Only needed for reinitialization.) The
+#' reinitialisation position \eqn{r}, as a single integer. Defaults to
+#' \code{NULL}, which represents the non-reinitialized version.
 #' @field original.results (Only needed for reinitialization.) Rather than re-estimating the model up
-#' to the \code{reinit.date}, a \code{FilterResults} class object can be
+#' to the \code{reinit.idx}, a \code{FilterResults} class object can be
 #' specified here and the parameters for the reinitialisation will be taken
 #' from this object. Default is \code{NULL}. This parameter is optional.
 #' @field use.presample.info (Only needed for reinitialization.) Logical value denoting whether or
-#' not to use information from before the reinitialisation date in the
+#' not to use information from before the reinitialisation position in the
 #' reinitialisation procedure. Default is \code{TRUE}. If \code{FALSE}, the
-#' model is estimated from scratch from the reinitialisation date and no
-#' attempt to use information from before the reinitialisation date is made.
-#' @field xpred An \code{xts} object containing the dataset of exogenous variables 
-#' to include in the model. Defaults to \code{NULL}.
+#' model is estimated from scratch from the reinitialisation position and no
+#' attempt to use information from before the reinitialisation position is made.
+#' @field xpred An \code{idx_series} object containing the dataset of exogenous
+#' variables to include in the model. Defaults to \code{NULL}.
 #' @field ar1 Logical value indicating whether an ar1 component should be 
 #' included in the model. Default is \code{FALSE}.
-#' @field start.date Start date of the estimation period. 
-#' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
-#' @field end.date End date of the estimation period. 
-#' Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}. 
+#' @field start Integer position marking the start of the estimation period.
+#' @field end Integer position marking the end of the estimation period.
+#' @field calendar An optional \code{idx_calendar} object describing how the
+#' integer positions used by \code{Y} (and the rest of this model's
+#' \code{idx_series} fields) map back to calendar time. Purely cosmetic:
+#' never consulted by estimation/filtering, only carried along so that
+#' plotting can later translate positions to dates. Defaults to
+#' \code{NULL}, in which case plots will be labelled with raw integer
+#' positions instead of dates.
 #' 
-#' @importFrom xts periodicity last xts
 #' @importFrom methods new setRefClass setOldClass
-#' @importFrom zoo index
 #' @importFrom KFAS SSModel fitSSM KFS SSMtrend SSMseasonal SSMregression SSMcustom
 #' @importFrom magrittr %>%
-#' @import ggplot2
 #'
 #' @examples
 #' library(tsgc)
-#' data(gauteng,package="tsgc")
+#' set.seed(1)
+#' Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
 #'
 #' # Specify a model
-#' model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-06"))
+#' model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 100)
 #' 
 #' # Show summary of the model object
 #' summary(model)
 #' 
 #' # Print a short description of the model object
 #' print(model)
-#' 
-#' # Plot the time series in the model object
-#' plot(model,title="Daily COVID cases in Gauteng", series.name="cases", MA=TRUE)
 #' 
 #' # Estimate a specified model
 #' res <- estimate(model)
@@ -120,27 +105,28 @@ setOldClass("KFS")
 SSModelDynamicGompertz <- setRefClass(
   "SSModelDynamicGompertz",
   fields = list(
-    Y = "xts",
+    Y = "idx_series",
     q = "ANY",
     sea.period="numeric",
-    reinit.date = "ANY",
+    reinit.idx = "ANY",
     original.results = "ANY",
     use.presample.info = "ANY",
     xpred="ANY",
     ar1="logical",
-    start.date="ANY",
-    end.date="ANY"),
+    start="ANY",
+    end="ANY",
+    calendar="ANY"),
   methods = list(initialize = function(Y, q = NULL, 
-                                       sea.period = 7,reinit.date=NULL, 
+                                       sea.period = 7,reinit.idx=NULL, 
                                        original.results=NULL,
                                        use.presample.info=TRUE, xpred=NULL, 
-                                       ar1=FALSE, start.date=index(Y)[1], 
-                                       end.date=tail(index(Y),1))
+                                       ar1=FALSE, start=idx_range(Y)[1], 
+                                       end=idx_range(Y)[2], calendar=NULL)
   {
     "Create an instance of the \\code{SSModelDynamicGompertz} class. Parameters 
     are defined in `fields` section. 
-      \\subsection{Usage}{\\code{SSModelDynamicGompertz$new(y, q = 0.005,
-      reinit.date = as.Date(\"2021-05-12\"))}}"
+      \\subsection{Usage}{\\code{SSModelDynamicGompertz$new(Y = y, q = 0.005,
+      reinit.idx = 45)}}"
     if (length(sea.period) != 1 || 
         !isTRUE(all.equal(sea.period, as.integer(sea.period)))||
         sea.period==1 || sea.period<0){
@@ -149,19 +135,23 @@ SSModelDynamicGompertz <- setRefClass(
     if (!is.null(original.results) && !inherits(original.results, "FilterResults")){
       stop("original.results must be NULL or an object of class FilterResults.")
     }
-    if (!is.null(xpred) && !is.xts(xpred)){
-      stop("xpred must be NULL or an xts object.")
+    if (!is.null(xpred) && !is_idx_series(xpred)){
+      stop("xpred must be NULL or an idx_series object.")
     } 
-    Y <<- get_timeframe(Y,start.date,end.date)
+    if (!is.null(calendar) && !is_idx_calendar(calendar)){
+      stop("calendar must be NULL or an idx_calendar object.")
+    }
+    Y <<- get_timeframe(Y,start,end)
     q <<- q
     sea.period <<- sea.period
-    reinit.date <<- reinit.date
+    reinit.idx <<- reinit.idx
     original.results <<- original.results
     use.presample.info <<- use.presample.info
-    xpred<<-get_timeframe(xpred,start.date,end.date)
+    xpred<<-get_timeframe(xpred,start,end)
     ar1<<-ar1
-    start.date<<-start.date
-    end.date<<-end.date
+    start<<-start
+    end<<-end
+    calendar<<-calendar
   },
   estimate = function() {
     "Estimates the dynamic Gompertz curve model when applied to an object of
@@ -170,8 +160,8 @@ SSModelDynamicGompertz <- setRefClass(
       containing the result output for the estimated dynamic Gompertz curve
       model.}
       "
-    if (any(na.omit(diff(Y))<=0)){
-      stop("Y must be a time series strictly increasing in time. If the cumulative 
+    if (any(na.omit(idx_values(idx_diff(Y, 1L)))<=0)){
+      stop("Y must be strictly increasing. If the cumulative 
            values exhibit plateaus it is necessary to add small increments to 
            eliminate flat segments and allow model estimation. This can be done 
            by ensuring the non-cumulated series is strictly positive.")
@@ -194,14 +184,11 @@ SSModelDynamicGompertz <- setRefClass(
       estH <- any(is.na(model$H))
       estQ <- any(is.na(model$Q))
       if ((!estH) & (!estQ)) {
-        # If nothing to update then return model
         return(model)
       } else {
         nparQ <- 0
-        # 1. Set seasonal noise
         if (estQ) {
           Q <- as.matrix(model$Q[, , 1])
-          # Update diagonal elements
           naQd <- which(is.na(diag(Q)))
           if (ar1) {
             i.ar1 <- nrow(Q)
@@ -212,14 +199,12 @@ SSModelDynamicGompertz <- setRefClass(
             nparQ <- 1
             Q[naQd, naQd][lower.tri(Q[naQd, naQd])] <- 0
             diag(Q)[naQd] <- exp(0.5 * pars[nparQ])
-            # Check for off-diagonal elements and raise error if found.
             naQnd <- which(upper.tri(Q[naQd, naQd]) & is.na(Q[naQd, naQd]))
             if (length(naQnd) > 0) {
               stop("NotImplmentedError: Unexpected off-diagonal element updating")
             }
           }
           
-          # 2. Set observation noise
           H <- as.matrix(model$H[, , 1])
           if (estH) {
             naHd <- which(is.na(diag(H)))
@@ -229,11 +214,8 @@ SSModelDynamicGompertz <- setRefClass(
             model$H[naHd, naHd, 1] <- crossprod(H[naHd, naHd])
           }
           
-          # 3. Set slope noise
-          # Get index of slope, 1 before the seasonal component.
           model$Q[naQd, naQd, 1] <- crossprod(Q[naQd, naQd])
           i.slope <- 2
-          # Estimate slope if no signal to noise ratio specified.
           if (is.null(q)) {
             nparQ<-nparQ+1
             Q.slope <- exp(0.5 * pars[nparQ])
@@ -242,7 +224,6 @@ SSModelDynamicGompertz <- setRefClass(
             model$Q[i.slope, i.slope, 1] <- crossprod(H[naHd, naHd]) * q
           }
           
-          # 4. Set AR1 noise
           if (ar1){
             nparQ<-nparQ+1
             i.ar1 <- nrow(Q)
@@ -261,7 +242,7 @@ SSModelDynamicGompertz <- setRefClass(
     get_model = function(y,xpred=NULL){
       get_dynamic_gompertz_model = function(
     y,
-    xpred,
+    xreg,
     a1 = NULL,
     P1 = NULL,
     Q = NULL,
@@ -271,6 +252,11 @@ SSModelDynamicGompertz <- setRefClass(
     newZ=NULL)
       { "Obtain the model object which is then used for 
         estimation."
+        if (is_idx_series(xreg) && is_idx_series(y)) {
+          xreg <- xreg[idx_positions(y)]
+        }
+        if (is_idx_series(xreg)) { xreg <- idx_values(xreg) }
+        if (is_idx_series(y)) { y <- as.matrix(idx_values(y)) }
         Ht <- if (is.null(H)) { NA } else { H }
         Qt.slope <- if (is.null(Q)) { NA } else { Q[2, 2] }
         if (sea.period>1){
@@ -278,23 +264,17 @@ SSModelDynamicGompertz <- setRefClass(
         }
         Qt.ar1 <- if (is.null(Q)) { NA } else {Q[dim(Q)[1],dim(Q)[2]]}
         
-        # 1. Set prior on state as ~ N(a1, P1) if a1 supplied.
         use.prior <- if (!is.null(a1)) { TRUE } else { FALSE }
-        
-        # 2. Check whether there are exogenous predictors in model
-        need.xpred<-!is.null(xpred)
+        need.xpred<-!is.null(xreg)
         
         if (ar1){
-          # 3. When needed, extract the AR1 coefficient
           ar1_coeff<-T[dim(T)[1],dim(T)[2]]
         }
         
-        #Write out the model depending on case
         if (use.prior) {
           seasonal_idx<-grep("sea_trig", rownames(a1))
           trend_idx<-c(grep("level", rownames(a1)), 
                        grep("slope", rownames(a1)))
-          #Case 1: With prior info, seasonality, xpred
           if (sea.period>1) {
             if (need.xpred){
               if (ar1){
@@ -315,7 +295,7 @@ SSModelDynamicGompertz <- setRefClass(
                                 a1=a1[dim(a1)[1]], 
                                 P1=P1[dim(a1)[1],dim(a1)[1]], 
                                 state_names="ar1")
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = Ht)
               } else {
                 ss_model <-SSModel(
@@ -331,11 +311,11 @@ SSModelDynamicGompertz <- setRefClass(
                       sea.type = "trigonometric",
                       a1 = a1[seasonal_idx],
                       P1 = P1[seasonal_idx, seasonal_idx])
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = Ht)
               }
             } else {
-              #Case 2: With prior info, seasonality, no xpred
+              # prior, seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~
@@ -376,7 +356,7 @@ SSModelDynamicGompertz <- setRefClass(
               }
             }
           } else {
-            #Case 3: With prior info, no seasonality, yes xpred
+            # prior, no seasonal, xpred
             if (need.xpred){
               if (ar1){
                 ss_model <-SSModel(
@@ -389,7 +369,7 @@ SSModelDynamicGompertz <- setRefClass(
                               a1=a1[dim(a1)[1]], 
                               P1=P1[dim(a1)[1],dim(a1)[1]], 
                               state_names="ar1")
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = Ht)
               } else {
                 ss_model <-SSModel(
@@ -398,11 +378,11 @@ SSModelDynamicGompertz <- setRefClass(
                     Q = list(matrix(0), matrix(Qt.slope)),
                     a1 = a1[trend_idx],
                     P1 = P1[trend_idx, trend_idx])
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = Ht)
               }
             } else {
-              #Case 4: With prior info, no seasonality, no xpred
+              # prior, no seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
@@ -426,7 +406,7 @@ SSModelDynamicGompertz <- setRefClass(
           } 
           n.pars <- 0
         } else {
-          #Case 5: No prior info, yes seasonality, yes xpred
+          # no prior, seasonal, xpred
           if (need.xpred){
             if (sea.period>1) {
               if(ar1){
@@ -440,7 +420,7 @@ SSModelDynamicGompertz <- setRefClass(
                       Q = Qt.seas,
                       sea.type = "trigonometric")+
                     SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = matrix(Ht)
                 )
               } else {
@@ -453,11 +433,11 @@ SSModelDynamicGompertz <- setRefClass(
                       period = sea.period,
                       Q = Qt.seas,
                       sea.type = "trigonometric")
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = matrix(Ht)
                 )
               }
-              #Case 6: No prior info, no seasonality, yes xpred
+              # no prior, no seasonal, xpred
             } else {
               if (ar1){
                 ss_model <- SSModel(
@@ -466,7 +446,7 @@ SSModelDynamicGompertz <- setRefClass(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
                     )+SSMcustom(Z=1,T=1,R=1,Q=matrix(NA),state_names="ar1")
-                  +SSMregression(~xpred),
+                  +SSMregression(~xreg),
                   H = matrix(Ht)
                 )
               } else {
@@ -475,13 +455,13 @@ SSModelDynamicGompertz <- setRefClass(
                     SSMtrend(
                       degree = 2,
                       Q = list(matrix(0), matrix(Qt.slope))
-                    )+SSMregression(~xpred),
+                    )+SSMregression(~xreg),
                   H = matrix(Ht)
                 )
               }
             } 
           } else {
-            #Case 7: No prior info, yes seasonality, no xpred
+            # no prior, seasonal, no xpred
             if (sea.period>1) {
               if (ar1){
                 ss_model <- SSModel(
@@ -512,7 +492,7 @@ SSModelDynamicGompertz <- setRefClass(
                 )
               }
             } else {
-              #Case 8: No prior info, no seasonality, no xpred
+              # no prior, no seasonal, no xpred
               if (ar1){
                 ss_model <- SSModel(
                   as.matrix(y) ~SSMtrend(
@@ -542,9 +522,9 @@ SSModelDynamicGompertz <- setRefClass(
         return(out)
       }
       
-      if (is.null(reinit.date)){
+      if (is.null(reinit.idx)){
         model <- get_dynamic_gompertz_model(
-          y, xpred=xpred
+          y, xreg=xpred
         )
         return(model)
       } else{
@@ -553,39 +533,39 @@ SSModelDynamicGompertz <- setRefClass(
           xpred2 <- NULL
         } else {
           #Select relevant xpred
-          xpred1 <- xpred[zoo::index(xpred) <= reinit.date]
-          xpred2 <- xpred[zoo::index(xpred) > reinit.date]
+          xpred_pos <- idx_positions(xpred)
+          xpred1 <- if (any(xpred_pos <= reinit.idx)) xpred[xpred_pos[xpred_pos <= reinit.idx]] else NULL
+          xpred2 <- if (any(xpred_pos > reinit.idx)) xpred[xpred_pos[xpred_pos > reinit.idx]] else NULL
         }
         
-        # 4.1. Index for reinitialisation, t_0
-        stopifnot(length(Y[reinit.date]) == 1)
-        Y.t.r_0 <- as.numeric(Y[reinit.date - 1])
+        stopifnot(reinit.idx %in% idx_positions(Y))
+        Y.t.r_0 <- as.numeric(idx_values(Y[reinit.idx - 1]))
         
-        # 4.2 Reinitialisation:
-        #   ln g_t^r = ln g_t + ln (Y_{t-1}/Y_{t-1}^r), where Y_t^r=Y_t-Y_{r_0}.
-        idx.dates <- (index(y) > reinit.date)
-        lag.Y <- stats::lag(Y)[idx.dates]
-        y.reinit <- y[index(y) > reinit.date] + log(lag.Y / (lag.Y - Y.t.r_0))
+        y_pos <- idx_positions(y)
+        reinit_pos <- y_pos[y_pos > reinit.idx]
+        lag.Y <- idx_lag(Y, 1L)[reinit_pos]
+        y.vals <- as.numeric(idx_values(y[reinit_pos]))
+        lag.Y.vals <- as.numeric(idx_values(lag.Y))
+        y.reinit <- idx_series(
+          y.vals + log(lag.Y.vals / (lag.Y.vals - Y.t.r_0)),
+          start = reinit_pos[1]
+        )
         
-        # 4.3 Run Kalman filter/smoother on new series with non-diffuse prior
         if (use.presample.info) {
-          # Either estimate full model here or take results from previous model.
           if (is.null(original.results)) {
-            # NB. Restrict sample to t<=r - date of reinitialisation.
             model <- SSModelDynamicGompertz$new(Y = Y,
                                                 sea.period=sea.period, 
                                                 xpred=xpred1, q = q, ar1=ar1,
-                                                start.date=start.date,
-                                                end.date=reinit.date)
+                                                start=start,
+                                                end=reinit.idx,
+                                                calendar=calendar)
             res.original <- model$estimate()
             model_output <- output(res.original)
           } else {
             model_output <- output(original.results)
           }
           
-          # 4.3 Reset slope to 0 and add constant to initial value for level.
-          # where reinit.date is t=r
-          idx <- which(reinit.date == index(y))
+          idx <- which(reinit.idx == idx_positions(y))
           stopifnot(length(idx) == 1)
           att <- att(model_output)[idx,]
           Ptt <- Ptt(model_output)[, , idx]
@@ -594,71 +574,56 @@ SSModelDynamicGompertz <- setRefClass(
           Qt <- drop(matrixKFS(model_output,"Q"))
           Ht <- drop(matrixKFS(model_output,"H"))
           
-          # a. Take a_{r|r} and P_{r|r} through prediction step to get a_{r+1}
-          # and P_{r+1}
           a1 <- Tt %*% att
           P1 <- Tt %*% Ptt %*% t(Tt) + Rt %*% Qt %*% t(Rt)
           
-          # b. Set slope to 0 and add correction (\ln(Y_r/y_r) to level.
           a1["slope",] <- 0
-          a1["level",] <- a1["level",] + log(Y[idx] / (Y[idx] - Y.t.r_0))
+          a1["level",] <- a1["level",] + log(idx_values(Y[reinit.idx]) / (idx_values(Y[reinit.idx]) - Y.t.r_0))
           
         } else {
-          # Don't use presample info
           a1 <- NULL; P1 <- NULL; Qt <- NULL; Ht <- NULL; Tt<- NULL
         }
         out <- get_dynamic_gompertz_model(
-          y = y.reinit, xpred=xpred2,
+          y = y.reinit, xreg=xpred2,
           a1 = a1, P1 = P1, Q = Qt, H = Ht, T=Tt)
         
-        out[['index']] <- index(y.reinit)
+        out[['index']] <- idx_positions(y.reinit)
         return(out)
       }
     }
     
-    # 1. Get LDL of cumulative series Y.
-    y <- tsgc::df2ldl(Y)
-    
-    # 2. Obtain the SSModel 
+    y <- df2ldl(Y)
     model <- get_model(y, xpred=xpred)
-    
-    # 3. Add update methods to enforce signal-to-noise ratio
     updatefn <- purrr::partial(update, ... =, q = q)
-    
-    # Estimate via MLE unknown params
     model_fit <- fitSSM(model$model, inits = model$inits, updatefn = updatefn,
                         method = 'BFGS')
-    
-    # 4. Run smoother/filter
     model_output <- KFS(model_fit$model)
-    
-    # 5. Get truncated index from model if using a reinitialisation in model
-    date.index <- if (!is.null(model$index)) { model$index } else { index(y) }
+    idx.positions <- if (!is.null(model$index)) { model$index } else { idx_positions(y) }
     
     results <- FilterResults$new(
-      data_xts = Y,
+      data = Y,
       xpred_logical = !is.null(xpred),
-      index = date.index,
-      reinit.date =reinit.date,
+      index = idx.positions,
+      reinit.idx =reinit.idx,
       ar1=ar1,
       sea.period=sea.period,
-      output = model_output
+      output = model_output,
+      calendar = calendar
     )
     return(results)
   },
   summary = function() {
     "Supplies details of the SSModelDynamicGompertz object, such as estimated 
-      parameter values, start and end dates of estimation."
+      parameter values, start and end positions of the estimation window."
     result<-.self$estimate()
     out <- output(result)
-    start<-result$index[1]
-    end<-tail(result$index,1)
-    resolution<-result$resolution
+    start_pos<-result$index[1]
+    end_pos<-tail(result$index,1)
     
     if(is.null(q)){
       qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
     }
-    reinit<-!is.null(reinit.date)
+    reinit<-!is.null(reinit.idx)
     if (ar1){
       ar1_comp<-matrixKFS(out,"T")["ar1","ar1",1]
     }
@@ -670,7 +635,7 @@ SSModelDynamicGompertz <- setRefClass(
     cat("\n")
     cat("--------------------------------------\n")
     cat("Cumulated Variable:\n")
-    base::print(head(.self$Y))
+    base::print(head(idx_values(.self$Y)))
     cat("Signal-to-Noise Ratio (q):", 
         ifelse(is.null(q), paste(signif(qest,3), "(estimated)"), 
                paste(q, ("(user specified)"))), "\n")
@@ -686,29 +651,19 @@ SSModelDynamicGompertz <- setRefClass(
     cat("\n")
     cat("  - Seasonal Component: ", ifelse(sea.period>1, "Trigonometric", "None"), "\n")
     cat("  - Period of Seasonality: ", ifelse(sea.period>1, sea.period, "N/A"), "\n")
-    if (resolution=="daily"){
-      cat("  - Estimation start date:", format(as.Date(start, origin = "1970-01-01"))) 
-      cat("\n")
-      cat("  - Estimation end date:", format(as.Date(end, origin = "1970-01-01")))
-    } else if (resolution=="quarterly"){
-      cat("  - Estimation start date:", format(as.yearqtr(start))) 
-      cat("\n")
-      cat("  - Estimation end date:", format(as.yearqtr(end)))
-    } else if (resolution=="monthly"  || resolution=="yearly"){
-      cat("  - Estimation start date:", format(as.yearmon(start))) 
-      cat("\n")
-      cat("  - Estimation end date:", format(as.yearmon(end)))
-    } 
+    cat("  - Estimation start position:", start_pos)
+    cat("\n")
+    cat("  - Estimation end position:", end_pos)
     cat("\n")
     if (reinit){
-      cat("  - Reinitialization date:",format(as.Date(reinit.date, origin = "1970-01-01")))
+      cat("  - Reinitialization position:",reinit.idx)
       cat("\n")
       cat("  - Use presample info:", use.presample.info)
       cat("\n")
     }
     if (!is.null(xpred)){
       cat("  - Exogenous predictors dataset")
-      base::print(head(.self$xpred))
+      base::print(head(idx_values(.self$xpred)))
     }
     cat("  - Model States and Standard Errors\n")
     base::print(out)
@@ -716,8 +671,8 @@ SSModelDynamicGompertz <- setRefClass(
   print = function() {
     "Provides a quick description of the SSModelDynamicGompertz object, providing 
       model states and standard errors."
-    reinit<-!is.null(reinit.date)
-    out <- output(.self$estimate()) #KFS object
+    reinit<-!is.null(reinit.idx)
+    out <- output(.self$estimate())
     if(is.null(q)){
       qest <- matrixKFS(out,"Q")[2, 2, 1]/matrixKFS(out,"H")[, , 1]
     }
@@ -728,7 +683,7 @@ SSModelDynamicGompertz <- setRefClass(
     cat("\n")
     cat("\n")
     cat("Cumulated Variable:\n")
-    base::print(head(Y))
+    base::print(head(idx_values(Y)))
     cat("Number of observations:", length(.self$Y))
     cat("\n")
     cat("Signal-to-Noise Ratio (q):", 
@@ -739,100 +694,11 @@ SSModelDynamicGompertz <- setRefClass(
                "No","Yes"),"\n")
     cat("Exogenous predictors?", ifelse(is.null(xpred),
                                         "No","Yes"),"\n")
-    if (!is.null(reinit.date)){
-      cat("Reinit date:",format(as.Date(reinit.date, origin = "1970-01-01")))
+    if (!is.null(reinit.idx)){
+      cat("Reinit position:",reinit.idx)
       cat("\n")
       cat("Use presample info:", use.presample.info)
     }
-  },
-  plot =function(title=NULL, series.name="target variable", date_break=NULL, MA_period=7){
-    "Plots the lagged differences of the cumulated dataset \\code{Y} in this 
-      \\code{SSModelDynamicGompertz} object against time, which could represent 
-      daily cases.
-      \\subsection{Parameters}{\\itemize{
-        \\item{\\code{title} Title for forecast plot. Enter as text string. 
-        \\code{NULL} (i.e. no title) by default.}
-        \\item{\\code{series.name} The name of the series the growth rate is being computed
-        for. E.g. \\code{'cases'}. Default is `target variable`.}
-        \\item{\\code{date_break} A character string (e.g. '60 days') specifying the interval 
-        between date labels, used in \\code{scale_x_date} within 
-        \\code{ggplot}. If \\code{NULL} (default), a suitable interval is chosen 
-        automatically by \\code{ggplot}.}
-        \\item{\\code{MA_period} Number of days used in centered moving 
-        average, to be plotted. Integer type. If moving average plot is not desired, 
-        enter 0 or 1. Defaults to 7.}
-        }
-      }
-      \\subsection{Return Value}{A plot of the lagged differences of the 
-      cumulated dataset \\code{Y} against time.}
-      "
-    cumulative_cases <- Y  
-    
-    resolution<-get_time_resolution(index(Y))
-    
-    if (MA_period>1){
-      # Calculate a centred moving average of daily differences.
-      ma.cent.new.cases <- zoo::rollmean(diff(cumulative_cases), MA_period, align = "center")
-      
-      # Identify the date with maximum new cases.
-      ma.cent.wave.3.idx.max <- tsgc::argmax(ma.cent.new.cases) %>% zoo::index()
-      
-      # Prepare data for plotting by combining actual new cases and the moving average.
-      d <- cbind(diff(cumulative_cases), ma.cent.new.cases)
-      colnames(d) <- c('New Cases', 'Centered MA')
-      
-      date_col<-if(resolution=='daily'){
-        as.Date(index(d))
-      } else if (resolution=='quarterly' || resolution=='yearly' || resolution=='monthly') {
-        qtr2date(index(d))
-      } 
-      
-      d.df <- data.frame(
-        Date = date_col,
-        New.Cases = coredata(d[, 1]),
-        Centered.MA = coredata(d[, 2])
-      )
-    } else {
-      # Prepare data for plotting by combining actual new cases and the moving average.
-      d <- diff(cumulative_cases)
-      colnames(d) <- c('New Cases')
-      
-      date_col<-if(resolution=='daily'){
-        as.Date(index(d))
-      } else if (resolution=='quarterly' || resolution=='yearly' || resolution=="monthly") {
-        qtr2date(index(d))
-      } 
-      
-      d.df <- data.frame(Date = date_col, New.Cases = coredata(d[, 1]))
-    }
-    
-    # Create base plot
-    data_plot <- ggplot(data = d.df, aes(x = Date)) +
-      geom_line(aes(y = New.Cases, color = "New Cases"), linewidth = 0.1) +
-      scale_y_continuous(n.breaks = 10) +
-      labs(x = "Date", y = paste("New", series.name), title = title)+
-      theme_light(base_size = 12) +
-      theme(
-        legend.title = element_text(size = 5),
-        legend.text = element_text(size = 10),
-        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
-        plot.title = element_text(face = "bold")
-      )
-    
-    if (!is.null(date_break)) {
-      data_plot <- data_plot + scale_x_date(date_breaks = date_break)
-    }
-    
-    # Conditionally add Centered 7-day MA line
-    if (MA_period>1) {
-      data_plot <- data_plot + 
-        geom_line(aes(y = Centered.MA, color = "Centered MA"), linewidth = 1)+ 
-        scale_color_manual(
-          name = '',
-          values = c('Centered MA' = 'red')
-        )
-    } 
-    data_plot
   }
   )
 )

@@ -2,26 +2,27 @@
 % Please edit documentation in R/accessorFns.R
 \name{modelKFS}
 \alias{modelKFS}
-\title{Extract SSModel object within KFS object}
+\title{Extract SSModel object within a KFS object}
 \usage{
 modelKFS(object)
 }
 \arguments{
-\item{object}{KFS object}
+\item{object}{A \code{KFS} object.}
+}
+\value{
+The \code{SSModel} object underlying the \code{KFS} fit.
 }
 \description{
-Accessor method to access the fitted SSModel
+Accessor method to access the fitted \code{SSModel}.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, end.date=as.Date("2020-07-06"), q = 0.005)
-# Estimate a specified model
-res <- model$estimate()
-
-# Extract Z matrix from output(res)
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
+res <- estimate(model)
 modelKFS(output(res))
 
 }

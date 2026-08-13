@@ -2,26 +2,27 @@
 % Please edit documentation in R/accessorFns.R
 \name{alphahat}
 \alias{alphahat}
-\title{Extract alphahat in KFS object}
+\title{Extract alphahat from a KFS object}
 \usage{
 alphahat(object)
 }
 \arguments{
-\item{object}{A \code{KFS} object}
+\item{object}{A \code{KFS} object.}
+}
+\value{
+The smoothed state estimates \code{alphahat}.
 }
 \description{
-Accessor method to access alphahat (smoothed state estimates)
-from a fitted \code{KFS} object which has had the Kalman filter applied to it
+Accessor method to access \code{alphahat}, the smoothed state
+estimates, from a fitted \code{KFS} object.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-
-#Return alphahat
-alphahat(output(res))
-
+tsgc:::alphahat(output(res))
 }

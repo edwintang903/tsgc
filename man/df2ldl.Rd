@@ -7,20 +7,19 @@
 df2ldl(dt)
 }
 \arguments{
-\item{dt}{Cumulated data series from the \code{xts} class.}
+\item{dt}{Cumulated data series, as an \code{idx_series} with exactly one
+column.}
 }
 \value{
-A data frame of log growth rates of the cumulated variable which has
-been inputted via the parameter \code{dt}.
+An \code{idx_series} of log growth rates of the cumulated
+variable inputted via the parameter \code{dt}.
 }
 \description{
 Helper method to compute the log growth rates of cumulated
-variables. It will compute the log cumulative growth rate for each column in
-the data frame.
+variables.
 }
 \examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-df2ldl(gauteng)
+x <- idx_series(cumsum(rpois(30, 5)) + 1)
+df2ldl(x)
 
 }

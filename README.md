@@ -75,7 +75,7 @@ print(results)
 
 ## Dependencies
 
-This package requires R (version 3.5.0 or higher) and depends on several other R packages for handling state space models and time series data, including `KFAS`, `xts`, `zoo`, and `here`.
+This package requires R (version 3.5.0 or higher) and depends on several other R packages for handling state space models, time series data, and visualization, including `KFAS`, `xts`, `zoo`, and `ggplot2`.
 
 ## Getting Help
 

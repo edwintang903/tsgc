@@ -2,27 +2,27 @@
 % Please edit documentation in R/accessorFns.R
 \name{Ptt}
 \alias{Ptt}
-\title{Extract error covariance matrix of filtered states from KFS}
+\title{Extract error covariance matrix of filtered states from a KFS object}
 \usage{
 Ptt(object)
 }
 \arguments{
-\item{object}{KFS object}
+\item{object}{A \code{KFS} object.}
+}
+\value{
+The error covariance matrix of the filtered states.
 }
 \description{
 Accessor method to access the non-diffuse part of the error
-covariance matrix of filtered states from KFS object
+covariance matrix of the filtered states in a \code{KFS} object.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
-# Estimate a specified model
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-
-#Return covariance matrix
-Ptt(output(res))
-
+tsgc:::Ptt(output(res))
 }

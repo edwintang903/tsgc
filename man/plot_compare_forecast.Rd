@@ -9,44 +9,42 @@ plot_compare_forecast(
   n.ahead = 14,
   sea.on = TRUE,
   actual = NULL,
-  title = "Comparison of forecasts"
+  title = "Comparison of forecasts",
+  labels = NULL,
+  axis = NULL
 )
 }
 \arguments{
-\item{results}{A list of \code{FilterResults} or \code{FilterResultsLI} objects, obtained from
-\code{estimate()} method.}
+\item{results}{A list of \code{FilterResults} or \code{FilterResultsLI}
+objects, obtained from the \code{estimate()} method.}
 
-\item{n.ahead}{The duration of the holdout sample. Default is 14.}
+\item{n.ahead}{Duration of the holdout sample. Default is 14.}
 
-\item{sea.on}{Logical value indicating whether to plot the seasonality-adjusted
-forecasts. Defaults to \code{TRUE}.}
+\item{sea.on}{Logical value indicating whether to plot the
+seasonality-adjusted forecasts. Defaults to \code{TRUE}.}
 
-\item{actual}{Time series of actual cumulative values. The function
-automatically extracts the observations corresponding to the prediction
-period, so the complete series may be provided.}
+\item{actual}{An \code{idx_series} of actual cumulative values. The
+function automatically extracts the observations corresponding to the
+prediction period, so the complete series may be provided.}
 
-\item{title}{Title for forecast plot. Enter as text string. Defaults as "Comparison of forecasts".}
+\item{title}{Title for the plot. Defaults to \code{"Comparison of forecasts"}.}
+
+\item{labels}{Character vector of legend labels, one per element of
+\code{results}, or \code{NULL} (default). If \code{NULL}, labels are
+taken from \code{names(results)} if set (e.g.
+\code{list(a = res1, b = res2)}), and otherwise default to the
+deparsed expression used for each element in the \code{results} list
+call (e.g. \code{plot_compare_forecast(list(res, res.reinit))} labels
+the two lines \code{"res"} and \code{"res.reinit"}).}
+
+\item{axis}{An \code{\link{idx_axis_opts}} object controlling x-axis
+mode and info box, or \code{NULL} (default) for the previous default
+behaviour. Uses the calendar of \code{results[[1]]}.}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots forecasts from a list of fitted models on the same axes for visual comparison.
-}
-\examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-end.date<- as.Date("2020-07-20")
-
-# Model 1: The signal-to-noise ratio is a free parameter
-model <- SSModelDynamicGompertz$new(Y = gauteng, end.date=end.date)
-res <- estimate(model)
-
-# Model 2: The signal-to-noise ratio is fixed
-model_q <- SSModelDynamicGompertz$new(Y = gauteng, end.date=end.date, q=0.005)
-res_q <- estimate(model_q)
-
-# Compare forecast
-plot_compare_forecast(list(res,res_q), n.ahead=7)
-
+Plots forecasts from a list of fitted models on the same
+axes for visual comparison.
 }

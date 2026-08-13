@@ -7,23 +7,23 @@
 output(object)
 }
 \arguments{
-\item{object}{FilterResults object}
+\item{object}{A \code{FilterResults} or \code{FilterResultsLI} object.}
 }
 \value{
-The fitted KFS model
+The fitted KFS model.
 }
 \description{
-Accessor method to access the fitted KFS model from \code{FilterResults}
+Accessor method to access the fitted KFS model from
+\code{FilterResults} or \code{FilterResultsLI}.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-
-# Return KFS object in output of res
 output(res)
 
 }

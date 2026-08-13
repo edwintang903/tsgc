@@ -8,15 +8,14 @@
 \description{
 A class for specifying the parameters of a leading indicator model. The model
 settings are stored in the fields of this object, and the class contains
-methods to obtain FilterResultsLI object for further analysis and plotting
-the time series under investigation as an exploratory data analysis.
+methods to obtain a FilterResultsLI object for further analysis.
 }
 \section{Fields}{
 
 \describe{
-\item{\code{Y}}{A cumulated time series with 2 columns: a leading indicator and a target variable.
-Both the target variable and the lagged leading indicator must be strictly increasing in time
-within the estimation window.}
+\item{\code{Y}}{A cumulated \code{idx_series} with 2 columns: a leading indicator and a target
+variable. Both the target variable and the lagged leading indicator must be strictly
+increasing within the estimation window.}
 
 \item{\code{q}}{The signal-to-noise ratio (ratio of slope error variance to target variable observation error variance).
 Defaults to \code{'NULL'}, in which case no
@@ -28,26 +27,37 @@ data to model day-of-the-week effects. A value of \code{0} disables the seasonal
 component entirely. The default is \code{7}, which is suitable for capturing
 weekly seasonality in daily time series.}
 
-\item{\code{n.lag}}{Number of days/months/quarters/years to lag the leading indicator.}
+\item{\code{n.lag}}{Number of integer positions to lag the leading indicator by.}
 
-\item{\code{xpred_lead}}{An xts object containing the values of exogenous variables for
-the leading indicator. Dataset must contain values for all dates in the
+\item{\code{xpred_lead}}{An \code{idx_series} object containing the values of exogenous
+variables for the leading indicator. Dataset must contain values for all positions in the
 estimation time frame. Defaults to NULL, indicating no exogenous variables are needed
 for the leading indicator.}
 
-\item{\code{xpred_targ}}{An xts object containing the values of exogenous variables for
-the target variable. Dataset must contain values for all dates in the
+\item{\code{xpred_targ}}{An \code{idx_series} object containing the values of exogenous
+variables for the target variable. Dataset must contain values for all positions in the
 estimation time frame. Defaults to NULL, indicating no exogenous variables are
 needed for the target variable.}
 
 \item{\code{LeadIndCol}}{The column in \code{Y} that contains the leading indicator.
 Defaults to 1.}
 
-\item{\code{start.date}}{Start date of the estimation period for estimating the target variable.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{start}}{Integer position marking the start of the estimation period.}
 
-\item{\code{end.date}}{End date of the estimation period for estimating the target variable.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{end}}{Integer position marking the end of the estimation period.}
+
+\item{\code{calendar}}{An optional \code{idx_calendar} object describing how the
+integer positions used by \code{Y} map back to calendar time. Since the
+leading indicator and target series in \code{Y} are already combined
+onto one shared position axis (see \code{Y}), a single calendar
+correctly applies to both. Purely cosmetic: never consulted by
+estimation/filtering, only carried along so that plotting can later
+translate positions to dates. Defaults to \code{NULL}, in which case
+plots will be labelled with raw integer positions instead of dates. It
+is the user's responsibility to ensure the leading indicator and target
+series were aligned onto a shared, consistent calendar before being
+combined into \code{Y}; this class does not attempt to reconcile two
+different calendars.}
 }}
 
 \section{Methods}{
@@ -67,65 +77,35 @@ model.}}
   LeadIndCol = 1,
   xpred_lead = NULL,
   xpred_targ = NULL,
-  start.date = index(Y)[1],
-  end.date = tail(index(Y), 1)
+  start = idx_range(Y)[1],
+  end = idx_range(Y)[2],
+  calendar = NULL
 )}}{Create an instance of the \code{SSModelLeadingIndicator} class with the 
 fields laid out at the beginning of the documentation.}
-
-\item{\code{plot(
-  title = NULL,
-  series.name.lead = "Leading Indicator",
-  series.name.target = "Target Variable",
-  date_break = NULL,
-  take.log = TRUE
-)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
-\code{SSModelLinearIndicator} object against time, which could represent 
-daily cases.
-\subsection{Parameters}{\itemize{
-  \item{\code{title} Title for forecast plot. Enter as character string. 
-  \code{NULL} (i.e. no title) by default.}
-  \item{\code{series.name.lead} The name of the leading indicator series 
-  for. E.g. \code{'cases'}. Enter as character string. Default is `Leading Indicator`.}
-  \item{\code{series.name.target} The name of the target variable series 
-  for. E.g. \code{'hospitalizations'}. Enter as character string. Default is `Target Variable`.}
-  \item{\code{date_break} A character string (e.g. '60 days') specifying the interval 
-  between date labels, used in \code{scale_x_date} within 
-  \code{ggplot}. If \code{NULL} (default), a suitable interval is chosen 
-  automatically by \code{ggplot}.}
-  \item{\code{take.log} A logical value indicating whether to return 
-  take log of the lagged differences. Defaults to \code{TRUE}.}
-  }
-}
-\subsection{Return Value}{A plot of the lagged differences of the 
-cumulated dataset \code{Y} against time.}}
 
 \item{\code{print()}}{Provides a quick description of the SSModelLeadingIndicator object, providing 
 model states and standard errors.}
 
 \item{\code{summary()}}{Supplies details of the SSModelLeadingIndicator object, such as estimated 
-parameter values, start and end dates of estimation.}
+parameter values, start and end positions of estimation.}
 }}
 
 \examples{
 library(tsgc)
+set.seed(1)
+lead <- cumsum(rpois(120, 6)) + 1
+targ <- cumsum(rpois(120, 8)) + 1
+Y <- idx_series(cbind(lead, targ), start = 1)
 
 # Specify a model with the estimation timeframe
-estimation.date.start <- as.Date("2020-02-25")
-estimation.date.end <- as.Date("2020-04-01")
-
-model <- SSModelLeadingIndicator(Y=ukitaly, n.lag = 14, 
-sea.period = 7,LeadIndCol=1, start.date=estimation.date.start,
-end.date=estimation.date.end)
+model <- SSModelLeadingIndicator(Y = Y, n.lag = 5, sea.period = 0,
+  LeadIndCol = 1, start = 1, end = 100)
 
 # Show summary of the model object
 summary(model)
 
 # Print a short description of the model object
 print(model)
-
-# Plot the time series stored in the model object
-plot(model, title="COVID Daily Cases in UK and Italy",
-series.name.lead="Italy", series.name.target="UK", take.log=FALSE)
 
 # Estimate a specified model
 res <- estimate(model)

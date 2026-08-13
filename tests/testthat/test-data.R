@@ -24,3 +24,15 @@ test_that("Test England weather data is correct class", {
   data("england_weather_2021")
   expect_s3_class(england_weather_2021, 'xts')
 })
+
+test_that("Test Nintendo sales data is correct class and quarterly indexed", {
+  data("nintendo_sales")
+  expect_s3_class(nintendo_sales, 'xts')
+  expect_true(inherits(zoo::index(nintendo_sales), c("Date", "yearqtr")))
+})
+
+test_that("Test etrading_apps data is correct class and monthly indexed", {
+  data("etrading_apps")
+  expect_s3_class(etrading_apps, 'xts')
+  expect_true(inherits(zoo::index(etrading_apps), c("Date", "yearmon")))
+})

@@ -10,53 +10,51 @@ plot_forecast(
   n.ahead = 14,
   confidence.level = 0.68,
   title = NULL,
-  plt.start.date = NULL,
-  series.name = "target variable"
+  plt.start = NULL,
+  series.name = "target variable",
+  axis = NULL
 )
 }
 \arguments{
-\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
-\code{estimate()} method.}
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object,
+obtained from the \code{estimate()} method.}
 
-\item{n.ahead}{Number of forecasts (i.e. number of periods ahead to forecast
-from end of estimation window). Default is 14.}
+\item{n.ahead}{Number of forecasts (i.e. number of positions ahead to
+forecast from the end of the estimation window). Default is 14.}
 
-\item{confidence.level}{Width of prediction interval for \eqn{\ln g_t} to
-use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
-approximately one standard deviation for a Normal distribution.}
+\item{confidence.level}{Width of the prediction interval for
+\eqn{\ln g_t}, used in forecasts of \eqn{y_t = \Delta Y_t}. Default is
+0.68, approximately one standard deviation for a Normal distribution.}
 
-\item{title}{Title for forecast plot. Enter as text string. \code{NULL}
-(i.e. no title) by default.}
+\item{title}{Title for the plot. \code{NULL} (default) for no title.}
 
-\item{plt.start.date}{First date of actual data (from estimation sample) to
-plot on graph.\code{NULL} (i.e. plots all data in estimation window) by
-default.}
+\item{plt.start}{First integer position of actual data (from the
+estimation sample) to plot. \code{NULL} (default) plots all data in the
+estimation window.}
 
-\item{series.name}{The name of the series the growth rate is being computed
-for. E.g. \code{'cases'}. Default is "target variable".}
+\item{series.name}{Name of the series the growth rate is being computed
+for, e.g. \code{'cases'}. Default \code{"target variable"}.}
+
+\item{axis}{An \code{\link{idx_axis_opts}} object controlling x-axis
+mode and info box, or \code{NULL} (default) for the previous default
+behaviour.}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots actual values of the difference in the cumulated variable,
-the forecasts of the cumulated variable (both including and excluding the
-seasonal component, where a seasonal is specified) and forecast intervals
-around the forecasts. The forecast intervals are based on the prediction
-intervals for \eqn{\ln(g_t)}.
+Plots actual values of the difference in the cumulated
+variable, the forecast of the cumulated variable (including seasonal
+components, where specified) and forecast intervals around the forecast.
+The forecast intervals are based on the prediction intervals for
+\eqn{\ln(g_t)}.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
+set.seed(1)
+Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
+model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 100)
 res <- estimate(model)
-
-# Plot forecast of new cases 7 days ahead
-plot_forecast(res, n.ahead=7, confidence.level = 0.68, 
-title = "Forecast new cases", plt.start.date = as.Date("2020-07-13"),
-series.name="cases")
+plot_forecast(res, n.ahead = 7, series.name = "cases")
 
 }

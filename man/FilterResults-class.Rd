@@ -14,16 +14,17 @@ of the SSModelDynamicGompertz class is of the class FilterResults.
 \section{Fields}{
 
 \describe{
-\item{\code{data_xts}}{An xts object containing the non-reinitialized cumulated
-variable.}
+\item{\code{data}}{An \code{idx_series} object containing the non-reinitialized
+cumulated variable.}
 
 \item{\code{xpred_logical}}{Logical value indicating whether exogenous predictors were
 used to estimate the FilterResults object.}
 
-\item{\code{index}}{The list of dates in the index of \code{data_xts}.}
+\item{\code{index}}{The integer positions of the observations used in
+estimation (of \code{data}).}
 
-\item{\code{reinit.date}}{The reinitialisation date of the estimated \code{SSModelDynamicGompertz} model (if applicable).
-Should be specified as an object of class \code{"Date"}.}
+\item{\code{reinit.idx}}{The reinitialisation position (a single integer) of the
+estimated \code{SSModelDynamicGompertz} model (if applicable).}
 
 \item{\code{ar1}}{Logical value indicating whether an ar1 component should be
 included in the model.}
@@ -31,17 +32,19 @@ included in the model.}
 \item{\code{output}}{A \code{KFS} results object obtained after fitting a
 \code{SSModelDynamicGompertz} model.}
 
-\item{\code{xpred.new}}{An xts object containing exogenous predictors to be used in
-prediction. Defaults to \code{NULL}, and should be provided if xpred is
-used for model estimation.}
+\item{\code{xpred.new}}{An \code{idx_series} object containing exogenous
+predictors to be used in prediction. Defaults to \code{NULL}, and should
+be provided if xpred is used for model estimation.}
 
 \item{\code{sea.period}}{The period of seasonality, inherited from the estimated
 \code{SSModelDynamicGompertz} model. For a day-of-the-week
 effect with daily data, this would be 7.}
 
-\item{\code{resolution}}{A character object showing the time resolution of the data
-in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
-Automatically estimated when \code{data_xts} is provided.}
+\item{\code{calendar}}{An optional \code{idx_calendar} object, inherited
+unchanged from the \code{SSModelDynamicGompertz} model this was
+estimated from. Purely cosmetic: describes how the integer positions in
+\code{data} map back to calendar time, for use by plotting only.
+Defaults to \code{NULL}.}
 }}
 
 \section{Methods}{
@@ -60,7 +63,7 @@ variable (\eqn{Y}). Computed as
   the estimates of the growth rate, or just the growth rate. Default is
   \code{FALSE}.}
 }}
-\subsection{Return Value}{\code{xts} object containing
+\subsection{Return Value}{\code{idx_series} objects containing
 smoothed/filtered growth rates and components (\eqn{\delta} and
 \eqn{\gamma}), where applicable.}}
 
@@ -76,72 +79,34 @@ variable (\eqn{Y}). Computed as
   interval.  Default is \eqn{0.68}, which is one standard deviation for
   a normally distributed random variable.}
 }}
-\subsection{Return Value}{\code{xts} object containing smoothed/filtered
+\subsection{Return Value}{\code{idx_series} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
 \item{\code{initialize(
-  data_xts,
+  data,
   xpred_logical,
   index,
-  reinit.date,
+  reinit.idx,
   ar1,
   output,
   sea.period,
   xpred.new = NULL,
-  resolution = "daily"
+  calendar = NULL
 )}}{Create an instance of the \code{FilterResults} class with fields defined
 earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y)}}{Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
   for forecasts against a holdout sample. For more details, please refer to 
-\link{mapes}.}
-
-\item{\code{plot_forecast(
-  n.ahead = 14,
-  confidence.level = 0.68,
-  title = NULL,
-  plt.start.date = NULL,
-  series.name = "target variable"
-)}}{Generates a forecast plot for the difference in the cumulative variable,
-showing actual values, forecasts including seasonal components,
-and prediction intervals around the forecasts. 
-For more details, see \link{plot_forecast}.}
-
-\item{\code{plot_gy_ci(
-  plt.start.date = NULL,
-  smoothed = FALSE,
-  title = NULL,
-  series.name = NULL,
-  pad.right = NULL
-)}}{Plots the growth rates and the slope of the log cumulative growth rate 
-against the dates in estimation sample. 
-For more details, please see \link{plot_gy_ci}.}
-
-\item{\code{plot_gy_components(plt.start.date = NULL, smoothed = FALSE, title = NULL)}}{Plots the growth rates and slope of the log cumulative growth rate 
-against the dates in estimation sample. 
-For more details, please see \link{plot_gy_components}.}
-
-\item{\code{plot_holdout(
-  Y,
-  n.ahead = 14,
-  confidence.level = 0.68,
-  series.name = "target variable",
-  title = NULL,
-  caption = NULL
-)}}{Plots the forecast of new cases (the difference of the cumulated
-variable) over a holdout sample. For more details, please refer to 
-\link{plot_holdout}.}
-
-\item{\code{plot_log_forecast(
-  Y,
-  n.ahead = 14,
-  plt.start.date = NULL,
-  title = "",
-  caption = ""
-)}}{Plots actual and filtered values of the log cumulative growth rate 
-(\eqn{\ln(g_t)}) in the estimation sample and the forecast and realised 
-log cumulative growth rate out of the estimation sample. For more details,
-see \link{plot_log_forecast}.}
+\link{mapes}.
+  
+  sMAPE is computed as
+  mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
+  i.e. this uses (Actual + Forecast), not the more common
+  (|Actual| + |Forecast|) / 2, in the denominator. As a result this
+  statistic ranges over [0, 100], NOT the [0, 200] range associated
+  with the textbook sMAPE definition that divides by the mean of the
+  absolute values. Do not compare this sMAPE value directly against
+  sMAPE figures computed with the conventional 0-200 formula.}
 
 \item{\code{predict_all(
   n.ahead,
@@ -164,7 +129,7 @@ for the states.
    rate that should be used to compute. Confidence intervals only reported
    for the incidence variable \eqn{y}.}
 }}
-\subsection{Return Value}{\code{xts} object containing the forecast
+\subsection{Return Value}{\code{idx_series} objects containing the forecast
 (and filtered, where applicable) level
 of \eqn{y} (\code{y.hat}), \eqn{\delta} (\code{level.t.t}),
 \eqn{\gamma} (\code{slope.t.t}), vector of states including the
@@ -194,7 +159,7 @@ the disease and
   \eqn{y} (i.e., the first difference of the cumulated variable). Default is
   \code{TRUE}.}
 }}
-\subsection{Return Value}{\code{xts} object containing the point
+\subsection{Return Value}{\code{idx_series} object containing the point
 forecasts and upper and lower bounds of
 the forecast interval.}}
 
@@ -204,20 +169,16 @@ the forecast interval.}}
 LaTeX.}
 
 \item{\code{summary()}}{Supplies details of the FilterResults object, such as estimated
-parameter values, start and end dates of estimation.}
+parameter values, start and end positions of estimation.}
 }}
 
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-
-# Estimation and prediction settings
-estimation.date.end=as.Date("2020-07-20")
-plt.length=30
+set.seed(1)
+Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
 
 # Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, 
-end.date=estimation.date.end)
+model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 100)
 
 # Estimate a specified model
 res <- estimate(model)
@@ -231,11 +192,11 @@ print(res)
 # Print estimation results
 res$print_estimation_results()
 
-# Forecast 7 days ahead from the end of the estimation window
+# Forecast 7 periods ahead from the end of the estimation window
 res$predict_level(n.ahead = 7,
   confidence.level = 0.68, sea.on=TRUE)
   
-# Forecast 7 days ahead from the model and return filtered states
+# Forecast 7 periods ahead from the model and return filtered states
 res$predict_all(n.ahead = 7, return.all = TRUE)
 
 # Return the filtered growth rate and its components
@@ -245,26 +206,8 @@ res$get_growth_y(return.components = TRUE)
 # interval
 res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
 
-# Plot forecast and realised log growth rate of cumulative cases
-res$plot_log_forecast(Y=gauteng,n.ahead=7,
-plt.start.date=estimation.date.end-plt.length)
-
-# Plot forecast of new cases 7 days ahead
-res$plot_forecast(n.ahead=7,
-plt.start.date = estimation.date.end-plt.length,
-series.name="hospitalizations")
-
-# Plot forecasts and outcomes over evaluation period
-res$plot_holdout(Y=gauteng,n.ahead=7, series.name="hospitalizations")
-
-# Plot filtered gy, g and gamma
-res$plot_gy_components()
-
-# Plot filtered gy, g and gamma
-res$plot_gy_ci()
-
 # Return MAPE of forecast
-res$mapes(n.ahead=7,gauteng)
+res$mapes(n.ahead=7,Y)
 
 }
 \references{

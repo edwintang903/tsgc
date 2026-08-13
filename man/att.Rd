@@ -2,29 +2,27 @@
 % Please edit documentation in R/accessorFns.R
 \name{att}
 \alias{att}
-\title{Extract filtered state estimates used in KFS}
+\title{Extract filtered state estimates from a KFS object}
 \usage{
 att(object)
 }
 \arguments{
-\item{object}{KFS object}
+\item{object}{A \code{KFS} object.}
 }
 \value{
-Filtered state estimate in KFS object
+The filtered state estimates.
 }
 \description{
-Accessor method to access filtered state estimate in KFS object
+Accessor method to access the filtered state estimates in a
+\code{KFS} object.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-idx.est <- zoo::index(gauteng) <= as.Date("2020-07-20")
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
-# Estimate a specified model
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-
-#Return filtered state estimates
-att(output(res))
-
+tsgc:::att(output(res))
 }

@@ -14,40 +14,41 @@ of the SSModelLeadingIndicator class is of the class FilterResultsLI.
 \section{Fields}{
 
 \describe{
-\item{\code{data_xts}}{A xts object with cumulated variables: lagged leading indicator and
-target variable.}
+\item{\code{data}}{An \code{idx_series} object with cumulated variables: lagged leading
+indicator and target variable (plus their increments and log-growth rates - see
+\code{\link{df2ldl_lead}}).}
 
 \item{\code{output}}{A \code{KFS} results object obtained after fitting a
 \code{SSModelLeadingIndicator} model.}
 
-\item{\code{n.lag}}{Number of days to lag the leading indicator, inherited from the
-estimated \code{SSModelLeadingIndicator} model.}
+\item{\code{n.lag}}{Number of integer positions the leading indicator is lagged by, inherited
+from the estimated \code{SSModelLeadingIndicator} model.}
 
 \item{\code{sea.period}}{The period of seasonality, inherited from the estimated
 \code{SSModelLeadingIndicator} model. For a day-of-the-week
 effect with daily data, this would be 7.}
 
-\item{\code{LeadIndCol}}{The column in \code{data_xts} that contains the leading
+\item{\code{LeadIndCol}}{The column in \code{data} that contains the leading
 indicator, inherited from the estimated \code{SSModelLeadingIndicator} model.}
 
 \item{\code{xpred_logical}}{Vector of length 2 with logical values, indicating whether
 there are exogenous predictors for leading series and target series respectively.}
 
-\item{\code{xpred_lead.new}}{An xts object containing the values of exogenous variables for
-the leading indicator over the prediction time frame.}
+\item{\code{xpred_lead.new}}{An \code{idx_series} object containing the values of exogenous
+variables for the leading indicator over the prediction time frame.}
 
-\item{\code{xpred_targ.new}}{An xts object containing the values of exogenous variables for
-the target variable over the prediction time frame.}
+\item{\code{xpred_targ.new}}{An \code{idx_series} object containing the values of exogenous
+variables for the target variable over the prediction time frame.}
 
-\item{\code{start.date}}{Start date of the estimation period for estimating the target variable.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{start}}{Integer position marking the start of the estimation period.}
 
-\item{\code{end.date}}{End date of the estimation period for estimating the target variable.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{end}}{Integer position marking the end of the estimation period.}
 
-\item{\code{resolution}}{A character object showing the time resolution of the data
-in \code{data_xts}. Options are "daily", "monthly", "quarterly" and "yearly".
-Automatically estimated when \code{data_xts} is provided.}
+\item{\code{calendar}}{An optional \code{idx_calendar} object, inherited
+unchanged from the \code{SSModelLeadingIndicator} model this was
+estimated from. Purely cosmetic: describes how the integer positions in
+\code{data} map back to calendar time, for use by plotting only.
+Defaults to \code{NULL}.}
 }}
 
 \section{Methods}{
@@ -66,7 +67,7 @@ variable (\eqn{Y}). Computed as
   the estimates of the growth rate, or just the growth rate. Default is
   \code{FALSE}.}
 }}
-\subsection{Return Value}{\code{xts} object containing
+\subsection{Return Value}{\code{idx_series} objects containing
 smoothed/filtered growth rates and components (\eqn{\delta} and
 \eqn{\gamma}), where applicable.}}
 
@@ -82,73 +83,36 @@ variable (\eqn{Y}). Computed as
   interval.  Default is \eqn{0.68}, which is one standard deviation for
   a normally distributed random variable.}
 }}
-\subsection{Return Value}{\code{xts} object containing smoothed/filtered
+\subsection{Return Value}{\code{idx_series} object containing smoothed/filtered
  growth rates and upper and lower bounds for the confidence intervals.}}
 
 \item{\code{initialize(
-  data_xts,
+  data,
   output,
   n.lag,
   sea.period,
   LeadIndCol,
   xpred_logical,
-  start.date,
-  end.date,
+  start,
+  end,
   xpred_lead.new = NULL,
   xpred_targ.new = NULL,
-  resolution = "daily"
+  calendar = NULL
 )}}{Create an instance of the \code{FilterResultsLI} class with fields defined
 earlier in the fields section.}
 
 \item{\code{mapes(n.ahead, Y)}}{Computes five metrics, including Mean Absolute Percentage Error (MAPE), 
-for forecasts against a holdout sample. For more details, please refer to 
-\link{mapes}.}
-
-\item{\code{plot_forecast(
-  n.ahead = 7,
-  confidence.level = 0.68,
-  title = NULL,
-  plt.start.date = NULL,
-  series.name = "target variable"
-)}}{Generates a forecast plot for the difference in the cumulative target 
-variable, showing actual values, forecasts including seasonal components,
-and prediction intervals around the forecasts. For more details, see 
-\link{plot_forecast}.}
-
-\item{\code{plot_gy_ci(
-  plt.start.date = NULL,
-  smoothed = FALSE,
-  title = NULL,
-  series.name = NULL,
-  pad.right = NULL
-)}}{Plots the growth rates and the slope of the log cumulative growth rate of 
-the target variable against the dates in estimation sample. 
-  For more details, please see \link{plot_gy_ci}.}
-
-\item{\code{plot_gy_components(plt.start.date = NULL, smoothed = FALSE, title = NULL)}}{Plots the growth rates and slope of the log cumulative growth rate 
-against the dates in estimation sample. 
-For more details, please see \link{plot_gy_components}.}
-
-\item{\code{plot_holdout(
-  Y,
-  n.ahead = 14,
-  confidence.level = 0.68,
-  series.name = "target variable",
-  title = NULL,
-  caption = NULL
-)}}{Plots the forecast of the target variable over a holdout sample. 
-For more details, please refer to \link{plot_holdout}.}
-
-\item{\code{plot_log_forecast(
-  Y,
-  n.ahead = 14,
-  plt.start.date = NULL,
-  title = "",
-  caption = ""
-)}}{Plots actual and filtered values of the log cumulative growth rate 
-(\eqn{\ln(g_t)}) of the target variable in the estimation sample and 
-the forecast and realised log cumulative growth rate of the target variable
-out of the estimation sample. For more details, see \link{plot_log_forecast}.}
+  for forecasts against a holdout sample. For more details, please refer to 
+\link{mapes}.
+  
+  sMAPE is computed as
+  mean(100 * abs(Actual - Forecast) / (Actual + Forecast))
+  i.e. this uses (Actual + Forecast), not the more common
+  (|Actual| + |Forecast|) / 2, in the denominator. As a result this
+  statistic ranges over [0, 100], NOT the [0, 200] range associated
+  with the textbook sMAPE definition that divides by the mean of the
+  absolute values. Do not compare this sMAPE value directly against
+  sMAPE figures computed with the conventional 0-200 formula.}
 
 \item{\code{predict_all(
   n.ahead,
@@ -167,7 +131,7 @@ out of the estimation sample. For more details, see \link{plot_log_forecast}.}
   (\code{TRUE}) or only the forecasts (\code{FALSE}). Default is
   \code{FALSE}.}
 }}
-\subsection{Return Value}{\code{xts} object containing the forecast
+\subsection{Return Value}{\code{idx_series} objects containing the forecast
 (and filtered, where applicable) level
 of \eqn{y} (\code{y.hat}), \eqn{\delta} (\code{level.t.t}),
 \eqn{\gamma} (\code{slope.t.t}), vector of states including the
@@ -187,9 +151,8 @@ the disease and
    rate that should be used to compute the forecast intervals of \eqn{y}.}
  }
 }
-\subsection{Return Value}{A list object containing n.lag and 2 \code{xts}
-objects: the point forecasts and upper and lower bounds of the forecast interval
-for trend and forecast with seasonal component.}}
+\subsection{Return Value}{An \code{idx_series} object containing the point
+forecasts and upper and lower bounds of the forecast interval.}}
 
 \item{\code{print()}}{Provides a quick glimpse of model states and standard errors.}
 
@@ -197,35 +160,28 @@ for trend and forecast with seasonal component.}}
 LaTeX.}
 
 \item{\code{summary()}}{Supplies details of the FilterResultsLI object, such as estimated
-parameter values, start and end dates of estimation.}
+parameter values, start and end positions of estimation.}
 }}
 
 \examples{
 library(tsgc)
-data(england, package="tsgc")
+set.seed(1)
+lead <- cumsum(rpois(150, 6)) + 1
+targ <- cumsum(rpois(150, 8)) + 1
+Y <- idx_series(cbind(lead, targ), start = 1)
 
-#Define estimation environment
-Y = england[,1:2] #select only cumulative cases and cumulative hospitalizations
-estimation.date.start = as.Date("2021-04-30")
-estimation.date.end = as.Date("2021-07-24")
-plt.length=30
-q = NULL
-confidence.level = 0.68
-plt.length = 14
-n.lag = 4
-
-# Define and Estimate the model
-out<-SSModelLeadingIndicator(Y=Y,n.lag = n.lag,q=q,LeadIndCol=1, sea.period=7,
-start.date=estimation.date.start, end.date=estimation.date.end) 
-res<-estimate(out) 
+# Define and estimate the model
+model <- SSModelLeadingIndicator(Y = Y, n.lag = 5, q = NULL, LeadIndCol = 1,
+  sea.period = 0, start = 1, end = 100)
+res <- estimate(model)
 
 # Print estimation results
 res$print_estimation_results()
 
-# Forecast 7 days ahead from the end of the estimation window
+# Forecast 7 positions ahead from the end of the estimation window
 res$predict_level(n.ahead = 7, confidence.level = 0.68)
-  
-# Forecast 7 days ahead from the model and return filtered states
+
+# Forecast 7 positions ahead from the model and return filtered states
 res$predict_all(n.ahead = 7, return.all = TRUE)
 
 # Return the filtered growth rate and its components
@@ -235,31 +191,13 @@ res$get_growth_y(return.components = TRUE)
 # interval
 res$get_gy_ci(smoothed = TRUE, confidence.level = 0.68)
 
-# Plot forecast of new cases 7 days ahead
-res$plot_log_forecast(Y=Y, n.ahead=7,
-plt.start.date=estimation.date.end-plt.length)
-
-# Plot forecast of new cases 7 days ahead
-res$plot_forecast(n.ahead=7,
-plt.start.date = estimation.date.end-plt.length,
-series.name="hospitalizations")
-
-# Plot forecasts and outcomes over evaluation period
-res$plot_holdout(Y=Y,n.ahead=7, series.name="hospitalizations")
-
-# Plot filtered gy, g and gamma
-res$plot_gy_components(plt.start.date = estimation.date.end-plt.length)
-
-# Plot filtered gy, g and gamma
-res$plot_gy_ci(plt.start.date = estimation.date.end-plt.length)
-
-#Return MAPE of forecast
-res$mapes(n.ahead=7,Y)
+# Return MAPE of forecast
+res$mapes(n.ahead = 7, Y = Y)
 
 }
 \references{
 Harvey, A. (2021). TIME SERIES MODELLING OF EPIDEMICS:
 LEADING INDICATORS, CONTROL GROUPS AND POLICY ASSESSMENT.
-National Institute Economic Review, 257, 83–100.
+National Institute Economic Review, 257, 83-100.
 doi:10.1017/nie.2021.21
 }

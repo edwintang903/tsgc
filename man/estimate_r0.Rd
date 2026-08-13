@@ -2,62 +2,63 @@
 % Please edit documentation in R/utils.R
 \name{estimate_r0}
 \alias{estimate_r0}
-\title{Calculate reproduction number estimates and credible intervals}
+\title{Estimate the reproduction number from a fitted model}
 \usage{
 estimate_r0(
   res,
   gen_int,
-  ndays = 7,
-  show_plot = FALSE,
-  title = "Reproduction number"
+  n.ahead = 7,
+  smoothed = FALSE,
+  confidence.level = 0.68
 )
 }
 \arguments{
-\item{res}{A \code{FilterResults} object, obtained from \code{estimate()} method.}
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object,
+obtained from the \code{estimate()} method.}
 
-\item{gen_int}{Assumed generation interval in days (not estimated from the data).}
+\item{gen_int}{The mean generation interval, in the same integer-position
+units as \code{res} (e.g. if positions are days, this is the mean
+generation interval in days).}
 
-\item{ndays}{Number of most recent days to return/plot, counting back from the
-end of the estimation timeframe. This truncates the R_t series to its last
-\code{ndays} values; it does not smooth or average the growth signal.}
+\item{n.ahead}{Number of most recent integer positions to return, taken
+from the end of \code{res}'s filtered/smoothed range. Default is
+\code{7}.}
 
-\item{show_plot}{A logical value indicating whether to show the plot of R0}
+\item{smoothed}{Logical value indicating whether to use the smoothed
+(\code{TRUE}) or filtered (\code{FALSE}, default) growth rate estimates
+underlying \eqn{R_t}. Passed through to \code{res$get_gy_ci()}.}
 
-\item{title}{Title for the reproduction number plot.}
+\item{confidence.level}{Confidence level for the confidence interval
+around \eqn{R_t}. Default is \code{0.68}, one standard deviation for a
+normally distributed random variable. Passed through to
+\code{res$get_gy_ci()}.}
 }
 \value{
-Graph of estimated Rt and forecast intervals.
+A data frame containing \code{Position}, \code{fit},
+\code{lower} and \code{upper}. If \code{res$calendar} is available, a
+\code{Date} column is included before \code{Position}. Each row gives the
+estimated reproduction number and its confidence interval over one of the
+last \code{n.ahead} integer positions.
 }
 \description{
-Reproduction number is estimated based on the method described
-in Harvey and Kattuman (2021), via R_t = exp(g_y,t * gen_int), where g_y,t
-is the model's estimated daily log-growth rate and gen_int is an assumed
-(not estimated) generation interval. Results should be checked for
-sensitivity to the assumed gen_int.
+Computes the (instantaneous) reproduction number
+\eqn{R_t = \exp\{g_t \times gen\_ int\}}, where \eqn{g_t} is the
+filtered or smoothed growth rate of the incidence variable \eqn{y}
+returned by \code{res$get_gy_ci()}, and \code{gen_int} is the mean
+generation interval of the disease/process being modelled (in the same
+integer-position units as \code{res}). This estimate, and its confidence
+interval, is a deterministic transformation of \code{get_gy_ci()}'s
+output; \code{res} must already have been produced by \code{estimate()}.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-cumulative_cases <- gauteng[, 1] 
+set.seed(1)
+Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
+cal <- idx_calendar(anchor = as.Date("2021-01-01"), anchor_pos = 1L,
+                    amount = 1, unit = "days")
+model <- SSModelDynamicGompertz$new(Y = Y, q = NULL, end = 100,
+                                    calendar = cal)
+res <- estimate(model)
+estimate_r0(res, gen_int = 5, n.ahead = 7)
 
-# Estimate model
-model_q <- SSModelDynamicGompertz$new(Y = cumulative_cases, q = 0.005,
-                                      start.date=as.Date("2021-02-01"), 
-                                      end.date=as.Date("2021-04-19"))
-res_q <- estimate(model_q)
-summary(res_q)
-
-# Calculate reproduction number estimates and credible intervals.
-gen_int <- 4  # Generation interval in days
-ndays<-7 #Number of days to plot
-r.t <- estimate_r0(res_q, gen_int, ndays)
-r.t 
-
- # Plot reproduction numbers.
-estimate_r0(res_q, gen_int, ndays, show_plot = TRUE, title="Gauteng Reproduction numbers")
-
-}
-\references{
-Harvey A, Kattuman P (2021). “A farewell to R: time-series models
-for tracking and forecasting epidemics.” Journal of the Royal Society Interface, 18. URL http://doi.org/10.1098/rsif.2021.0179.
 }

@@ -21,7 +21,7 @@
 #
 # 3. Gompertz with Exogenous Regressors (xpred)
 #    - Weather regressors
-#    - Supplying future xpred (xts, CSV)
+#    - Supplying future xpred (idx_series, CSV)
 #    - Forecast comparisons
 #
 # 4. Reproduction Number (R_t)
@@ -35,9 +35,9 @@
 #    - Baseline leading-indicator estimation
 #    - With weather regressors
 #
-# 7. Comparing Leading Indicator and Gompertz Models (UK–Italy)
+# 7. Comparing Leading Indicator and Gompertz Models (UK-Italy)
 #    7.1 Case 1: First peak window (2020-02-25 to 2020-04-01)
-#        - UK-only Gompertz vs Italy→UK leading indicator
+#        - UK-only Gompertz vs Italy->UK leading indicator
 #    7.2 Cross-validation (same window as Case 1)
 #        - Gompertz vs leading-indicator models with lags
 #    7.3 Case 2: Extended window (2020-02-25 to 2020-04-15)
@@ -45,11 +45,20 @@
 #
 # 8. Extensions to Other Frequencies
 #    8.1 Quarterly: Wii sales (Gompertz)
-#    8.2 Quarterly: Wii→Switch (leading indicator)
+#    8.2 Quarterly: Wii->Switch (leading indicator)
 #    8.3 Monthly: Plus500 (Gompertz)
-#    8.4 Monthly: DEGIRO→AvaTrade (leading indicator)
+#    8.4 Monthly: DEGIRO->AvaTrade (leading indicator)
 #    8.5 Annual: 3DS (Gompertz)
-#    8.6 Annual: Wii→3DS (leading indicator)
+#    8.6 Annual: Wii->3DS (leading indicator)
+#
+# 9. Appendix: Controlling the Plot X-Axis with idx_axis_opts()
+#    - mode = "date" / "position" / "steps" / "time_since"
+#    - info_box, pattern_n
+#
+# 10. Appendix: Compound and Heterogeneous Calendar Steps
+#     10.1 idx_step() / idx_calendar_step(): a single compound step
+#     10.2 multi_step_pattern() / idx_calendar_multi_step(): heterogeneous cycles
+#     10.3 idx_offset_to_pos(): non-calendar idx_calendar anchors
 #
 # 9. Limitations, Diagnostics & Exported-File Notes
 #    - Illustrative vs retrospective vs operational forecasts
@@ -58,6 +67,18 @@
 #    - Exported CSV file labelling
 #
 # ==========================================
+#
+# This script works with `idx_series` (integer-position
+# data) rather than directly with `xts` objects: estimation and
+# forecasting are defined purely in terms of position, independent of
+# calendar frequency or gaps. Calendar time is reintroduced only for
+# plotting, via an optional `idx_calendar` that is attached to each
+# model with the `calendar` argument. `xts_to_idx()` converts a
+# calendar-indexed `xts`/`zoo` object (e.g. the package's bundled
+# datasets) to this representation in one step, returning both the
+# `idx_series` and a matching `idx_calendar`; `idx_to_pos()` translates
+# a calendar date into the integer position that `start`/`end`/
+# `reinit.idx`/`n.lag` expect.
 
 #' 
 #' # 0. Overview, Model Equations & Data Provenance
@@ -147,8 +168,14 @@
 # ---- 1.1 Parameters & Toggles ----
 # Define global switches and defaults so forecast horizons, plot sizes, confidence levels, and output behaviour can be changed in one place.
 # These booleans control whether figures and tables are written to disk; set them to FALSE for a dry run.
-SAVE_PLOTS   <- TRUE
-SAVE_TABLES  <- TRUE
+# NOTE: validate_saved_figure() (see save_plot()/safe_ggsave() below) only
+# ever runs when a figure file is actually written, i.e. only when
+# SAVE_PLOTS is TRUE. With the default FALSE below, no PNGs are written
+# and the render-validation check is correspondingly not exercised. Set
+# SAVE_PLOTS <- TRUE for any run whose purpose is to confirm figures
+# actually render (e.g. before publishing or archiving this document).
+SAVE_PLOTS   <- FALSE
+SAVE_TABLES  <- FALSE
 FIG_WIDTH    <- 10
 FIG_HEIGHT   <- 7
 FIG_DPI      <- 300
@@ -163,22 +190,17 @@ plt.length.default  <- 30
 
 # Reproduction Number (R_t) parameters
 # These epidemiological assumptions are used only when translating growth dynamics into R_t.
-gen_int <- 4   # Assumed generation interval (days between infection in one case and
-# secondary infections). R_t = exp(g_y,t * gen_int), where g_y,t is the
-# estimated daily log-growth rate. This is an assumption, not an estimate;
-# results should be checked for sensitivity to this value (see below).
-ndays   <- 7   # Number of most recent daily R_t estimates to return/plot.
-# NB. estimate_r0() computes R_t for every day in the sample and then
-# takes tail(..., ndays): this truncates to the last `ndays` days, it
-# does NOT smooth or average the growth signal. Any noise reduction in
-# the daily case data happens upstream, in the Gompertz model's own
-# smoothing of the growth-rate state -- not from this parameter.
+gen_int <- 4   # assumed generation interval, how many days between infection in one case 
+# and secondary infections.
+ndays   <- 7   # Number of days used to smooth/aggregate the growth signal when estimating R_t.
+# A 7-day window helps reduce daily reporting noise in COVID case data.
 
 
-# Default estimation window used in Section 2
-# This is the baseline Gauteng estimation window; later holdout windows are derived from these dates.
-est.start.1 <- as.Date("2021-02-01")
-est.end.1   <- as.Date("2021-05-03")
+# Default estimation window used in Section 2, as calendar dates. These
+# are translated to integer positions via idx_to_pos() once the Gauteng
+# calendar (gauteng_cal) has been constructed in Section 2.1.
+est.start.1.date <- as.Date("2021-02-01")
+est.end.1.date   <- as.Date("2021-05-03")
 
 # User note: Sections 1.2 to 1.7 contain setup code for loading packages,
 # defining output folders, saving plots/tables, exporting CSV files, and setting
@@ -197,11 +219,57 @@ safe_library <- function(pkg) {
 
 # List all packages used by the script;  missing dependencies are easier to diagnose.
 libs <- c(
-  "tsgc","KFAS","dplyr","ggplot2","ggthemes","ggfortify","ggforce",
-  "magrittr","zoo","latex2exp","xts","gridExtra","here","timetk",
-  "tidyr","abind","scales","grid"
+  "tsgc","KFAS","dplyr","ggplot2","ggthemes",
+  "zoo","xts","gridExtra","here",
+  "tidyr","abind","scales","grid","png"
 )
 invisible(lapply(libs, safe_library))
+
+# ---- 1.2b Reproducibility: pin and verify the installed tsgc build ----
+# Naming a commit SHA in prose is not the same as verifying it against
+# what is actually installed, and a full test-suite/R-CMD-check run
+# does not by itself pin dependency versions for anyone re-running this
+# script later. This block: (a) records the exact installed tsgc
+# version/commit actually used for this run, so results can be tied to
+# a specific build rather than "whatever tsgc happened to be installed
+# on the day"; (b) writes a full sessionInfo() to disk alongside any
+# other outputs; and (c) attempts an renv.lock snapshot if the renv
+# package is available, so dependency versions (not just tsgc) are
+# pinned too. None of this was executed against the actual installed
+# package in this environment (no R available here) - this only wires
+# up the pinning/verification infrastructure; the printed
+# version/commit and the written renv.lock must be checked/generated by
+# actually running this block.
+EXPECTED_TSGC_COMMIT <- NULL  # set to the exact commit SHA this replication was built against, e.g. "a1b2c3d4..."
+
+tsgc_desc <- tryCatch(utils::packageDescription("tsgc"), error = function(e) NULL)
+tsgc_version <- if (!is.null(tsgc_desc)) tsgc_desc$Version else NA_character_
+`%||%` <- function(x, y) if (is.null(x)) y else x
+# GithubSHA1/RemoteSha are populated by devtools::install_github()/
+# remotes::install_github(); a CRAN or local install won't have these,
+# in which case only the package Version is available to check.
+tsgc_commit <- if (!is.null(tsgc_desc)) {
+  tsgc_desc$GithubSHA1 %||% tsgc_desc$RemoteSha %||% NA_character_
+} else NA_character_
+
+message("Installed tsgc version: ", tsgc_version)
+message("Installed tsgc commit/remote SHA: ", if (is.na(tsgc_commit)) "unavailable (not installed via install_github()/install_git())" else tsgc_commit)
+
+if (!is.null(EXPECTED_TSGC_COMMIT)) {
+  if (is.na(tsgc_commit) || !identical(tsgc_commit, EXPECTED_TSGC_COMMIT)) {
+    warning(
+      "Installed tsgc commit ('", tsgc_commit, "') does not match the ",
+      "commit this replication was pinned to ('", EXPECTED_TSGC_COMMIT,
+      "'). Results below may not match the original replication exactly."
+    )
+  } else {
+    message("Installed tsgc commit matches EXPECTED_TSGC_COMMIT.")
+  }
+}
+
+# NOTE: the sessionInfo()/renv.lock pinning step itself (using
+# ensure_dir(), results_dir, and base_path) runs later, in Section 1.4,
+# once those are actually defined - see below.
 
 # ---- 1.3 Global Options & Theme ----
 # Set plotting and printing defaults so figures are visually consistent across the replication.
@@ -232,33 +300,111 @@ ensure_dir <- function(path) {
 }
 invisible(lapply(list(results_dir, tables_dir, images_dir), ensure_dir))
 
+# ---- 1.4b Reproducibility: session/dependency snapshot ----
+# Runs after ensure_dir(), results_dir, and base_path are defined.
+if (SAVE_TABLES) {
+  ensure_dir(results_dir)
+  writeLines(
+    capture.output(sessionInfo()),
+    con = file.path(results_dir, "sessionInfo.txt")
+  )
+  message("Saved sessionInfo.txt (full package/version manifest for this run).")
+  
+  if (requireNamespace("renv", quietly = TRUE)) {
+    tryCatch({
+      renv::snapshot(project = base_path, prompt = FALSE)
+      message("Saved renv.lock via renv::snapshot().")
+    }, error = function(e) {
+      message("renv::snapshot() failed: ", conditionMessage(e),
+              " - install/configure renv to pin dependency versions.")
+    })
+  } else {
+    message("renv not installed: skipping renv.lock snapshot. Install ",
+            "renv and re-run with SAVE_TABLES = TRUE to pin dependency versions.")
+  }
+}
+
 # ---- 1.5 Plot/Save Helpers ----
 # Define wrappers for saving plots. These centralise image dimensions, resolution, and the SAVE_PLOTS toggle.
 # Save a ggplot with common width, height, and DPI settings when SAVE_PLOTS is TRUE.
 safe_ggsave <- function(plot, filename, width = FIG_WIDTH, 
                         height = FIG_HEIGHT, dpi = FIG_DPI) {
-  if (!SAVE_PLOTS) return(invisible(TRUE))
+  # Returns FALSE (no file written) when SAVE_PLOTS is off, and TRUE
+  # once ggsave() has completed - this return value, not a re-check of
+  # SAVE_PLOTS, is what the caller uses to decide whether to validate.
+  if (!SAVE_PLOTS) return(invisible(FALSE))
   ggplot2::ggsave(filename = filename, plot = plot, 
                   width = width, height = height, dpi = dpi)
   message("Saved plot: ", normalizePath(filename, winslash = "/"))
+  invisible(TRUE)
 }
 
 # Print each plot in interactive/rendered output and optionally save it to the Images folder.
+# Validation is tied to whether a file was actually written (i.e. to
+# SAVE_PLOTS via safe_ggsave's own no-op), not to a second, separately
+# maintained SAVE_PLOTS check here. With the default SAVE_PLOTS = FALSE,
+# no file is written and validate_saved_figure() is correctly skipped;
+# whenever SAVE_PLOTS = TRUE, every saved figure is validated
+# unconditionally, so a zero-byte figure is always caught, not only
+# when a second flag happens to also be TRUE.
 save_plot <- function(p, fname = NULL) {
   print(p)
-  if (!is.null(fname) && inherits(p, "ggplot")) 
-    safe_ggsave(p, file.path(images_dir, fname))
+  if (!is.null(fname) && inherits(p, "ggplot")) {
+    filepath <- file.path(images_dir, fname)
+    saved <- safe_ggsave(p, filepath)
+    if (isTRUE(saved)) validate_saved_figure(filepath)
+  }
   invisible(p)
 }
 
+# Validate that a saved figure actually rendered: the file must exist,
+# be non-empty, decode as an image, and exceed a plausible minimum
+# pixel size. A positive file size alone is not sufficient to confirm
+# a figure rendered correctly; the file must also decode.
+validate_saved_figure <- function(filepath, min_dim = 50) {
+  if (!file.exists(filepath)) {
+    stop("Figure was not created: ", filepath)
+  }
+  sz <- file.info(filepath)$size
+  if (is.na(sz) || sz <= 0) {
+    stop("Figure is zero bytes (failed render): ", filepath)
+  }
+  dims <- tryCatch(
+    {
+      raster <- png::readPNG(filepath, info = TRUE)
+      dim(raster)[1:2]
+    },
+    error = function(e) {
+      stop("Figure does not decode as a valid PNG: ", filepath,
+           " (", conditionMessage(e), ")")
+    }
+  )
+  if (any(is.na(dims)) || any(dims < min_dim)) {
+    stop("Figure decodes but is implausibly small (", 
+         paste(dims, collapse = "x"), " px): ", filepath)
+  }
+  invisible(TRUE)
+}
+
+# ---- 1.5b Model Diagnostics Helper ----
+# print_model_diagnostics() lives in the package (utils.R). It operates
+# purely on public FilterResults/FilterResultsLI accessors and is
+# generically useful, not specific to this replication exercise. It
+# reports the log-likelihood, a matrix-safe variance-boundary check (via
+# check_variance_boundary(), also in utils.R), and recursive-residual
+# diagnostics - none of which summary() on these classes reports.
+
 # ---- 1.6 CSV Export Helpers ----
 # Define CSV-export helpers for forecasts, filtered states, growth rates, R_t outputs, and the manifest used to document exported files.
-# Convert time indexes from Date, yearmon, or yearqtr forms into CSV-friendly labels.
-format_csv_date <- function(index_vec) {
-  if (inherits(index_vec, "Date")) {
-    format(index_vec, "%Y-%m-%d")
+# Since estimation works on idx_series (integer positions) rather
+# than xts, and models carry an optional idx_calendar, dates for export
+# are recovered via idx_to_date(calendar, idx_positions(x)) when a
+# calendar is available, falling back to raw integer positions otherwise.
+format_csv_dates <- function(calendar, positions) {
+  if (!is.null(calendar)) {
+    format(idx_to_date(calendar, positions), "%Y-%m-%d")
   } else {
-    as.character(index_vec)
+    as.character(positions)
   }
 }
 
@@ -267,14 +413,36 @@ confidence_suffix <- function(confidence.level) {
   as.character(round(confidence.level * 100))
 }
 
-# Export an xts object with its time index restored as an explicit Date column.
-write_xts_csv <- function(x, file, columns) {
+# Export an idx_series object with its positions restored as an explicit Date (or position) column.
+write_idx_csv <- function(x, calendar, file, columns) {
   out <- data.frame(
-    Date = format_csv_date(zoo::index(x)),
-    zoo::coredata(x),
+    Date = format_csv_dates(calendar, idx_positions(x)),
+    as.matrix(idx_values(x)),
     check.names = FALSE
   )
   names(out) <- c("Date", columns)
+  # Rows with an exact zero standard error (typically diffuse
+  # initialisation at the start of the sample) read as false certainty
+  # if exported as-is - the associated confidence bounds collapse to
+  # the point estimate rather than reflecting genuine (unbounded/
+  # undefined) diffuse-state uncertainty. Rather than only flagging
+  # these rows, null out the SE and any interval bounds derived from
+  # it, so a false-precision zero can't be silently consumed
+  # downstream (e.g. averaged into a coverage or width statistic).
+  # diffuse_flag is still kept, recording which rows were affected.
+  err_col <- grep("std_error", names(out), value = TRUE)
+  if (length(err_col) == 1 && any(out[[err_col]] == 0, na.rm = TRUE)) {
+    diffuse_rows <- out[[err_col]] == 0
+    out$diffuse_flag <- diffuse_rows
+    bound_cols <- grep("_lower_|_upper_|^lower$|^upper$", names(out), value = TRUE)
+    out[diffuse_rows, err_col] <- NA_real_
+    if (length(bound_cols)) {
+      out[diffuse_rows, bound_cols] <- NA_real_
+    }
+    message("Note: ", sum(diffuse_rows), " row(s) in ", basename(file),
+            " had zero standard error (diffuse initialisation); SE and any",
+            " derived interval bounds were set to NA and diffuse_flag was set.")
+  }
   write.csv(out, file = file, row.names = FALSE)
   message("Saved table: ", normalizePath(file, winslash = "/", mustWork = FALSE))
   invisible(out)
@@ -292,13 +460,16 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
   growth_lower_col <- paste0("growth_rate_lower_", ci)
   growth_upper_col <- paste0("growth_rate_upper_", ci)
   
+  calendar <- res$calendar
+  
   y.hat.diff <- res$predict_level(
     n.ahead = n.ahead,
     confidence.level = confidence.level,
     sea.on = TRUE
   )
-  write_xts_csv(
-    y.hat.diff[, 1:3],
+  write_idx_csv(
+    y.hat.diff,
+    calendar,
     file.path(res.dir, paste0(model_slug, "_", target_slug, "_forecast.csv")),
     c(forecast_col, forecast_lower_col, forecast_upper_col)
   )
@@ -311,48 +482,67 @@ write_results_clear <- function(res, res.dir, n.ahead, model_slug, target_slug,
   
   idx.level <- grep("level", colnames(a.t.t))[1]
   idx.slope <- grep("slope", colnames(a.t.t))[1]
-  delta.std.err <- sqrt(P.t.t[idx.level, idx.level, ])
-  gamma.std.err <- sqrt(P.t.t[idx.slope, idx.slope, ])
+  delta.var  <- P.t.t[idx.level, idx.level, ]
+  gamma.var  <- P.t.t[idx.slope, idx.slope, ]
+  delta.gamma.cov <- P.t.t[idx.level, idx.slope, ]
+  delta.std.err <- sqrt(delta.var)
+  gamma.std.err <- sqrt(gamma.var)
   
-  delta <- xts::xts(
+  # The *_filtered.csv files should contain only in-sample filtered
+  # states, not rows extending into the forecast period. Restrict to
+  # positions at or before the model's own fitted sample end.
+  filtered.end.pos <- tail(res$index, 1)
+  
+  delta <- idx_series(
     cbind(
-      delta_log_growth_level = as.numeric(filtered.level),
+      delta_log_growth_level = idx_values(filtered.level),
       delta_std_error = as.numeric(delta.std.err)
     ),
-    order.by = zoo::index(filtered.level)
+    start = filtered.level$start
   )
-  write_xts_csv(
-    delta,
+  write_idx_csv(
+    get_timeframe(delta, filtered.level$start, filtered.end.pos),
+    calendar,
     file.path(res.dir, paste0(model_slug, "_delta_filtered.csv")),
     c("delta_log_growth_level", "delta_std_error")
   )
   
-  gamma <- xts::xts(
+  gamma <- idx_series(
     cbind(
-      gamma_trend_slope = as.numeric(filtered.slope),
+      gamma_trend_slope = idx_values(filtered.slope),
       gamma_std_error = as.numeric(gamma.std.err)
     ),
-    order.by = zoo::index(filtered.slope)
+    start = filtered.slope$start
   )
-  write_xts_csv(
-    gamma,
+  write_idx_csv(
+    get_timeframe(gamma, filtered.slope$start, filtered.end.pos),
+    calendar,
     file.path(res.dir, paste0(model_slug, "_gamma_filtered.csv")),
     c("gamma_trend_slope", "gamma_std_error")
   )
   
-  fitted.growth <- exp(filtered.level) + filtered.slope
+  # g_t = exp(delta_t) + gamma_t. Following Harvey & Kattuman (2021,
+  # Sec 3.1), the contribution of Var(delta_t) to Var(g_t) is negligible
+  # relative to Var(gamma_t) once the epidemic is underway, so the
+  # sampling variability of g_t is taken as that of gamma_t alone:
+  #   Var(g_t) ~= Var(gamma_t)
+  e.delta <- exp(idx_values(filtered.level))
+  fitted.growth <- e.delta + idx_values(filtered.slope)
+  growth.var <- as.numeric(gamma.var)
+  growth.se <- sqrt(pmax(growth.var, 0))
   ci.offset <- stats::qnorm((1 - confidence.level) / 2) *
-    as.numeric(gamma.std.err) %o% c(1, -1)
-  growth.ci <- xts::xts(
+    growth.se %o% c(1, -1)
+  growth.ci <- idx_series(
     cbind(
       fitted_incidence_growth_rate = as.numeric(fitted.growth),
       lower = as.numeric(as.numeric(fitted.growth) + ci.offset[, 1]),
       upper = as.numeric(as.numeric(fitted.growth) + ci.offset[, 2])
     ),
-    order.by = zoo::index(filtered.level)
+    start = filtered.level$start
   )
-  write_xts_csv(
+  write_idx_csv(
     growth.ci,
+    calendar,
     file.path(res.dir, paste0(model_slug, "_", target_slug, "_growth_rate.csv")),
     c("fitted_incidence_growth_rate", growth_lower_col, growth_upper_col)
   )
@@ -410,20 +600,23 @@ write_csv_manifest <- function(res.dir) {
   invisible(manifest)
 }
 
-# Convenience for date windows used in plots
-# Helper for plot windows: move back k periods from the last available date.
-tail_date_minus <- function(index_vec, k)
-  if (length(index_vec)) tail(index_vec, 1) - k else NA
+# Convenience for plot windows expressed as integer positions
+# Helper for plot windows: move back k positions from the last available position.
+tail_pos_minus <- function(pos_vec, k)
+  if (length(pos_vec)) tail(pos_vec, 1) - k else NA
 
-# Takes the last date and goes back k days; 
+# Takes the last position and goes back k positions;
 # if the vector is empty, returns NA.
 
 # ---- 1.7 knitr Defaults ----
 # Configure knitr chunk defaults when the script is rendered as a vignette or report.
+# NOTE: warnings are shown (not globally suppressed). The prior
+# `warning = FALSE` hid many "rows removed" notices (some 40-50 rows)
+# that should be understood and handled locally rather than silenced.
 knitr::opts_chunk$set(
   echo       = TRUE,
   message    = TRUE,
-  warning    = FALSE,
+  warning    = TRUE,
   fig.align  = "center",
   fig.width  = FIG_WIDTH,
   fig.height = FIG_HEIGHT
@@ -442,15 +635,30 @@ knitr::opts_chunk$set(
 #' 
 #' ## 2.1 Data
 #' 
-#' Load the Gauteng dataset and extract the cumulative cases series for modelling.
+#' Load the Gauteng dataset and convert it to idx_series/idx_calendar form
+#' for modelling.
 #' 
 
 ## ---- 2.1 Data -----------------
-# Load the Gauteng COVID-19 example and select cumulative cases, which are the response series for the baseline Gompertz model.
-# Load the built-in Gauteng dataset from tsgc.
+# Load the built-in Gauteng dataset from tsgc (ships as an xts object).
 data(gauteng, package = "tsgc")
-# Select cumulative cases; the Gompertz model is fitted to cumulative counts.
-cumulative_cases <- gauteng[, 1]
+
+# Convert to idx_series (integer-position data) plus a matching
+# idx_calendar that records how positions map back to real dates. All
+# estimation/forecasting below works on gauteng_idx; gauteng_cal is
+# carried through models purely so that plots can be labelled with dates.
+conv <- xts_to_idx(gauteng)
+gauteng_idx <- conv$series
+gauteng_cal <- conv$calendar
+gauteng_cal$anchor_name <- "first recorded case"
+
+# Cumulative cases is the response series for the baseline Gompertz model.
+cumulative_cases <- gauteng_idx
+
+# Translate the calendar-date estimation window (Section 1.1) into
+# integer positions now that gauteng_cal is available.
+est.start.1 <- idx_to_pos(gauteng_cal, est.start.1.date)
+est.end.1   <- idx_to_pos(gauteng_cal, est.end.1.date)
 
 #' 
 #' ## 2.2 Quick Inspection of Data
@@ -461,7 +669,7 @@ cumulative_cases <- gauteng[, 1]
 ## ---- 2.2 Data Inspection ------------------------------------------
 # Build a quick model object and plot the raw series as a visual check before formal estimation.
 # Construct a model object for plotting the series before formal estimation.
-mod1 <- tsgc::SSModelDynamicGompertz(Y = cumulative_cases)
+mod1 <- tsgc::SSModelDynamicGompertz(Y = cumulative_cases, calendar = gauteng_cal)
 # Plot the input data to check scale, timing, and obvious data problems.
 p <- plot(mod1, title = "Gauteng daily cases", series.name = "Cases")
 print(p)
@@ -482,29 +690,29 @@ save_plot(p, "gauteng_cases_MA.png")
 # 2.3a Diffuse prior (free q)
 # Specify a dynamic Gompertz model with q estimated from the data, giving a flexible baseline.
 model_free <- tsgc::SSModelDynamicGompertz(
-  Y = cumulative_cases, start.date = est.start.1, 
-  end.date = est.end.1
+  Y = cumulative_cases, start = est.start.1, 
+  end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the free-q model and print its summary for parameter/state diagnostics.
-res_free <- tsgc::estimate(model_free); summary(res_free)
+res_free <- tsgc::estimate(model_free); summary(res_free); tsgc::print_model_diagnostics(res_free)
 
 # 2.3b Diffuse prior with AR(1)
 # Specify an AR(1) slope variant to impose smoother slope evolution.
 model_ar1 <- tsgc::SSModelDynamicGompertz(
-  Y = cumulative_cases, ar1 = TRUE, start.date = est.start.1, 
-  end.date = est.end.1
+  Y = cumulative_cases, ar1 = TRUE, start = est.start.1, 
+  end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the AR(1) variant and inspect the summary.
-res_ar1 <- tsgc::estimate(model_ar1); summary(res_ar1)
+res_ar1 <- tsgc::estimate(model_ar1); summary(res_ar1); tsgc::print_model_diagnostics(res_ar1)
 
 # 2.3c Fixed q
 # Specify the preferred fixed-q model using the shared q.default value.
 model_q <- tsgc::SSModelDynamicGompertz(
-  Y = cumulative_cases, q = q.default, start.date = est.start.1, 
-  end.date = est.end.1
+  Y = cumulative_cases, q = q.default, start = est.start.1, 
+  end = est.end.1, calendar = gauteng_cal
 )
 # Estimate the fixed-q model used for the baseline forecasts.
-res_q <- tsgc::estimate(model_q); summary(res_q)
+res_q <- tsgc::estimate(model_q); summary(res_q); tsgc::print_model_diagnostics(res_q)
 
 #' 
 #' ## 2.4 Forecasts & Accuracy
@@ -523,7 +731,7 @@ plt.length  <- plt.length.default
 # Forecast the latent/log growth component from the fixed-q model.
 p <- tsgc::plot_log_forecast(
   res_q, Y = cumulative_cases, n.ahead = n.forecasts,
-  plt.start.date = tail_date_minus(res_q$index, plt.length),
+  plt.start = tail_pos_minus(res_q$index, plt.length),
   title = "Forecast of log growth rate of cases\n14-days (Gauteng)"
 ); print(p)
 
@@ -531,14 +739,14 @@ p <- tsgc::plot_log_forecast(
 # Forecast daily new cases in the original data scale with prediction intervals.
 p <- tsgc::plot_forecast(
   res_q, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
-  plt.start.date = tail_date_minus(res_q$index, plt.length),
+  plt.start = tail_pos_minus(res_q$index, plt.length),
   title = "Forecast of new cases\n14-days (Gauteng)", 
   series.name = "Cases"
 ); print(p)
 
 # 2.4c Holdout accuracy: two weeks prior to end of sample
-# Define a holdout estimation end 14 days before est.end.1
-# Define a truncated estimation end date so the final 14 days can be held out for validation.
+# Define a holdout estimation end 14 positions before est.end.1
+# Define a truncated estimation end position so the final 14 positions can be held out for validation.
 est.end.holdout <- est.end.1 - n.forecasts
 
 # Refit ONLY for holdout evaluation on the truncated window
@@ -546,15 +754,17 @@ est.end.holdout <- est.end.1 - n.forecasts
 model_q_holdout <- tsgc::SSModelDynamicGompertz(
   Y = cumulative_cases,  
   q = q.default, 
-  start.date = est.start.1,
-  end.date   = est.end.holdout
+  start = est.start.1,
+  end   = est.end.holdout,
+  calendar = gauteng_cal
 )
 # Estimate the holdout model before comparing its forecasts with the withheld observations.
 res_q_holdout <- tsgc::estimate(model_q_holdout); 
 summary(res_q_holdout)
+tsgc::print_model_diagnostics(res_q_holdout)
 
 # 2.4c Holdout accuracy plot
-# Plot holdout accuracy by comparing forecasts with observed values after the truncated end date.
+# Plot holdout accuracy by comparing forecasts with observed values after the truncated end position.
 p <- tsgc::plot_holdout(
   res_q_holdout, Y = cumulative_cases, n.ahead = n.forecasts, 
   confidence.level = CONF_LEVEL,
@@ -608,13 +818,19 @@ if (SAVE_TABLES) {
 #   - column 3: Mean daily temperature
 # as regressors over the *same* estimation window as before.
 
-# Load built-in daily Gauteng weather data for use as exogenous regressors.
+# Load built-in daily Gauteng weather data and convert to idx_series,
+# anchored on the Gauteng calendar so that positions line up with
+# cumulative_cases.
 data(gauteng_weather_2021, package = "tsgc")
+gauteng_weather_idx <- xts_to_idx(
+  gauteng_weather_2021[, c(1, 3)],
+  start.pos = idx_to_pos(gauteng_cal, zoo::index(gauteng_weather_2021)[1])
+)$series
 
 # Subset to the estimation window [est.start.1, est.end.1]
 # Restrict weather regressors to the same estimation window as the response series.
 gauteng_weather_est <- get_timeframe(
-  gauteng_weather_2021[, c(1, 3)],
+  gauteng_weather_idx,
   est.start.1,
   est.end.1
 )
@@ -633,13 +849,15 @@ model_weather <- tsgc::SSModelDynamicGompertz(
   Y          = cumulative_cases,
   xpred      = gauteng_weather_est,
   q          = q.default,
-  start.date = est.start.1,
-  end.date   = est.end.1
+  start      = est.start.1,
+  end        = est.end.1,
+  calendar   = gauteng_cal
 )
 
 # Estimate the weather-augmented model and inspect its fitted output.
 res_weather <- tsgc::estimate(model_weather)
 summary(res_weather)
+tsgc::print_model_diagnostics(res_weather)
 
 # ---------------------------------------------------
 # 3.1.2 Supplying future xpred values for forecasting
@@ -654,18 +872,32 @@ summary(res_weather)
 #   - actual weather forecasts from a provider (e.g. Met Office), or
 #   - user-specified scenarios (best/worst-case paths).
 
-# Example: take future rows from `gauteng_weather_2021` for the
+# *** ORACLE-FORECAST CAVEAT ***
+# The example below instead takes REALISED (observed after the fact)
+# weather from `gauteng_weather_idx` for the forecast horizon, not an
+# archived weather forecast that would actually have been available at
+# the forecast origin. This makes the resulting accuracy figures a
+# conditional ("oracle") forecast exercise, not an operational
+# validation: it shows what the model would have predicted GIVEN
+# perfect future weather knowledge, not what it would have predicted
+# using information available at the time. Any accuracy claims below
+# should be read with this caveat; a genuine operational evaluation
+# would require archived point/ensemble forecasts as of each origin
+# date, not realised values.
+
+# Example: take future rows from `gauteng_weather_idx` for the
 # forecast horizon of length n.forecasts:
 # Extract the future weather path needed for out-of-sample forecasts.
 gauteng_weather_future <- get_timeframe(
-  gauteng_weather_2021[, c(1, 3)],
+  gauteng_weather_idx,
   est.end.1 + 1,
   est.end.1 + n.forecasts
 )
 
-# Supply these future regressors to the fitted model:
-# Attach future regressor values to the fitted model before forecasting.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future)
+# Supply these future regressors to the fitted model. The 
+# xpred.new field is set directly on
+# the fitted FilterResults object.
+res_weather$xpred.new <- gauteng_weather_future
 
 # ----------------------------------------------------------
 # 3.1.3 Example: reading future xpred values from a CSV file
@@ -703,17 +935,44 @@ gauteng_weather_future_csv <- read.csv(text = txt,
                                        stringsAsFactors = FALSE)
 gauteng_weather_future_csv$Date <- as.Date(gauteng_weather_future_csv$Date)
 
-# Convert the data frame into an xts object: the Date column is the index,
-# and the remaining columns are the regressors supplied to the model.
-# Convert the CSV data frame into xts format expected by tsgc.
-gauteng_weather_future_xts <- xts(
+# Convert the data frame into an xts object first (Date column as
+# index), then into an idx_series anchored on the fitted model's own
+# calendar so the resulting positions line up with res_weather$calendar.
+gauteng_weather_future_xts <- xts::xts(
   gauteng_weather_future_csv[, -1],
   order.by = gauteng_weather_future_csv$Date
 )
+gauteng_weather_future_idx <- xts_to_idx(
+  gauteng_weather_future_xts,
+  start.pos = idx_to_pos(res_weather$calendar,
+                         zoo::index(gauteng_weather_future_xts)[1])
+)$series
 
 # Supply CSV-based future xpred data to the model
-# Supply the CSV-derived future regressors to the fitted model.
-tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
+# Keep the CSV-derived path in its own object and do NOT assign it to
+# res_weather$xpred.new: res_weather$xpred.new already holds the
+# full-precision `gauteng_weather_future` path set in section 3.1.2,
+# and everything downstream (plot_log_forecast, plot_forecast,
+# plot_compare_forecast) uses res_weather directly, so overwriting it
+# here would silently replace full-precision weather with the
+# 2-decimal-place CSV illustration for every later figure/table. This
+# block exists only to demonstrate the CSV-reading pattern and to
+# verify (via stopifnot) that the CSV scenario is consistent with the
+# full-precision series - it does not feed into any later output.
+res_weather_csv <- gauteng_weather_future_idx
+stopifnot(
+  nrow(res_weather_csv) == n.forecasts,
+  isTRUE(all.equal(
+    as.numeric(idx_values(res_weather_csv)[, "temperature_C"]),
+    as.numeric(idx_values(gauteng_weather_future)[, "temperature_C"]),
+    tolerance = 0.01
+  ))
+)
+# res_weather$xpred.new is intentionally left untouched here (still the
+# full-precision path from 3.1.2). If a user genuinely wants to forecast
+# from the CSV-derived scenario instead, assign res_weather_csv to a
+# *copy* of res_weather (or a dedicated results object), not to
+# res_weather itself, so the full-precision run remains reproducible.
 
 # Once xpred has been supplied, the fitted model will generate forecasts
 # that are conditional on these external regressors.
@@ -725,10 +984,10 @@ tsgc::supply_xpred.new(res_weather, gauteng_weather_future_xts)
 # Forecast log growth from the weather-augmented model.
 p <- tsgc::plot_log_forecast(
   res_weather,
-  Y              = cumulative_cases,
-  n.ahead        = n.forecasts,
-  plt.start.date = tail_date_minus(res_weather$index, plt.length),
-  title          = "Forecast of log growth rate of cases\n(with regressors: weather)"
+  Y            = cumulative_cases,
+  n.ahead      = n.forecasts,
+  plt.start    = tail_pos_minus(res_weather$index, plt.length),
+  title        = "Forecast of log growth rate of cases\n(with regressors: weather, oracle/realised)"
 )
 print(p)
 
@@ -737,14 +996,14 @@ p <- tsgc::plot_forecast(
   res_weather,
   n.ahead          = n.forecasts,
   confidence.level = CONF_LEVEL,
-  plt.start.date   = tail_date_minus(res_weather$index, plt.length),
-  title            = "Forecast of new cases\nwith regressors (weather), Gauteng",
+  plt.start        = tail_pos_minus(res_weather$index, plt.length),
+  title            = "Forecast of new cases\nwith regressors (weather, oracle/realised), Gauteng",
   series.name      = "Cases"
 )
 print(p)
 
 # Holdout accuracy: two weeks prior to end of sample
-# Define a holdout estimation end 14 days before est.end.1
+# Define a holdout estimation end 14 positions before est.end.1
 # Reuse the same 14-day holdout design for the model with regressors.
 est.end.holdout <- est.end.1 - n.forecasts
 
@@ -754,21 +1013,22 @@ model_q_xpred_holdout <- tsgc::SSModelDynamicGompertz(
   Y = cumulative_cases,  
   xpred = gauteng_weather_est,
   q = q.default, 
-  start.date = est.start.1,
-  end.date   = est.end.holdout
+  start = est.start.1,
+  end   = est.end.holdout,
+  calendar = gauteng_cal
 )
 # Estimate the truncated model before supplying holdout-period weather values.
 res_qxpred_holdout <- tsgc::estimate(model_q_xpred_holdout)
 
 # Extract weather values covering exactly the validation horizon.
 gauteng_weather_holdout <- get_timeframe(
-  gauteng_weather_2021[, c(1, 3)],
+  gauteng_weather_idx,
   est.end.holdout + 1,
   est.end.holdout + n.forecasts
 )
 
 # Supply the holdout-period regressors required for conditional validation forecasts.
-tsgc::supply_xpred.new(res_qxpred_holdout, gauteng_weather_holdout)
+res_qxpred_holdout$xpred.new <- gauteng_weather_holdout
 
 # Plot holdout accuracy for the model with weather regressors.
 p <- tsgc::plot_holdout(
@@ -776,7 +1036,7 @@ p <- tsgc::plot_holdout(
   Y                = cumulative_cases,
   n.ahead          = n.forecasts,
   confidence.level = CONF_LEVEL,
-  title            = "Accuracy: Forecast of new cases\nwith regressors",
+  title            = "Accuracy: Forecast of new cases\nwith regressors (weather, oracle/realised)",
   series.name      = "Cases"
 )
 print(p)
@@ -806,48 +1066,121 @@ print(p)
 ## ---- 4.1 Transform Gompertz estimates to R_t ----
 # Convert fitted Gompertz dynamics into an implied reproduction-number path using the assumed generation interval.
 # Estimate the implied reproduction number from the fixed-q Gauteng model.
+# estimate_r0() returns a dated data frame with fit/lower/upper columns
+# over the last n.ahead (here ndays) positions; plotting is done explicitly
+# with ggplot rather than a built-in show_plot argument.
 r.t <- tsgc::estimate_r0(res_q, gen_int, ndays)
 
-# ---- 4.2 Sensitivity of R_t to the assumed generation interval ----
-# gen_int is an epidemiological assumption, not something estimated from
-# these data, so R_t should be checked for sensitivity to it rather than
-# reported only at a single assumed value.
-gen_int_sensitivity <- c(3, 4, 5, 6)
-r.t_sensitivity <- lapply(gen_int_sensitivity, function(g) {
-  out <- tsgc::estimate_r0(res_q, g, ndays)
-  names(out) <- c("Date", "Rt", "Rt_lower", "Rt_upper")
-  out$gen_int <- g
-  out
-})
-r.t_sensitivity_df <- do.call(rbind, r.t_sensitivity)
-print(r.t_sensitivity_df)
+r.t.df <- data.frame(
+  Date  = r.t$Date,
+  Rt    = r.t$fit,
+  lower = r.t$lower,
+  upper = r.t$upper
+)
+names(r.t.df) <- c(
+  "Date", "Rt",
+  paste0("Rt_lower_", confidence_suffix(CONF_LEVEL)),
+  paste0("Rt_upper_", confidence_suffix(CONF_LEVEL))
+)
 
 if (SAVE_TABLES) {
-  write.csv(
-    r.t_sensitivity_df, row.names = FALSE,
-    file = file.path(tables_dir, "gauteng_gompertz_q005_rt_gen_int_sensitivity.csv")
-  )
-  message("Saved gauteng_gompertz_q005_rt_gen_int_sensitivity.csv")
-}
-if (SAVE_TABLES) {
-  names(r.t) <- c(
-    "Date", "Rt",
-    paste0("Rt_lower_", confidence_suffix(CONF_LEVEL)),
-    paste0("Rt_upper_", confidence_suffix(CONF_LEVEL))
-  )
   # Save the R_t table for later use in reports or supplementary material.
-  write.csv(r.t, row.names = FALSE, 
+  write.csv(r.t.df, row.names = FALSE, 
             file = file.path(tables_dir, "gauteng_gompertz_q005_rt.csv"))
   message("Saved gauteng_gompertz_q005_rt.csv")
 }
 
-# Recompute R_t with plotting enabled, using the same model and epidemiological assumptions.
-p <- tsgc::estimate_r0(
-  res_q, gen_int, ndays, show_plot = TRUE, 
-  title = "Gauteng Reproduction numbers"
-)
+# Build the R_t plot explicitly, since estimate_r0() does not take a
+# show_plot/title argument.
+fit <- lower <- upper <- NULL
+p <- ggplot(data.frame(x = r.t.df$Date, fit = r.t.df$Rt,
+                       lower = r.t.df[[3]], upper = r.t.df[[4]]),
+            aes(x = x)) +
+  geom_line(aes(y = fit, color = "Rt")) +
+  geom_point(aes(y = fit), color = "red", size = 3) +
+  geom_segment(aes(xend = x, yend = lower, y = fit), color = "blue") +
+  geom_segment(aes(xend = x, yend = upper, y = fit), color = "blue") +
+  geom_ribbon(aes(ymin = lower, ymax = upper, fill = "68%  Interval"), alpha = 0.2) +
+  geom_hline(yintercept = 1, linetype = "solid", linewidth = 1.5, color = "black") +
+  scale_x_date(date_breaks = "1 day", labels = scales::date_format("%d %b %y")) +
+  labs(title = "Gauteng Reproduction numbers",
+       x = "Date", y = expression(R[t])) +
+  scale_y_continuous(limits = c(0, NA)) +
+  theme_light(base_size = 12) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.85, 0.2),
+    legend.title = element_blank(),
+    legend.text = element_text(size = 10),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+    plot.title = element_text(face = "bold")
+  )
 print(p)
 save_plot(p, "gauteng_rt_gomp_q005_plot.png")
+
+## ---- 4.2 Generation-interval sensitivity ----
+# *** SENSITIVITY ANALYSIS: assumed generation interval (gen_int) ***
+# R_t is derived from the fitted growth-rate path via a specified
+# generation interval (gen_int = 4 days above); this value is an
+# epidemiological assumption, not something estimated from this data,
+# so the resulting R_t path is conditional on it. Rather than reporting
+# a single R_t path without interrogating that assumption, sweep
+# gen_int over a plausible range and compare the resulting R_t
+# estimates on the same dates, so the sensitivity of the conclusion
+# (e.g. whether R_t is above or below 1) to this assumption is visible
+# rather than only asserted.
+gen_int_grid <- c(3, 4, 5, 6, 7)
+
+r.t.sensitivity <- lapply(gen_int_grid, function(g) {
+  r.t.g <- tsgc::estimate_r0(res_q, g, ndays)
+  data.frame(
+    Date    = r.t.g$Date,
+    gen_int = g,
+    Rt      = r.t.g$fit
+  )
+})
+r.t.sensitivity.df <- do.call(rbind, r.t.sensitivity)
+
+if (SAVE_TABLES) {
+  write.csv(r.t.sensitivity.df, row.names = FALSE,
+            file = file.path(tables_dir, "gauteng_gompertz_q005_rt_gen_int_sensitivity.csv"))
+  message("Saved gauteng_gompertz_q005_rt_gen_int_sensitivity.csv")
+}
+
+# Interpretation, not just the numbers: report the range of R_t implied
+# across the assumed generation-interval grid on the most recent common
+# date, and whether the above/below-1 conclusion is robust to it.
+last_date <- max(r.t.sensitivity.df$Date)
+rt_last <- r.t.sensitivity.df$Rt[r.t.sensitivity.df$Date == last_date]
+message(
+  "R_t sensitivity to gen_int on ", last_date, ": range [",
+  paste(round(range(rt_last), 3), collapse = ", "), "] across gen_int in {",
+  paste(gen_int_grid, collapse = ", "), "} days. ",
+  if (all(rt_last > 1) || all(rt_last < 1)) {
+    "The above/below-1 conclusion is unchanged across this grid."
+  } else {
+    "The above/below-1 conclusion CHANGES within this grid - R_t on this date is not robust to the generation-interval assumption."
+  }
+)
+
+p_rt_sens <- ggplot2::ggplot(
+  r.t.sensitivity.df,
+  ggplot2::aes(x = Date, y = Rt, color = factor(gen_int))
+) +
+  ggplot2::geom_line(linewidth = 0.6) +
+  ggplot2::geom_hline(yintercept = 1, linetype = "solid", color = "black") +
+  ggplot2::labs(
+    title = "Sensitivity of Gauteng R_t to the assumed generation interval",
+    subtitle = paste0("gen_int swept over {", paste(gen_int_grid, collapse = ", "), "} days; point estimate only (no CI)"),
+    x = "Date", y = expression(R[t]), color = "gen_int (days)"
+  ) +
+  ggplot2::theme_light(base_size = 12) +
+  ggplot2::theme(
+    axis.text.x = ggplot2::element_text(angle = 45, hjust = 1, size = 8),
+    plot.title  = ggplot2::element_text(face = "bold")
+  )
+print(p_rt_sens)
+save_plot(p_rt_sens, "gauteng_rt_gen_int_sensitivity.png")
 
 # ========================================
 # 5. Reinitialisation for Subsequent Waves
@@ -865,7 +1198,7 @@ save_plot(p, "gauteng_rt_gomp_q005_plot.png")
 #' The trigger is the first point where the estimated slope rises above 
 #' its own 2-sigma upper confidence band after being below it 
 #' in the previous period. 
-#' If so, set the reinitialisation date at the latest sign-change prior 
+#' If so, set the reinitialisation position at the latest sign-change prior 
 #' to the first \(2\sigma\) crossing, marking the potential start 
 #' of a new growth phase. 
 #' 
@@ -873,48 +1206,65 @@ save_plot(p, "gauteng_rt_gomp_q005_plot.png")
 ## ---- 5.1 Reinitialisation Trigger Setup ----
 # Estimate a longer Gauteng model and derive diagnostics used to identify possible reinitialisation dates.
 # Extend the estimation window so the model can detect later-wave dynamics.
-est.end.2 <- as.Date("2021-06-25")
+est.end.2 <- idx_to_pos(gauteng_cal, as.Date("2021-06-25"))
 
 # Fit a baseline model over the longer window without reinitialisation.
 model_rei_base <- tsgc::SSModelDynamicGompertz(  
   Y = cumulative_cases, q = q.default,
-  start.date = est.start.1, end.date = est.end.2
+  start = est.start.1, end = est.end.2,
+  calendar = gauteng_cal
 )
 # Estimate the longer-window model and inspect the summary before deriving diagnostics.
 res_rei_base <- tsgc::estimate(model_rei_base)
 summary(res_rei_base)
+tsgc::print_model_diagnostics(res_rei_base)
 
-# KFS pieces from the fitted results object
-# Pull out Kalman smoother outputs, state estimates, variances, and time index for diagnostic construction.
-kfs      <- res_rei_base$output
-alphaHat <- kfs$alphahat
-Ptt_arr  <- kfs$Ptt
-idx      <- res_rei_base$index
+# KFS pieces from the fitted results object, extracted as idx_series so
+# they carry their own integer positions.
+smoothed.slope.full <- idx_series(res_rei_base$output$alphahat[, "slope"],
+                                  start = res_rei_base$index[1])
+# Use the smoothed-state covariance V (not the filtered Ptt/P), so the
+# variance is matched to the smoothed alphahat estimate used above. This
+# is a retrospective diagnostic, so the smoothed pair is the right one.
+V.smoothed <- get_V(res_rei_base$output)
+i.slope <- grep("slope", colnames(res_rei_base$output$alphahat))
+smoothed.P.slope <- idx_series(V.smoothed[i.slope, i.slope, ],
+                               start = res_rei_base$index[1])
 
-# Smoothed slope
-# Extract the smoothed slope state, which is central to identifying changes in epidemic dynamics.
-smthd.slpe.full <- xts::xts(alphaHat[, "slope"], order.by = idx)
+# Combine slope estimates, uncertainty bands, and observed series into
+# one diagnostic idx_series.
+common_pos <- idx_positions(smoothed.slope.full)
+d2 <- idx_series(
+  cbind(
+    smthd.slpe             = idx_values(smoothed.slope.full),
+    plus.sd.smthd.slpe     = sqrt(idx_values(smoothed.P.slope)),
+    plus.sd.smthd.slpe.1.5 = 1.5 * sqrt(idx_values(smoothed.P.slope)),
+    plus.sd.smthd.slpe.2   = 2 * sqrt(idx_values(smoothed.P.slope))
+  ),
+  start = common_pos[1]
+)
 
-# Variance of slope from Ptt 
-# Extract slope variances to form uncertainty bands around the smoothed slope.
-v_slope <- drop(Ptt_arr[2, 2, ])      
-idx_use <- if (length(v_slope) == length(idx) - 1) idx[-1] else idx
-smoothed.P.slope <- xts::xts(as.numeric(v_slope)[seq_along(idx_use)], 
-                             order.by = idx_use)
-
-# Combine slope estimates, uncertainty, and observed series into one diagnostic object.
-d2 <- cbind(smthd.slpe.full, sqrt(smoothed.P.slope),
-            1.5 * sqrt(smoothed.P.slope), 2 * sqrt(smoothed.P.slope))
-d2.df <- data.frame(date = index(d2), coredata(d2))
-colnames(d2.df) <- c("Date", "smthd.slpe", "plus.sd.smthd.slpe",
-                     "plus.sd.smthd.slpe.1.5", "plus.sd.smthd.slpe.2")
+d2.mat <- as.matrix(idx_values(d2))
+d2.df <- data.frame(
+  Date = idx_to_date(gauteng_cal, idx_positions(d2)),
+  smthd.slpe = d2.mat[, "smthd.slpe"],
+  plus.sd.smthd.slpe = d2.mat[, "plus.sd.smthd.slpe"],
+  plus.sd.smthd.slpe.1.5 = d2.mat[, "plus.sd.smthd.slpe.1.5"],
+  plus.sd.smthd.slpe.2 = d2.mat[, "plus.sd.smthd.slpe.2"]
+)
 d2.df <- dplyr::filter(d2.df, Date >= as.Date("2020-10-06"))
 
-# Identify candidate dates where the slope signal and uncertainty satisfy the trigger rule.
+# zt = smoothed slope minus its own two-standard-error threshold, i.e.
+# the lower bound of the two-SE confidence interval around the slope.
+# A trigger is a sign change in zt itself (zt > 0, lag(zt) <= 0), not a
+# comparison of the lagged slope against the current period's threshold
+# (which is not equivalent once the standard error changes over time).
+d2.df$zt <- d2.df$smthd.slpe - d2.df$plus.sd.smthd.slpe.2
+
+# Identify candidate dates where the two-SE lower bound crosses zero.
 trigger.df <- d2.df %>%
-  dplyr::mutate(prev_smthd.slpe = dplyr::lag(smthd.slpe)) %>%
-  dplyr::filter(smthd.slpe > plus.sd.smthd.slpe.2 & 
-                  prev_smthd.slpe < plus.sd.smthd.slpe.2)
+  dplyr::mutate(prev_zt = dplyr::lag(zt)) %>%
+  dplyr::filter(zt > 0 & prev_zt <= 0)
 
 # Identify dates where the smoothed slope crosses or approaches zero, another restart diagnostic.
 reinit_zero.df <- d2.df %>%
@@ -934,13 +1284,13 @@ p_trigger <-
   ggplot2::geom_line(ggplot2::aes(y = smthd.slpe, color = "Smoothed slope"), 
                      linewidth = 0.5) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe,
-                                  color = "1 SE band"), 
+                                  color = "1 SE threshold"), 
                      linewidth = 0.25) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe.1.5, 
-                                  color = "1.5 SE band"), 
+                                  color = "1.5 SE threshold"), 
                      linewidth = 0.25) +
   ggplot2::geom_line(ggplot2::aes(y = plus.sd.smthd.slpe.2, 
-                                  color = "2 SE band"), 
+                                  color = "2 SE threshold"), 
                      linewidth = 0.5) +
   ggplot2::scale_y_continuous(n.breaks = 10) +
   ggplot2::geom_hline(yintercept = 0, linetype = "solid", 
@@ -953,19 +1303,23 @@ p_trigger <-
                       linewidth = 1, color = "black") +
   ggplot2::labs(
     title = "Reinitialisation trigger diagnostic for Gauteng",
-    subtitle = "Smoothed slope with 1, 1.5, and 2 standard-error bands",
+    subtitle = "Smoothed slope with 1, 1.5, and 2 standard-error lower thresholds (slope - k*se)",
     x = "Date",
     y = "Smoothed slope",
-    caption = "Thick vertical line: reset date. Dashed vertical line: 2-SE trigger date."
+    caption = paste(
+      "Thick vertical line: reset date. Dashed vertical line: 2-SE trigger date.",
+      "Reset date is selected retrospectively from one episode/origin and is",
+      "not validated as a general real-time reinitialisation rule."
+    )
   ) +
   ggplot2::scale_x_date(date_breaks = "10 days") +
   ggplot2::scale_color_manual(
     name   = "Series", 
     values = c(
       "Smoothed slope" = "red",
-      "1 SE band"      = "blue",
-      "1.5 SE band"    = "green",
-      "2 SE band"      = "black"
+      "1 SE threshold" = "blue",
+      "1.5 SE threshold" = "green",
+      "2 SE threshold" = "black"
     )
   ) +
   ggplot2::theme_light(base_size = 12) +
@@ -982,42 +1336,40 @@ save_plot(p_trigger, "gauteng_cases_gomp_q005_reinit_trigger.png")
 #' 
 #' ## 5.2 Forecasts & Accuracy (post-reinitialisation)
 #' 
-#' Re-estimate with a chosen reinit date; produce forecasts 
+#' Re-estimate with a chosen reinit position; produce forecasts 
 #' and compare to the no-reinit baseline.
 #' 
 
 ## ---- 5.2 Reinitialisation Estimation & Forecasts ----
-# Refit the Gauteng model with a reinitialisation date and compare forecasts with and without reinitialisation.
-# Derive reinit.date from reinit_zero.df (Section 5.1) rather than hard-coding
-# it, so the chosen restart date is traceable to the trigger diagnostic above.
-if (nrow(reinit_zero.df) != 1) {
-  stop("reinit_zero.df did not yield exactly one candidate reset date; inspect trigger.df/reinit_zero.df from Section 5.1.")
-}
-reinit.date <- reinit_zero.df$Date[1]
-message("Reinitialisation date derived from trigger diagnostic: ", reinit.date)
+# Refit the Gauteng model with a reinitialisation position and compare forecasts with and without reinitialisation.
+# Set reinit position (could also take from trigger.df/reinit_zero.df)
+# This chosen date starts the model state afresh for the later wave.
+reinit.pos <- idx_to_pos(gauteng_cal, as.Date("2021-04-21"))
 
-# Fit the dynamic Gompertz model with reinitialisation activated at the selected date.
+# Fit the dynamic Gompertz model with reinitialisation activated at the selected position.
 model_reinit <- tsgc::SSModelDynamicGompertz(  
   Y = cumulative_cases, q = q.default,
-  start.date = est.start.1, end.date = est.end.2,
-  reinit.date = reinit.date
+  start = est.start.1, end = est.end.2,
+  reinit.idx = reinit.pos,
+  calendar = gauteng_cal
 )
 # Estimate the reinitialised model and inspect its summary.
 res_reinit <- tsgc::estimate(model_reinit)
 summary(res_reinit)
+tsgc::print_model_diagnostics(res_reinit)
 
 # Forecasts after reinitialisation
-# Forecast log growth after allowing the model to restart at the reinitialisation date.
+# Forecast log growth after allowing the model to restart at the reinitialisation position.
 p <- tsgc::plot_log_forecast(
   res_reinit, Y = cumulative_cases, n.ahead = n.forecasts,
-  plt.start.date = tail_date_minus(res_reinit$index, plt.length),
+  plt.start = tail_pos_minus(res_reinit$index, plt.length),
   title = "Forecast of log growth rate of cases\nafter reinitialisation"
 ); print(p)
 
 # Forecast new cases from the reinitialised model.
 p <- tsgc::plot_forecast(
   res_reinit, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
-  plt.start.date = tail_date_minus(res_reinit$index, plt.length),
+  plt.start = tail_pos_minus(res_reinit$index, plt.length),
   title = "Forecast of new cases\nafter reinitialisation", 
   series.name = "Cases"
 ); print(p)
@@ -1062,12 +1414,15 @@ tsgc::plot_compare_forecast(
 
 # ---- 6.1 Baseline: England ----
 # Fit the England leading-indicator example, where one series helps forecast the target hospital-admissions series.
-# Select the two England series used by the leading-indicator model.
-eng <- tsgc::england[, 1:2]
+# Load and convert the England data (cases, hospitalisations) to idx_series/idx_calendar form.
+data(england, package = "tsgc")
+conv <- xts_to_idx(england[, 1:2])
+eng <- conv$series
+eng_cal <- conv$calendar
 
 # Quick plot
 # Create a quick leading-indicator model to visualise the lead/target relationship with n.lag = 4.
-mod2 <- tsgc::SSModelLeadingIndicator(eng, n.lag = 4)
+mod2 <- tsgc::SSModelLeadingIndicator(eng, n.lag = 4, calendar = eng_cal)
 p <- plot(
   mod2, title = "Daily COVID cases and Hospitalisations\n(England)",
   series.name.lead = "Cases", series.name.target = "Hospitalisations", 
@@ -1078,8 +1433,8 @@ save_plot(p, "eng_hosp_lead_cases.png")
 
 # Estimation window
 # Define the England estimation window, plotting length, lag, and forecast horizon.
-est.start.eng <- as.Date("2021-04-30")
-est.end.eng   <- as.Date("2021-07-24")
+est.start.eng <- idx_to_pos(eng_cal, "2021-04-30")
+est.end.eng   <- idx_to_pos(eng_cal, "2021-07-24")
 plt.len.eng   <- 14
 n.lag         <- 4
 n.forecasts   <- 7
@@ -1088,24 +1443,25 @@ n.forecasts   <- 7
 # Specify the England leading-indicator model for hospital admissions.
 out_eng <- tsgc::SSModelLeadingIndicator(
   Y = eng, n.lag = n.lag, q = NULL, LeadIndCol = 1, sea.period = 7,
-  start.date = est.start.eng, end.date = est.end.eng
+  start = est.start.eng, end = est.end.eng, calendar = eng_cal
 )
 # Estimate the England leading-indicator model and inspect the fitted summary.
 res_eng <- tsgc::estimate(out_eng)
 summary(res_eng)
+tsgc::print_model_diagnostics(res_eng)
 
 # Forecasts
 # Forecast the target-series log growth rate.
 p <- tsgc::plot_log_forecast(
   res_eng, Y = eng, n.ahead = n.forecasts, 
-  plt.start.date = est.end.eng - plt.len.eng,
+  plt.start = est.end.eng - plt.len.eng,
   title = "Forecast of log growth rate of hospital admissions\n(England)"
 ); print(p)
 
 # Forecast hospital admissions in the original scale.
 p <- tsgc::plot_forecast(
   res_eng, n.ahead = n.forecasts, 
-  plt.start.date = est.end.eng - plt.len.eng,
+  plt.start = est.end.eng - plt.len.eng,
   series.name = "Hospital admissions", 
   title = "Forecast of hospital admissions\n(England)"
 ); print(p)
@@ -1118,8 +1474,8 @@ p <- tsgc::plot_holdout(
 ); print(p)
 
 if (SAVE_TABLES) {
+  # Export the England leading-indicator forecast and filtered-state outputs as CSV files.
   write_results_clear(
-    # Export the England leading-indicator forecast and filtered-state outputs as CSV files.
     res = res_eng,
     res.dir = tables_dir,
     n.ahead = n.forecasts,
@@ -1140,43 +1496,48 @@ if (SAVE_TABLES) {
 
 ## ---- 6.2 England With Regressors - xpred, eval=TRUE ----
 # Extend the England leading-indicator model with weather regressors for both lead and target series.
-# Prepare weather regressors for both the lead and target equations.
-xpred_lead <- xpred_targ <- england_weather_2021[, 1:4]
+# Load and convert the weather regressors, anchored on the England calendar.
+data(england_weather_2021, package = "tsgc")
+conv <- xts_to_idx(
+  england_weather_2021[, 1:4],
+  start.pos = idx_to_pos(eng_cal, zoo::index(england_weather_2021)[1])
+)
+england_weather_idx <- conv$series
+xpred_lead <- xpred_targ <- england_weather_idx
+
 # Fit the England leading-indicator model with xpred regressors.
 mod_eng_x <- tsgc::SSModelLeadingIndicator(
   eng, n.lag = 4, xpred_lead = xpred_lead, xpred_targ = xpred_targ,
-  start.date = est.start.eng, end.date = est.end.eng
+  start = est.start.eng, end = est.end.eng, calendar = eng_cal
 )
 # Estimate the weather-augmented England model and inspect the summary.
 res_eng_x <- tsgc::estimate(mod_eng_x)
 summary(res_eng_x)
+tsgc::print_model_diagnostics(res_eng_x)
 
-# Supply future regressors for the lead equation.
-tsgc::supply_xpred.new(res_eng_x, 
-                       england_weather_2021[, 1:4], idx = "lead")
-# Supply future regressors for the target equation.
-tsgc::supply_xpred.new(res_eng_x, 
-                       england_weather_2021[, 1:4], idx = "targ")
+# Supply future regressors for the lead and target equations. 
+res_eng_x$xpred_lead.new <- england_weather_idx
+res_eng_x$xpred_targ.new <- england_weather_idx
 
 # Forecast log growth from the weather-augmented leading-indicator model.
 p <- tsgc::plot_log_forecast(
   res_eng_x, Y = eng, n.ahead = n.forecasts, 
-  plt.start.date = est.end.eng - plt.len.eng,
-  title = "Forecast of log growth rate of hospital admissions\nwith regressors, England"
+  plt.start = est.end.eng - plt.len.eng,
+  title = "Forecast of log growth rate of hospital admissions\nwith regressors (weather, oracle/realised), England"
 ); print(p)
 
 # Forecast hospital admissions with weather regressors included.
 p <- tsgc::plot_forecast(
   res_eng_x, n.ahead = n.forecasts, 
-  plt.start.date = est.end.eng - plt.len.eng,
-  title = "Forecast of hospital admissions\nwith regressors, England", 
+  plt.start = est.end.eng - plt.len.eng,
+  title = "Forecast of hospital admissions\nwith regressors (weather, oracle/realised), England", 
   series.name = "Hospital admissions"
 ); print(p)
 
 # Evaluate holdout accuracy for the weather-augmented England model.
 p <- tsgc::plot_holdout(
   res_eng_x, Y = eng, n.ahead = n.forecasts,
-  title = "Accuracy: Forecast of hospital admissions\nwith regressors, England", 
+  title = "Accuracy: Forecast of hospital admissions\nwith regressors (weather, oracle/realised), England", 
   series.name = "Hospital admissions"
 ); print(p)
 
@@ -1192,7 +1553,7 @@ p <- tsgc::plot_holdout(
 #' Both models are estimated on the same window with horizon 14 days 
 #' and use the same confidence level.
 #' 
-#' ## 7.1 Case 1: First Peak (UK vis-à-vis Italy)
+#' ## 7.1 Case 1: First Peak (UK vis-a-vis Italy)
 #' 
 
 # ---- 7.1 UK vis-a-vis Italy ----
@@ -1201,8 +1562,14 @@ p <- tsgc::plot_holdout(
 # By default, column 1 is treated as the leading indicator and 
 # column 2 as the target.
 
+# Load and convert the UK-Italy data to idx_series/idx_calendar form.
+data(ukitaly, package = "tsgc")
+conv <- xts_to_idx(ukitaly)
+ukitaly_idx <- conv$series
+ukitaly_cal <- conv$calendar
+
 # Create a quick UK-Italy leading-indicator object to inspect the lead/target timing.
-ukit <- tsgc::SSModelLeadingIndicator(tsgc::ukitaly, n.lag = 4)
+ukit <- tsgc::SSModelLeadingIndicator(ukitaly_idx, n.lag = 4, calendar = ukitaly_cal)
 p <- plot(
   ukit, title = "Daily COVID cases in UK and Italy",
   series.name.lead   = "Italy",
@@ -1219,16 +1586,17 @@ plt.length  <- 30
 CONF        <- CONF_LEVEL
 
 # Case 1 uses the first-peak estimation window ending 1 April 2020.
-est.start <- as.Date("2020-02-25")
-est.end   <- as.Date("2020-04-01")
-Yuk       <- tsgc::ukitaly[, "UK"]
+est.start <- idx_to_pos(ukitaly_cal, "2020-02-25")
+est.end   <- idx_to_pos(ukitaly_cal, "2020-04-01")
+Yuk       <- idx_series(idx_values(ukitaly_idx)[, "UK"], start = ukitaly_idx$start)
 
 # Estimate a UK-only dynamic Gompertz benchmark.
 res_uk_gomp1 <- tsgc::estimate(
   tsgc::SSModelDynamicGompertz(
     Y = Yuk, q = q.default,
-    start.date = est.start, 
-    end.date   = est.end
+    start = est.start, 
+    end   = est.end,
+    calendar = ukitaly_cal
   )
 )
 
@@ -1236,7 +1604,7 @@ res_uk_gomp1 <- tsgc::estimate(
 p <- tsgc::plot_forecast(
   res_uk_gomp1, n.ahead = n.forecasts, confidence.level = CONF,
   title = "Forecast of daily COVID cases\nUK (Gompertz)",
-  plt.start.date = tail_date_minus(res_uk_gomp1$index, plt.length),
+  plt.start = tail_pos_minus(res_uk_gomp1$index, plt.length),
   series.name    = "UK cases"
 ); print(p)
 
@@ -1250,14 +1618,17 @@ p <- tsgc::plot_holdout(
 
 # Leading indicator model, Case 1
 # Use a 14-day Italy-to-UK lag for the leading-indicator comparison.
+# NOTE: this fixed value is illustrative only; it is not the output of
+# the systematic lag comparison performed later (Section 7.2).
 n.lag <- 14
 # Estimate the Italy-to-UK leading-indicator model for the same window.
 res_uk_lead1 <- tsgc::estimate(
   tsgc::SSModelLeadingIndicator(
-    Y = tsgc::ukitaly, 
+    Y = ukitaly_idx, 
     n.lag = n.lag, sea.period = 7,
-    start.date = est.start, 
-    end.date   = est.end
+    start = est.start, 
+    end   = est.end,
+    calendar = ukitaly_cal
   )
 )
 
@@ -1265,20 +1636,24 @@ res_uk_lead1 <- tsgc::estimate(
 p <- tsgc::plot_forecast(
   res_uk_lead1, n.ahead = n.forecasts,
   title = "Leading indicator forecast\ndaily COVID cases in UK",
-  plt.start.date = est.end - 30, series.name = "UK cases"
+  plt.start = est.end - 30, series.name = "UK cases"
 ); print(p)
 
 # Evaluate holdout accuracy for the leading-indicator forecast.
 p <- tsgc::plot_holdout(
-  res_uk_lead1, Y = tsgc::ukitaly, n.ahead = n.forecasts,
+  res_uk_lead1, Y = ukitaly_idx, n.ahead = n.forecasts,
   title      = "Accuracy: Leading indicator forecast\ndaily COVID cases in UK", 
   series.name = "UK cases"
 ); print(p)
 
 # Plot the Gompertz and leading-indicator forecasts together for visual comparison.
+# actual must be the single UK column (Yuk), not the full two-column
+# ukitaly_idx: plot_compare_forecast()'s actual.diff is built assuming a
+# univariate series, and a two-column series here causes an rbind()
+# column-count mismatch when combining forecasts with the actual values.
 tsgc::plot_compare_forecast(
   list(res_uk_gomp1, res_uk_lead1), 
-  actual = tsgc::ukitaly[, "UK"]
+  actual = Yuk
 )
 
 # -----------------------------
@@ -1294,50 +1669,143 @@ tsgc::plot_compare_forecast(
 
 ## ---- 7.2 Cross Validation ----
 # Run cross-validation over baseline Gompertz models and leading-indicator lag choices to compare forecast performance systematically.
-# Initialise the model list that will be passed to cross-validation.
+#
+# Methodological note (see accompanying critical assessment): the
+# original design compared 23 candidates using 5 closely spaced
+# forecast origins (gap = 2) with a 14-day horizon, so consecutive
+# origins' evaluation windows overlapped heavily, and the same folds
+# were used both to select the winning lag and to report its accuracy.
+#
+# cross_val() steps origins FORWARD from est.end by gap each iteration
+# (model$end <- est.end + (k-1)*gap), not backward. This block
+# therefore lays out two disjoint, forward-stepping blocks inside the
+# fixed window [est.start, est.end.cv]: an earlier SELECTION block
+# (used only to pick the lag) and a later, non-overlapping REPORTING
+# block (used only to score the selected model), with the REPORTING
+# block's final forecast horizon landing exactly at est.end.cv so
+# nothing runs past the available UK-Italy sample, and the SELECTION
+# block's last forecast horizon finishing strictly before (not merely
+# up to) the REPORTING origin - verified below by an explicit
+# stopifnot(), not asserted by comment alone. A 7-day horizon (rather
+# than 14) is used so both blocks fit inside the available ~50-day
+# window while still leaving a reasonable estimation sample before the
+# first SELECTION origin.
+n.ahead.cv    <- 7
+est.end.cv    <- idx_to_pos(ukitaly_cal, "2020-04-15")  # Case 2's extended window end
+gap.cv        <- n.ahead.cv                              # non-overlapping horizons
+n.select.cv   <- 2
+n.report.cv   <- 1
+
+# REPORTING block: est.end chosen so its last origin's n.ahead.cv-day
+# forecast horizon lands exactly at est.end.cv (no overrun past the
+# available data).
+report.end.cv <- est.end.cv - (n.report.cv - 1) * gap.cv - n.ahead.cv
+# SELECTION block: est.end chosen so its origins and their forecast
+# horizons finish strictly before the REPORTING block's first origin
+# (disjoint, non-overlapping folds).
+#
+# The last SELECTION origin is select.end.cv + (n.select.cv-1)*gap.cv,
+# with its forecast horizon reaching select.end.cv + (n.select.cv-1)*
+# gap.cv + n.ahead.cv. The REPORTING block's first (only) origin is
+# report.end.cv itself. Requiring these strictly non-overlapping means:
+#   select.end.cv + (n.select.cv - 1)*gap.cv + n.ahead.cv < report.end.cv
+# i.e.
+#   select.end.cv < report.end.cv - (n.select.cv - 1)*gap.cv - n.ahead.cv
+# Subtracting n.select.cv * gap.cv (rather than a single gap.cv) leaves
+# a full extra gap between the last SELECTION horizon and the REPORTING
+# origin, giving strict separation for any n.select.cv/n.report.cv.
+select.end.cv <- report.end.cv - n.select.cv * gap.cv - n.ahead.cv
+stopifnot(select.end.cv > est.start)
+
+# Explicit disjointness check (not just an arithmetic comment): the
+# last SELECTION fold's forecast horizon must end strictly before the
+# REPORTING block's first origin.
+last_selection_origin      <- select.end.cv + (n.select.cv - 1) * gap.cv
+last_selection_horizon_end <- last_selection_origin + n.ahead.cv
+stopifnot(last_selection_horizon_end < report.end.cv)
+
 cv_models <- list()
 
+# Naive benchmarks
+cv_models[["Naive_last_value"]] <- tsgc::SSModelDynamicGompertz(
+  Y = Yuk, q = 0, start = est.start, end = est.end.cv, calendar = ukitaly_cal
+)
+cv_models[["RW_growth"]] <- tsgc::SSModelDynamicGompertz(
+  Y = Yuk, q = q.default, sea.period = 0, start = est.start,
+  end = est.end.cv, calendar = ukitaly_cal
+)
+
 # Model 1: Vanilla Gompertz
-# Add the fixed-q Gompertz candidate to the cross-validation set.
 cv_models[["Vanilla_q"]] <- tsgc::SSModelDynamicGompertz(
-  Y = Yuk, q = q.default, start.date = est.start, 
-  end.date = est.end
+  Y = Yuk, q = q.default, start = est.start, 
+  end = est.end.cv, calendar = ukitaly_cal
 )
 
 # Model 2: Vanilla Gompertz with AR(1)
-# Add the AR(1) Gompertz candidate to the cross-validation set.
 cv_models[["Vanilla_ar1"]] <- tsgc::SSModelDynamicGompertz(
-  Y = Yuk, start.date = est.start, 
-  end.date = est.end, ar1 = TRUE
+  Y = Yuk, start = est.start, 
+  end = est.end.cv, ar1 = TRUE, calendar = ukitaly_cal
 )
 
-# Model 3–6: Leading Indicator with different n.lags, from 1-21
-for (i in 1:21) {
-  # Add leading-indicator candidates over a grid of lag choices.
+# Leading-indicator lag candidates
+# NOTE: the 20 lag is the minimum for two rows to be available.
+# This leaves a very thin estimation sample. One could opt to
+# use a later selection block or relax the full 7-day buffer 
+# before reporting.
+for (i in 1:20) {
   cv_models[[paste0("Lag", i)]] <- tsgc::SSModelLeadingIndicator(
-    Y = tsgc::ukitaly, start.date = est.start, 
-    end.date = est.end, n.lag = i
+    Y = ukitaly_idx, start = est.start, 
+    end = est.end.cv, n.lag = i, calendar = ukitaly_cal
   )
 }
 
-# Run cross-validation (Case 1 window)
-# Run rolling/holdout cross-validation and score models using sMAPE over a 14-step horizon.
-tsgc::cross_val(
-  Y           = tsgc::ukitaly, 
+# SELECTION run: earlier, disjoint origins only, used to choose the lag.
+cv_selection <- tsgc::cross_val(
+  Y           = ukitaly_idx, 
   model_list  = cv_models, 
-  est.end.date = est.end,
-  criterion    = "smape",
-  n.ahead      = 14,
-  n.estimate   = 5, 
-  gap          = 2
+  est.end     = select.end.cv,
+  criterion   = "smape",
+  n.ahead     = n.ahead.cv,
+  n.estimate  = n.select.cv, 
+  gap         = gap.cv
 )
+print(cv_selection)
+
+# Pick the best-performing Lag* candidate on the SELECTION folds only.
+lag_rows <- cv_selection[grepl("^Lag", cv_selection$Model), ]
+lag_rows$mean_smape <- rowMeans(lag_rows[, -1, drop = FALSE])
+selected_lag_name <- lag_rows$Model[which.min(lag_rows$mean_smape)]
+message("Lag selected on SELECTION folds: ", selected_lag_name)
+
+# REPORTING run: later, disjoint origin(s), used only to score the
+# selected lag against the benchmarks and other candidates. This is
+# the number that should be reported as the model's out-of-sample
+# accuracy, not the SELECTION-fold number used to pick the lag.
+cv_report_models <- cv_models[c(
+  "Naive_last_value", "RW_growth", "Vanilla_q", "Vanilla_ar1", selected_lag_name
+)]
+cv_reporting <- tsgc::cross_val(
+  Y           = ukitaly_idx, 
+  model_list  = cv_report_models, 
+  est.end     = report.end.cv,
+  criterion   = "smape",
+  n.ahead     = n.ahead.cv,
+  n.estimate  = n.report.cv, 
+  gap         = gap.cv
+)
+print(cv_reporting)
+
+if (SAVE_TABLES) {
+  write.csv(cv_selection, file.path(tables_dir, "cv_lag_selection_smape.csv"), row.names = FALSE)
+  write.csv(cv_reporting, file.path(tables_dir, "cv_reporting_smape.csv"), row.names = FALSE)
+}
 
 # -------------------------------
 # 7.3 Case 2: Extended Window
 # -------------------------------
 
 #' 
-#' ## 7.3 Case 2: Extended Window (UK vis-à-vis Italy)
+#' ## 7.3 Case 2: Extended Window (UK vis-a-vis Italy)
 #' 
 #' Re-estimate both models on an extended sample window and 
 #' compare forecasts and accuracy.
@@ -1345,14 +1813,14 @@ tsgc::cross_val(
 
 # Case 2: Extended window
 # Case 2 extends the estimation window to 15 April 2020 to test sensitivity to a longer sample.
-est.start <- as.Date("2020-02-25")
-est.end   <- as.Date("2020-04-15")
+est.start <- idx_to_pos(ukitaly_cal, "2020-02-25")
+est.end   <- idx_to_pos(ukitaly_cal, "2020-04-15")
 
 # Estimate the extended-window UK Gompertz model.
 res_uk_gomp2 <- tsgc::estimate(
   tsgc::SSModelDynamicGompertz(
     Y = Yuk, q = q.default,
-    start.date = est.start, end.date = est.end
+    start = est.start, end = est.end, calendar = ukitaly_cal
   )
 )
 
@@ -1360,7 +1828,7 @@ res_uk_gomp2 <- tsgc::estimate(
 p <- tsgc::plot_forecast(
   res_uk_gomp2, n.ahead = n.forecasts, confidence.level = CONF,
   title = "Forecast of daily COVID cases\nUK (Gompertz, extended)",
-  plt.start.date = tail_date_minus(res_uk_gomp2$index, plt.length),
+  plt.start = tail_pos_minus(res_uk_gomp2$index, plt.length),
   series.name    = "UK cases"
 ); print(p)
 
@@ -1373,10 +1841,15 @@ p <- tsgc::plot_holdout(
 ); print(p)
 
 # Estimate the extended-window Italy-to-UK leading-indicator model.
+# NOTE: n.lag = 14 here is illustrative and precedes the systematic lag
+# comparison in Section 7.2, which selects its lag from data (see
+# `selected_lag_name`, generally not 14) using disjoint
+# selection/reporting folds. This fixed value is not justified by that
+# comparison; it demonstrates the API only.
 res_uk_lead2 <- tsgc::estimate(
   tsgc::SSModelLeadingIndicator(
-    Y = tsgc::ukitaly, n.lag = 14,
-    start.date = est.start, end.date = est.end
+    Y = ukitaly_idx, n.lag = 14,
+    start = est.start, end = est.end, calendar = ukitaly_cal
   )
 )
 
@@ -1384,13 +1857,13 @@ res_uk_lead2 <- tsgc::estimate(
 p <- tsgc::plot_forecast(
   res_uk_lead2, n.ahead = n.forecasts,
   title = "Forecast of daily COVID cases\nUK (Leading indicator model, extended)",
-  plt.start.date = est.end - plt.length, 
+  plt.start = est.end - plt.length, 
   series.name = "UK cases"
 ); print(p)
 
 # Evaluate holdout accuracy for the extended-window leading-indicator model.
 p <- tsgc::plot_holdout(
-  res_uk_lead2, Y = tsgc::ukitaly, n.ahead = n.forecasts,
+  res_uk_lead2, Y = ukitaly_idx, n.ahead = n.forecasts,
   title      = "Accuracy: Forecast of daily COVID cases\nUK (Leading indicator model, extended)", 
   series.name = "UK cases"
 ); print(p)
@@ -1398,7 +1871,7 @@ p <- tsgc::plot_holdout(
 # Compare the two extended-window forecasts directly.
 tsgc::plot_compare_forecast(
   list(res_uk_gomp2, res_uk_lead2), 
-  actual = tsgc::ukitaly[, "UK"]
+  actual = idx_series(idx_values(ukitaly_idx)[, "UK"], start = ukitaly_idx$start)
 )
 
 # ==========================
@@ -1409,7 +1882,7 @@ tsgc::plot_compare_forecast(
 #' # 8. Extensions to Other Data Frequencies 
 #' 
 #' Demonstrate quarterly, monthly, and annual use-cases 
-#' with appropriate seasonal settings and lead–lag structures.
+#' with appropriate seasonal settings and lead-lag structures.
 #' 
 #' ## 8.1 Quarterly: Wii
 #' 
@@ -1421,9 +1894,17 @@ tsgc::plot_compare_forecast(
 
 ## ---- 8.1 Quarterly: Wii ----
 # Demonstrate that the same modelling interface works for quarterly sales data, not only daily epidemiological data.
-# Load Nintendo quarterly sales data and select Wii sales for the Gompertz example.
+# Load Nintendo quarterly sales data and build a quarterly idx_series/idx_calendar (idx_calendar directly, since xts_to_idx() assumes a daily step).
 data(nintendo_sales, package = "tsgc")
-wii <- nintendo_sales[, 1]
+
+nintendo_idx <- idx_series(zoo::coredata(nintendo_sales), start = 1L)
+nintendo_cal <- idx_calendar(
+  anchor = as.Date(zoo::index(nintendo_sales)[1]),
+  anchor_pos = 1L,
+  amount = 1, unit = "quarters",
+  posixct = TRUE
+)
+wii <- idx_series(idx_values(nintendo_idx)[, "wii"], start = nintendo_idx$start)
 
 # Note: The tsgc function requires the input cumulative series to be strictly 
 # increasing in time. If the cumulative values exhibit plateaus—as in 
@@ -1433,19 +1914,20 @@ wii <- nintendo_sales[, 1]
 # (non-cumulative) series must be strictly positive.
 
 # Model estimated for a strictly increasing segment
-# Use a four-quarter forecast horizon and yearqtr dates for the quarterly model.
+# Use a four-quarter forecast horizon and quarterly positions for the quarterly model.
 n.forecasts <- 4
-est.start.q <- zoo::as.yearqtr("2006 Q4")
-est.end.q   <- zoo::as.yearqtr("2010 Q3")
+est.start.q <- idx_to_pos(nintendo_cal, "2006-10-01")
+est.end.q   <- idx_to_pos(nintendo_cal, "2010-07-01")
 
 # Fit a quarterly dynamic Gompertz model to Wii sales.
 mod_wii <- tsgc::SSModelDynamicGompertz(  
-  Y = wii, sea.period = 4, start.date = est.start.q, 
-  end.date = est.end.q
+  Y = wii, sea.period = 4, start = est.start.q, 
+  end = est.end.q, calendar = nintendo_cal
 )
 # Estimate the quarterly Wii model and inspect the summary.
 res_wii <- tsgc::estimate(mod_wii)
 summary(res_wii)
+tsgc::print_model_diagnostics(res_wii)
 
 # Cases with MA overlay
 p <- plot(
@@ -1473,9 +1955,12 @@ print(p)
 save_plot(p, "wii_sales_gomp_fcst.png")
 
 # Evaluate quarterly holdout accuracy for Wii sales.
+# n=4 holdout observations (quarterly): treat coverage/accuracy here as
+# illustrative of the API, not as a calibration claim (see #23 caveat).
 p <- tsgc::plot_holdout(
   res_wii, Y = wii, n.ahead = n.forecasts, 
-  title = "Accuracy: Forecast of new Wii sales",
+  title = paste0("Accuracy: Forecast of new Wii sales\n",
+                 "(illustrative only - n=", n.forecasts, " holdout observations)"),
   series.name = "Sales (million units)"
 )
 print(p)
@@ -1485,29 +1970,30 @@ save_plot(p, "wii_sales_gomp_holdout.png")
 #' 
 #'  Nintendo Wii was launched in 2006, and the Nintendo Switch in 2017.
 #' 
-#' Model quarterly lead–lag between Wii and Switch; forecast and evaluate.
+#' Model quarterly lead-lag between Wii and Switch; forecast and evaluate.
 #' 
 
 ## ----  8.2 Quarterly: Wii to Switch (Lead) ----
 # Use Wii sales as a quarterly leading indicator for Switch sales and forecast the target series.
 # Set the quarterly leading-indicator horizon and estimation window for Switch sales.
 n.forecasts   <- 8
-est.start.q2  <- zoo::as.yearqtr("2017 Q1")
-est.end.q2    <- zoo::as.yearqtr("2019 Q4")
+est.start.q2  <- idx_to_pos(nintendo_cal, "2017-01-01")
+est.end.q2    <- idx_to_pos(nintendo_cal, "2019-10-01")
 # Compute the lead-lag distance between Wii and Switch launches in quarters.
-n.lag.q       <- round((zoo::as.yearqtr("2017 Q1") - zoo::as.yearqtr("2006 Q4"))*4)
+n.lag.q       <- idx_to_pos(nintendo_cal, "2017-01-01") - idx_to_pos(nintendo_cal, "2006-10-01")
 
 # Column 1 (Wii) is treated as the lead; column 2 (Switch) as the target.
 # Select the lead and target quarterly sales series.
-y_q <- nintendo_sales[, c("wii", "switch_all")]
+y_q <- idx_series(idx_values(nintendo_idx)[, c("wii", "switch_all")], start = nintendo_idx$start)
 # Fit the quarterly Wii-to-Switch leading-indicator model.
 mod_switch <- tsgc::SSModelLeadingIndicator(
   Y = y_q, sea.period = 4, n.lag = n.lag.q, 
-  start.date = est.start.q2, end.date = est.end.q2
+  start = est.start.q2, end = est.end.q2, calendar = nintendo_cal
 )
 # Estimate the quarterly leading-indicator model and inspect the summary.
 res_switch <- tsgc::estimate(mod_switch)
 summary(res_switch)
+tsgc::print_model_diagnostics(res_switch)
 
 # Forecast Switch log growth at quarterly frequency.
 p <- tsgc::plot_log_forecast(
@@ -1527,9 +2013,12 @@ print(p)
 save_plot(p, "switch_sales_lead_fcst.png")
 
 # Evaluate holdout accuracy for the Switch forecast.
+# n=8 holdout observations (quarterly): illustrative of the API, not a
+# calibration claim (see #23 caveat).
 p <- tsgc::plot_holdout(
   res_switch, Y = y_q, n.ahead = n.forecasts, 
-  title = "Accuracy: Forecast of new Switch sales",
+  title = paste0("Accuracy: Forecast of new Switch sales\n",
+                 "(illustrative only - n=", n.forecasts, " holdout observations)"),
   series.name = "Sales (million units)"
 )
 print(p)
@@ -1545,23 +2034,32 @@ save_plot(p, "switch_sales_lead_holdout.png")
 
 ## ---- 8.3 Monthly-etrading: Plus500 ----
 # Apply the dynamic Gompertz model to monthly app-download data.
-# Load monthly e-trading app downloads and select Plus500 for the Gompertz example.
+# Load monthly e-trading app downloads and build a monthly idx_series/idx_calendar.
 data(etrading_apps, package = "tsgc")
-Plus500 <- etrading_apps[, 1]
 
-# Use a four-month horizon and yearmon dates for the monthly model.
+etrading_idx <- idx_series(zoo::coredata(etrading_apps), start = 1L)
+etrading_cal <- idx_calendar(
+  anchor = as.Date(zoo::index(etrading_apps)[1]),
+  anchor_pos = 1L,
+  amount = 1, unit = "months",
+  posixct = TRUE
+)
+Plus500 <- idx_series(idx_values(etrading_idx)[, 1], start = etrading_idx$start)
+
+# Use a four-month horizon and monthly positions for the monthly model.
 n.forecasts <- 4
-est.start.m <- zoo::as.yearmon(2016)
-est.end.m   <- zoo::as.yearmon(2021)
+est.start.m <- idx_to_pos(etrading_cal, "2016-01-01")
+est.end.m   <- idx_to_pos(etrading_cal, "2021-01-01")
 
 # Fit a monthly dynamic Gompertz model to Plus500 downloads.
 mod_500 <- tsgc::SSModelDynamicGompertz(
-  Y = Plus500, sea.period = 12, start.date = est.start.m, 
-  end.date = est.end.m
+  Y = Plus500, sea.period = 12, start = est.start.m, 
+  end = est.end.m, calendar = etrading_cal
 )
 # Estimate the monthly Plus500 model and inspect the summary.
 res_500 <- tsgc::estimate(mod_500)
 summary(res_500)
+tsgc::print_model_diagnostics(res_500)
 
 p <- plot(
   mod_500, title = "Plus500 monthly downloads in France", 
@@ -1588,9 +2086,12 @@ print(p)
 save_plot(p, "plus500_downloads_gomp_fcst.png")
 
 # Evaluate holdout accuracy for the Plus500 forecast.
+# n=4 holdout observations (monthly): illustrative of the API, not a
+# calibration claim (see #23 caveat).
 p <- tsgc::plot_holdout(
   res_500, Y = Plus500, n.ahead = n.forecasts, 
-  title = "Accuracy: Forecast of new Plus500 downloads",
+  title = paste0("Accuracy: Forecast of new Plus500 downloads\n",
+                 "(illustrative only - n=", n.forecasts, " holdout observations)"),
   series.name = "Downloads"
 )
 print(p)
@@ -1609,23 +2110,24 @@ save_plot(p, "plus500_downloads_gomp_holdout.png")
 
 ## ---- 8.4 Monthly-leading: DEGIRO to AvaTrade (Lead) ----
 # Use monthly DEGIRO downloads as a leading indicator for AvaTrade downloads.
-# Set the monthly leading-indicator horizon, dates, and lag for AvaTrade.
+# Set the monthly leading-indicator horizon, positions, and lag for AvaTrade.
 n.forecasts  <- 4
-est.start.m2 <- zoo::as.yearmon(2017.5)
-est.end.m2   <- zoo::as.yearmon(2021 + 1/12)
+est.start.m2 <- idx_to_pos(etrading_cal, "2017-07-01")
+est.end.m2   <- idx_to_pos(etrading_cal, "2021-02-01")
 # Compute the DEGIRO-to-AvaTrade lag in months.
-n.lag.m      <- round((zoo::as.yearmon(2017.5) - zoo::as.yearmon(2017))*12)
+n.lag.m      <- idx_to_pos(etrading_cal, "2017-07-01") - idx_to_pos(etrading_cal, "2017-01-01")
 
 # Select the monthly lead and target app-download series.
-y_m <- etrading_apps[, c("DEGIRO", "AvaTrade")]
+y_m <- idx_series(idx_values(etrading_idx)[, c("DEGIRO", "AvaTrade")], start = etrading_idx$start)
 # Fit the monthly DEGIRO-to-AvaTrade leading-indicator model.
 mod_500_lead <- tsgc::SSModelLeadingIndicator(
   Y = y_m, sea.period = 12, n.lag = n.lag.m, 
-  start.date = est.start.m2, end.date = est.end.m2
+  start = est.start.m2, end = est.end.m2, calendar = etrading_cal
 )
 # Estimate the monthly leading-indicator model and inspect the summary.
 res_500_lead <- tsgc::estimate(mod_500_lead)
 summary(res_500_lead)
+tsgc::print_model_diagnostics(res_500_lead)
 
 # Forecast AvaTrade log growth at monthly frequency.
 p <- tsgc::plot_log_forecast(
@@ -1645,9 +2147,12 @@ print(p)
 save_plot(p, "avatrade_downloads_lead_fcst.png")
 
 # Evaluate holdout accuracy for the AvaTrade forecast.
+# n=4 holdout observations (monthly): illustrative of the API, not a
+# calibration claim (see #23 caveat).
 p <- tsgc::plot_holdout(
   res_500_lead, Y = y_m, n.ahead = n.forecasts, 
-  title = "Accuracy: Forecast of new AvaTrade downloads", 
+  title = paste0("Accuracy: Forecast of new AvaTrade downloads\n",
+                 "(illustrative only - n=", n.forecasts, " holdout observations)"), 
   series.name = "Downloads"
 )
 print(p)
@@ -1657,8 +2162,12 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 #' ## 8.5 Annual: 3DS
 #' 
 #' 3DS is Nintendo's handheld console (released 2011).
-#' Here we convert quarterly global sales to annual frequency 
-#' to demonstrate annual Gompertz modelling.
+#' Here we subsample quarterly cumulative global sales to an
+#' annual-frequency series, taking every 4th quarter starting from the
+#' first observation in the source series, to demonstrate annual
+#' Gompertz modelling. These are same-quarter year-over-year
+#' cumulative-sales differences (whatever quarter the source series
+#' happens to start on), not calendar-year sales.
 #' 
 #' Annual modelling with `sea.period = 0`; 
 #' forecast and evaluate 3DS annual series.
@@ -1666,68 +2175,61 @@ save_plot(p, "avatrade_downloads_lead_holdout.png")
 
 ## ---- 8.5 Annual: 3DS ----
 # Aggregate quarterly Nintendo data to annual frequency and fit an annual Gompertz model.
-# Use a two-year forecast horizon and annualised yearmon dates for the annual model.
+# Use a two-year forecast horizon and annual positions for the annual model.
 n.forecasts <- 2
-# NB. dates below use December (Q4) to match the year-end dating of the
-# annual series constructed below (yearly_nintendo_dates); as.yearmon(2011)
-# would default to January and misalign with the December-dated observations.
-est.start.y <- zoo::as.yearmon("2011-12")
-est.end.y   <- zoo::as.yearmon("2018-12")
 
-# Convert quarterly to yearly: take the Q4 (year-end) observation of each year.
-# nintendo_sales holds CUMULATIVE sales, so a calendar-year snapshot is the
-# year-end level, not a sum of quarters (summing cumulative values would
-# double-count).
-# Row indices are derived from the actual row labels (e.g. "2005 Q4") rather
-# than assumed from a hard-coded start quarter. Confirmed: nintendo_sales
-# starts at 2004 Q4, not 2005 Q1 -- so `4 * (1:19)` selects 2005 Q3, 2006 Q3,
-# ..., i.e. Q3-to-Q3 values mislabeled as annual/January. Deriving the index
-# from row labels avoids re-introducing that bug if the data's start quarter
-# ever changes.
-# Row indices are derived from the actual time index (a `yearqtr`, via
-# zoo::index()) rather than assumed from a hard-coded start quarter.
-# NB. nintendo_sales is an xts object, so rownames() is empty -- its labels
-# live in the yearqtr index, not in character rownames. Confirmed:
-# nintendo_sales starts at 2004 Q4, not 2005 Q1 -- so `4 * (1:19)` selects
-# 2005 Q3, 2006 Q3, ..., i.e. Q3-to-Q3 values mislabeled as annual/January.
-# Matching directly against the yearqtr index avoids re-introducing that bug
-# if the data's start quarter ever changes.
-target_years <- 2005:2023
-nintendo_idx <- zoo::index(nintendo_sales)
-target_yearqtrs <- zoo::as.yearqtr(paste0(target_years, " Q4"))
-yearly_nintendo_idx <- match(target_yearqtrs, nintendo_idx)
-if (any(is.na(yearly_nintendo_idx))) {
-  stop("Could not find a Q4 observation for every year in 2005:2023 in nintendo_sales; ",
-       "inspect zoo::index(nintendo_sales) and adjust target_years/matching.")
-}
-# Subsample quarterly Nintendo sales to true calendar year-end (Q4) observations.
-yearly_nintendo      <- nintendo_sales[yearly_nintendo_idx, 
-                                       c("wii", "3ds")]
-# Label with December of each year, since these are year-end (Q4) snapshots,
-# not January/annual-average values.
-yearly_nintendo_dates <- zoo::as.yearmon(paste0(target_years, "-12"))
-# Build annual xts series for 3DS and the wider Nintendo sales panel.
-threeds_xts          <- xts::xts(
-  zoo::coredata(yearly_nintendo[, "3ds"]), 
-  order.by = yearly_nintendo_dates
+# Subsample quarterly Nintendo sales to annual-frequency observations
+# (every 4th quarter, i.e. the same calendar quarter each year). We
+# preserve the true selected dates rather than relabelling them onto a
+# 1 January calendar, so the resulting series is accurately described
+# as annual-frequency same-quarter cumulative sales, not calendar-year
+# sales. Rather than hardcoding an assumed starting month (which
+# depends on which quarter the source series happens to begin on and
+# was simply wrong here - it does not fall in Jul/Aug/Sep), we verify
+# directly against the series' own first date: every selected date
+# must fall in the same calendar month as the first observation, since
+# a 4-quarter step always returns to the same quarter.
+# zoo::index(nintendo_sales) is a `yearqtr` object, not a `Date`. Every
+# downstream use here (idx_calendar()'s anchor, and the format()/
+# idx_to_pos() calls further below) needs a genuine Date - passing a
+# yearqtr straight through as an idx_calendar anchor with unit = "years"
+# errors ("a yearqtr cal$anchor requires cal$unit = 'quarters'"), and
+# format()ing a yearqtr with "%Y-%m-%d" does not reliably give a real
+# calendar date either. Convert to Date immediately (as is already done
+# for nintendo_cal's own anchor above) so everything downstream operates
+# on Dates consistently.
+yearly_nintendo_dates <- as.Date(zoo::index(nintendo_sales)[4 * (1:19)])
+first_month <- format(as.Date(zoo::index(nintendo_sales)[4]), "%m") # Note that the first element is a Q4
+stopifnot(all(format(yearly_nintendo_dates, "%m") == first_month))
+yearly_nintendo_mat <- zoo::coredata(nintendo_sales)[4 * (1:19), c("wii", "3ds")]
+
+# Build an annual idx_series/idx_calendar anchored on the true first
+# selected date (a Q3 endpoint), not a fabricated 1 January date.
+yearly_nintendo_idx <- idx_series(yearly_nintendo_mat, start = 1L)
+yearly_nintendo_cal <- idx_calendar(
+  anchor = yearly_nintendo_dates[1],
+  anchor_pos = 1L,
+  amount = 1, unit = "years",
+  posixct = TRUE
 )
-yearly_nintendo_xts  <- xts::xts(
-  zoo::coredata(yearly_nintendo), 
-  order.by = yearly_nintendo_dates
-)
+threeds_idx <- idx_series(idx_values(yearly_nintendo_idx)[, "3ds"], start = yearly_nintendo_idx$start)
+
+est.start.y <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2011")], "%Y-%m-%d"))
+est.end.y   <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2018")], "%Y-%m-%d"))
 
 # Fit an annual dynamic Gompertz model to 3DS sales.
 mod_3ds <- tsgc::SSModelDynamicGompertz(  
-  Y = threeds_xts, sea.period = 0, 
-  start.date = est.start.y, end.date = est.end.y
+  Y = threeds_idx, sea.period = 0, 
+  start = est.start.y, end = est.end.y, calendar = yearly_nintendo_cal
 )
 # Estimate the annual 3DS model and inspect the summary.
 res_3ds <- tsgc::estimate(mod_3ds)
 summary(res_3ds)
+tsgc::print_model_diagnostics(res_3ds)
 
 # Forecast annual 3DS log growth.
 p <- tsgc::plot_log_forecast(
-  res_3ds, Y = threeds_xts, n.ahead = n.forecasts,
+  res_3ds, Y = threeds_idx, n.ahead = n.forecasts,
   title = "Forecast of log growth rate of annual 3DS sales"
 )
 print(p)
@@ -1744,7 +2246,7 @@ save_plot(p, "3ds_sales_gomp_fcst.png")
 
 # Evaluate holdout accuracy for the annual 3DS forecast.
 p <- tsgc::plot_holdout(
-  res_3ds, Y = threeds_xts, n.ahead = n.forecasts,
+  res_3ds, Y = threeds_idx, n.ahead = n.forecasts,
   title = "Accuracy: Forecast of new annual 3DS sales",
   series.name = "Sales (million units)"
 )
@@ -1758,26 +2260,28 @@ save_plot(p, "3ds_sales_gomp_holdout.png")
 #' and 3DS as the target, to illustrate the leading-indicator 
 #' state-space model at annual frequency.
 #' 
-#' Annual lead–lag model using Wii as lead for 3DS; forecast and evaluate.
+#' Annual lead-lag model using Wii as lead for 3DS; forecast and evaluate.
 #' 
 
 ## ---- 8.6 Annual-leading: Wii to 3DS (Lead) ----
 # Fit an annual leading-indicator model using Wii sales to forecast 3DS sales.
 # Compute the annual Wii-to-3DS lag.
-n.lag.y <- zoo::as.yearmon(2011) - zoo::as.yearmon(2007)
+n.lag.y <- idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2011")], "%Y-%m-%d")) -
+  idx_to_pos(yearly_nintendo_cal, format(yearly_nintendo_dates[which(format(yearly_nintendo_dates, "%Y") == "2007")], "%Y-%m-%d"))
 # Fit the annual Wii-to-3DS leading-indicator model.
 mod_lead_y <- tsgc::SSModelLeadingIndicator(
-  Y = yearly_nintendo_xts, sea.period = 0, n.lag = n.lag.y,
-  start.date = est.start.y, end.date = est.end.y, 
-  LeadIndCol = 1
+  Y = yearly_nintendo_idx, sea.period = 0, n.lag = n.lag.y,
+  start = est.start.y, end = est.end.y, 
+  LeadIndCol = 1, calendar = yearly_nintendo_cal
 )
 # Estimate the annual leading-indicator model and inspect the summary.
 res_lead_y <- tsgc::estimate(mod_lead_y)
 summary(res_lead_y)
+tsgc::print_model_diagnostics(res_lead_y)
 
 # Forecast annual 3DS log growth from the leading-indicator model.
 p <- tsgc::plot_log_forecast(
-  res_lead_y, Y = yearly_nintendo_xts, n.ahead = n.forecasts, 
+  res_lead_y, Y = yearly_nintendo_idx, n.ahead = n.forecasts, 
   title = "Forecast of log growth rate of annual 3DS sales"
 )
 print(p)
@@ -1793,100 +2297,232 @@ print(p)
 save_plot(p, "3ds_sales_lead_fcst.png")
 
 # Evaluate holdout accuracy for the annual leading-indicator forecast.
+#
+# *** SMALL-SAMPLE CAVEAT (only 2 holdout observations) ***
+# n.forecasts is 2 at annual frequency here, so every accuracy/coverage
+# figure below (MAPE, sMAPE, interval coverage) is computed from just 2
+# holdout points. A coverage figure of 100% (or 0%) from 2 observations
+# has essentially no calibration content - it says nothing reliable
+# about whether the model's stated confidence level is accurate in
+# general. These figures should be read as an illustration of the
+# annual-frequency API, not as evidence of forecast accuracy or
+# interval calibration for this series.
 p <- tsgc::plot_holdout(
-  res_lead_y, Y = yearly_nintendo_xts, n.ahead = n.forecasts, 
-  title = "Accuracy: Forecast of new annual 3DS sales", 
+  res_lead_y, Y = yearly_nintendo_idx, n.ahead = n.forecasts, 
+  title = paste0("Accuracy: Forecast of new annual 3DS sales\n",
+                 "(illustrative only - based on n=", n.forecasts,
+                 " holdout observations)"), 
   series.name = "Sales (million units)"
 )
 print(p)
 save_plot(p, "3ds_sales_lead_holdout.png")
 
 #' 
-#' # 9. Limitations, Diagnostics & Exported-File Notes
+#' # 9. Appendix: Controlling the Plot X-Axis with `idx_axis_opts()`
 #' 
-#' ## 9.1 Illustrative vs. retrospective vs. operational forecasts
+#' Every plotting function used above leaves its `axis` argument unset,
+#' which defaults to `mode = "auto"`: real calendar dates if the
+#' calendar has `posixct = TRUE` (true of every calendar built in this
+#' script), otherwise plain integer positions. `idx_axis_opts()` lets
+#' you override this per plot, and applies uniformly across every
+#' `plot.*`/`plot_*` function in the package. To keep the comparison
+#' clear, this section reuses a single plot - the Gauteng fourteen-day
+#' new-cases forecast from Section 2 - and simply varies `axis`.
 #' 
-#' Not all examples above represent the same evidentiary standard:
+
+## ---- 9.0 Axis showcase helper ----
+# n.forecasts/plt.length are reset here to the Section 2 (Gauteng)
+# values, since later sections reassign them for other frequencies.
+n.forecasts <- n.forecasts.default
+plt.length  <- plt.length.default
+
+# A small wrapper so each axis mode below re-renders the same underlying
+# forecast plot, varying only the `axis` argument.
+showcase_axis_plot <- function(axis = NULL) {
+  tsgc::plot_forecast(
+    res = res_q, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+    plt.start = tail(res_q$index, 1) - plt.length,
+    series.name = "cases", axis = axis
+  )
+}
+
+## ---- 9.1 mode = "date" (the default here) ----
+# Real calendar dates, since gauteng_cal$posixct = TRUE.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "date"))
+save_plot(p, "axis_mode_date.png")
+
+## ---- 9.2 mode = "position" ----
+# Raw integer idx_series positions, with no calendar translation at all.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "position"))
+save_plot(p, "axis_mode_position.png")
+
+## ---- 9.3 mode = "steps" ----
+# Steps from the calendar's anchor (here, days since the anchor position).
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "steps"))
+save_plot(p, "axis_mode_steps.png")
+
+## ---- 9.4 mode = "time_since" ----
+# The pattern-weighted calendar offset from the anchor, expressed in
+# calendar$unit's rather than a raw step count - here "days since first
+# recorded case". For a daily series with no gaps this is numerically
+# identical to "steps", but it diverges for series with an irregular
+# pattern (e.g. business days) or a non-day unit (e.g. quarters, months).
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "time_since"))
+save_plot(p, "axis_mode_time_since.png")
+
+## ---- 9.5 Adding an info box ----
+# Setting info_box = TRUE (on any of the modes above) appends a caption
+# summarising the calendar: the anchor (and its name, if set), the step
+# size/unit, and the pattern.
+p <- showcase_axis_plot(tsgc::idx_axis_opts(mode = "steps", info_box = TRUE))
+save_plot(p, "axis_mode_steps_infobox.png")
+
+# pattern_n truncates a long pattern to its first n values in the info
+# box caption; by default the full pattern is shown. Not very useful for
+# Gauteng's plain daily pattern, but essential for keeping the caption
+# readable with, e.g., a business-day calendar.
+p <- showcase_axis_plot(
+  tsgc::idx_axis_opts(mode = "steps", info_box = TRUE, pattern_n = 3)
+)
+save_plot(p, "axis_mode_steps_infobox_truncated.png")
+
 #' 
-#' - **Operational-style validation** (closest to a genuine real-time
-#'   test): the Gauteng and England daily holdout evaluations, where the
-#'   model is estimated up to a cutoff and evaluated against genuinely
-#'   subsequent observations. Even here, the weather-regressor holdout
-#'   uses **realised** future weather (an oracle/conditional forecast),
-#'   not an archived weather forecast available at the time.
-#' - **Retrospective/conditional forecasts**: any example where the
-#'   "future" regressor values (e.g. weather) are the actual realised
-#'   values rather than what would have been available at the forecast
-#'   origin. These demonstrate the model's conditional forecasting
-#'   mechanics, not its unconditional real-world accuracy.
-#' - **API/illustrative demonstrations, not empirical validation**: the
-#'   quarterly, monthly, and especially annual examples (Wii, Plus500,
-#'   DEGIRO->AvaTrade, 3DS, Wii->3DS). Sample sizes here are small by
-#'   construction -- the annual leading-indicator and Gompertz examples
-#'   validate on only 2 holdout points. These sections should be read as
-#'   "here is how to call the function," not "here is evidence the model
-#'   works well at annual frequency."
+#' # 10. Appendix: Compound and Heterogeneous Calendar Steps
 #' 
-#' ## 9.2 Cross-validation scope
+#' Every calendar used in Sections 2-8 is built with the primary
+#' `idx_calendar()` constructor, whose step size is a single
+#' `amount`/`unit` pair (e.g. `amount = 1, unit = "days"`, or
+#' `amount = 1, unit = "quarters"`). This covers the common case where
+#' the step between consecutive `idx_series` positions is a whole
+#' multiple of one calendar unit. Some series, however, are genuinely
+#' spaced by a combination of units that a single `amount`/`unit` pair
+#' cannot express, or by a cycle of different *kinds* of steps
+#' altogether. The two subsections below illustrate these cases, plus
+#' the non-calendar anchor case handled by `idx_offset_to_pos()`.
 #' 
-#' The lag-selection cross-validation (Section 7.2) tests multiple lag
-#' candidates on a small number of closely-spaced origins with overlapping
-#' 14-day horizons, then selects the best lag on those same folds -- this
-#' has no held-out outer evaluation and no naive/persistence benchmark. If
-#' a later case study uses a different lag than the cross-validation
-#' winner, that deviation should be explained explicitly; otherwise use
-#' the CV-selected lag. The selection procedure should be validated
-#' against an outer holdout or a nested rolling-origin scheme, with naive
-#' benchmarks included, before its result is treated as a tuned
-#' hyperparameter rather than a demonstration.
+
 #' 
-#' ## 9.3 Interval calibration
+#' ## 10.1 `idx_step()` and `idx_calendar_step()`
 #' 
-#' Reported coverage rates can vary widely across examples. Nominal 68%
-#' intervals that are poorly calibrated in either direction (too narrow or
-#' too wide, as seen when comparing across the examples in this document)
-#' suggest the uncertainty quantification should not be taken at face
-#' value without further diagnostic work (Section 9.4).
+#' `idx_step()` builds a compound step out of any combination of
+#' years/quarters/months/weeks/days/hours/minutes/seconds - for example,
+#' a reporting system that timestamps quarterly figures a few seconds
+#' after the quarter boundary, so the step is "one quarter plus three
+#' seconds". `idx_calendar_step()` is the `idx_calendar` constructor
+#' that takes such a step.
 #' 
-#' ## 9.4 Convergence, boundary, and residual diagnostics checklist
+
+## ---- 10.1 Compound step: idx_step() / idx_calendar_step() ----
+qtr_step <- tsgc::idx_step(quarters = 1, seconds = 3)
+qtr_step
+
+cal_step <- tsgc::idx_calendar_step(
+  anchor = as.POSIXct("2024-01-01 00:00:03", tz = "UTC"),
+  step = qtr_step,
+  posixct = TRUE
+)
+tsgc::idx_to_date(cal_step, 1:4)
+
+# idx_to_pos() inverts this exactly as it does for the primary
+# constructor. A compound step has no single amount to divide by, so
+# the position is located by a binary search on the number of steps from
+# the anchor, as it is for idx_calendar() calendars with numeric patterns.
+tsgc::idx_to_pos(cal_step, tsgc::idx_to_date(cal_step, 4))
+
+# Any component of an idx_step left at its default of 0 is simply
+# omitted from the step, so idx_step(days = 1) is equivalent to the
+# amount = 1, unit = "days" pairs used throughout this script.
+# idx_step_add() is the lower-level function that applies a given
+# number of whole steps to an anchor date directly; it is what an
+# idx_calendar_step()-built calendar uses internally, and is not
+# usually called directly by users of the package.
+
 #' 
-#' For each headline model above (Gauteng fixed-q, England leading
-#' indicator, England + weather), before relying on its output, check:
+#' ## 10.2 `multi_step_pattern()` and `idx_calendar_multi_step()`
 #' 
-#' - **Convergence**: did `tsgc::estimate()`'s optimiser converge without
-#'   warnings? Note the number of iterations if available.
-#' - **Boundary estimates**: is the estimated `q` at or near 0 (a boundary
-#'   of the parameter space)? This is common in Gompertz-curve fits and
-#'   affects the validity of standard-error-based inference on `q`.
-#' - **Residual diagnostics**: standardised residual plots, and at
-#'   minimum a check for residual autocorrelation (e.g. Ljung-Box) and
-#'   heteroskedasticity.
-#' - **Warnings**: warnings should be visible during model fitting and
-#'   validation, and suppressed individually -- with a documented reason
-#'   -- only after the underlying issue is understood, rather than
-#'   suppressed globally.
+#' The `pattern` argument of `idx_calendar()`/`idx_calendar_step()`
+#' handles a repeating cycle of *different multiples* of one step - e.g.
+#' a business-day calendar, where four single-day steps (Mon-Thu) are
+#' followed by a three-day step over the weekend. That still assumes
+#' every step in the cycle is the same *kind* of step, just scaled
+#' differently. Some data instead cycle through genuinely different
+#' kinds of steps - for example, "three days, three days, then one
+#' month, repeating". `multi_step_pattern()` describes this kind of
+#' cycle as a sequence of `idx_step` objects, and
+#' `idx_calendar_multi_step()` is the `idx_calendar` constructor that
+#' uses it.
 #' 
-#' ## 9.5 Exported file labelling
+
+## ---- 10.2 Heterogeneous cycle: multi_step_pattern() / idx_calendar_multi_step() ----
+cal_multi <- tsgc::idx_calendar_multi_step(
+  anchor = as.Date("2024-01-01"),
+  multi_step = tsgc::multi_step_pattern(
+    tsgc::idx_step(days = 3), tsgc::idx_step(days = 3), tsgc::idx_step(months = 1)
+  ),
+  posixct = TRUE
+)
+tsgc::idx_to_date(cal_multi, 1:6)
+
+# Because the slots in a multi_step_pattern can mix calendar-relative
+# (e.g. months) and fixed-duration (e.g. days) components, there is no
+# closed-form way to collapse the whole cycle into a single numeric
+# offset. idx_to_date() instead walks one slot at a time from the
+# anchor position, and idx_to_pos()'s inverse walks the same cycle in
+# reverse.
+tsgc::idx_to_pos(cal_multi, "2024-02-07")
+
+# This makes idx_calendar_multi_step() calendars more expensive to
+# convert than the other two constructors - each position takes time
+# proportional to its distance from the anchor, rather than constant
+# time - so it is best reserved for genuinely irregular step sequences
+# that the pattern argument of the other two constructors cannot
+# express. The "time_since" axis mode from Section 9 is also
+# unavailable for this calendar: a multi_step_pattern has no single
+# amount to express an offset in, so mode = "steps" or mode = "date"
+# should be used instead.
+
 #' 
-#' Files matching `*_filtered.csv` are generated via
-#' `predict_all(..., return.all = TRUE)` and therefore contain both
-#' filtered (in-sample) and forecast-period rows. Split these into
-#' separate `*_filtered.csv` / `*_forecast.csv` outputs, or rename the
-#' existing files to make the mixed content explicit (e.g.
-#' `*_filtered_and_forecast.csv`), so downstream users don't assume every
-#' row is an in-sample filtered estimate.
+#' ## 10.3 Non-calendar `idx_calendar` anchors and `idx_offset_to_pos()`
 #' 
-#' ## 9.6 sMAPE scale
+#' Not every `idx_series` needs a genuine calendar interpretation. An
+#' `idx_calendar`'s `anchor` can be any single reference point, not just
+#' a `Date`/`POSIXct` - for example, a plain numeric count of
+#' picoseconds since the start of an experiment. `idx_offset_to_pos()`
+#' is the inverse operation for this case: given a value already
+#' expressed in the anchor's own units, it returns the integer
+#' `idx_series` position that corresponds to it - the counterpart of
+#' `idx_to_pos()`, which instead expects a calendar date.
 #' 
-#' Figures in this document use
-#' \(\text{sMAPE} = 100 \cdot |Actual - Forecast| / (Actual + Forecast)\),
-#' scaled 0-100. This is **half the scale** of the more common
-#' \(200 \cdot |Actual - Forecast| / (Actual + Forecast)\) (0-200)
-#' convention. This is now labelled explicitly wherever sMAPE is reported
-#' (plot subtitles read "sMAPE (0-100 scale)", and `mapes()` return lists
-#' include a `smape_scale` field) -- treat any sMAPE figure from this
-#' package as non-comparable to externally reported sMAPE values unless
-#' the scale is confirmed to match.
-#' 
-#' # Wrap-up
+
+## ---- 10.3 Non-calendar anchor: idx_offset_to_pos() ----
+cal_ps <- tsgc::idx_calendar(
+  anchor = 0, anchor_pos = 1L, amount = 2.5, unit = "picoseconds"
+)
+tsgc::idx_offset_to_pos(cal_ps, 12.5)
+
+# None of the calendars used elsewhere in this script need
+# idx_offset_to_pos(), since every series used above has a genuine
+# Date/POSIXct calendar and so uses idx_to_pos() instead; it is
+# included here for completeness, for applications - e.g. raw
+# instrumentation data with no calendar meaning - where idx_series
+# positions are still worth translating to and from the anchor's own
+# numeric scale.
+
+# Wrap-up
+# Validate every figure written to images_dir this run: must exist,
+# be non-empty, decode as a PNG, and exceed a plausible minimum size.
+if (SAVE_PLOTS) {
+  saved_figs <- list.files(images_dir, pattern = "\\.png$", full.names = TRUE)
+  bad <- character(0)
+  for (f in saved_figs) {
+    ok <- tryCatch({ validate_saved_figure(f); TRUE }, error = function(e) {
+      message("INVALID FIGURE: ", f, " -- ", conditionMessage(e)); FALSE
+    })
+    if (!ok) bad <- c(bad, f)
+  }
+  if (length(bad) > 0) {
+    stop(length(bad), " figure(s) failed validation: ", paste(basename(bad), collapse = ", "))
+  }
+  message("All ", length(saved_figs), " saved figures validated (exist, non-empty, decodable).")
+}
 message("=== Run completed. Check 'results/Tables' and 'results/Images'. ===")

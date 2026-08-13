@@ -2,8 +2,7 @@
 % Please edit documentation in R/plotting.R
 \name{plot_holdout}
 \alias{plot_holdout}
-\title{Plots the forecast of new cases (the difference of the cumulated
-variable) over a holdout sample.}
+\title{Plots the forecast of new cases over a holdout sample}
 \usage{
 plot_holdout(
   res,
@@ -12,55 +11,41 @@ plot_holdout(
   confidence.level = 0.68,
   series.name = "target variable",
   title = NULL,
-  caption = NULL
+  caption = NULL,
+  axis = NULL
 )
 }
 \arguments{
-\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
-\code{estimate()} method.}
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object,
+obtained from the \code{estimate()} method.}
 
-\item{Y}{Values of the cumulated variable, including the holdout sample.
-sample (i.e. to which the forecasts should be compared to).}
+\item{Y}{Values of the cumulated variable, including the holdout
+sample.}
 
-\item{n.ahead}{The duration of the holdout sample. Default is 14.}
+\item{n.ahead}{Duration of the holdout sample. Default is 14.}
 
-\item{confidence.level}{Width of prediction interval for \eqn{\ln(g_t)} to
-use in forecasts of \eqn{y_t = \Delta Y_t}. Default is 0.68, which is
-approximately one standard deviation for a Normal distribution.}
+\item{confidence.level}{Width of the prediction interval for
+\eqn{\ln(g_t)}. Default 0.68.}
 
-\item{series.name}{Name of the variable you are forecasting for the purposes
-of a $y$-axis label. E.g. if \code{series.name = "Cases"} the \eqn{y}-axis
-will show "New Cases".}
+\item{series.name}{Name of the variable being forecast, for the y-axis
+label.}
 
-\item{title}{Title for forecast plot. Enter as text string. \code{NULL}
-(i.e. no title) by default.}
+\item{title}{Title for the plot. \code{NULL} (default) for no title.}
 
-\item{caption}{Caption for forecast plot. Enter as text string. \code{NULL}
-(i.e. no caption) by default.}
+\item{caption}{Caption for the plot. \code{NULL} (default) for no
+caption.}
+
+\item{axis}{An \code{\link{idx_axis_opts}} object controlling x-axis
+mode and info box, or \code{NULL} (default) for the previous default
+behaviour.}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots actual values of the difference in the cumulated variable,
-the forecasts of the cumulated variable (both including and excluding the
-seasonal component, where a seasonal is specified) and forecast intervals
-around the forecasts, plus the actual outcomes from the holdout sample. The
-forecast intervals are based on the prediction intervals for \eqn{\ln(g_t)}.
-Also reports the mean absolute percentage prediction error over the holdout
-sample.
-}
-\examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-n.ahead=7
-
-# Exapmle 1: Specify a Dynamic Gompertz model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
-res <- model$estimate()
-
-# Plot forecasts and outcomes over evaluation period
-plot_holdout(res, Y = gauteng, n.ahead=n.ahead,series.name="cases")
-
+Plots actual values of the difference in the cumulated
+variable, the forecast of the cumulated variable (including seasonal
+components, where specified) and forecast intervals around the
+forecast, plus the actual outcomes from the holdout sample. Also reports
+the mean absolute percentage error over the holdout sample.
 }

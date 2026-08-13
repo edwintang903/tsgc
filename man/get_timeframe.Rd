@@ -2,32 +2,30 @@
 % Please edit documentation in R/utils.R
 \name{get_timeframe}
 \alias{get_timeframe}
-\title{Subsetting xts objects given start dates and end dates}
+\title{Subsetting \code{idx_series} objects given start and end positions}
 \usage{
-get_timeframe(df, start.date, end.date = NULL)
+get_timeframe(df, start, end = NULL)
 }
 \arguments{
-\item{df}{An xts object, or NULL if no data are supplied.}
+\item{df}{An \code{idx_series} object, or \code{NULL} if no data are
+supplied.}
 
-\item{start.date}{Start date of time frame, Date object.}
+\item{start}{Start position (integer) of the range.}
 
-\item{end.date}{End date of time frame, Date object.}
+\item{end}{End position (integer) of the range. Defaults to the last
+position in \code{df}.}
 }
 \value{
-An xts object containing the selected observations, or
+An \code{idx_series} containing the selected observations, or
 \code{NULL} if \code{df} is \code{NULL}.
 }
 \description{
-Helper method to subset a data frame for a specified time frame
+Helper method to subset an \code{idx_series} for a
+specified range of integer positions.
 }
 \examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-
-# Select data between 2020-04-01 and 2020-08-01, inclusive
-get_timeframe(gauteng, as.Date("2020-04-01"), as.Date("2020-08-01"))
-
-# Select all data after 2020-04-01, inclusive
-get_timeframe(gauteng, as.Date("2020-04-01"))
+x <- idx_series(cumsum(rpois(30, 5)) + 1, start = 1)
+get_timeframe(x, 5, 10)
+get_timeframe(x, 5)
 
 }

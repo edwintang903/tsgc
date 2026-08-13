@@ -2,52 +2,45 @@
 % Please edit documentation in R/plotting.R
 \name{plot_log_forecast}
 \alias{plot_log_forecast}
-\title{Plots forecast and realised values of the log cumulative growth rate}
+\title{Plots forecast and realised values of the log cumulative growth
+rate}
 \usage{
 plot_log_forecast(
   res,
   Y,
   n.ahead = 14,
-  plt.start.date = NULL,
+  plt.start = NULL,
   title = "",
-  caption = ""
+  caption = "",
+  axis = NULL
 )
 }
 \arguments{
-\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object, obtained from
-\code{estimate()} method.}
+\item{res}{A \code{FilterResults} or \code{FilterResultsLI} object,
+obtained from the \code{estimate()} method.}
 
-\item{Y}{Cumulated dataset containing future values.}
+\item{Y}{Cumulated dataset (\code{idx_series}) containing future values.}
 
-\item{n.ahead}{The number of time periods ahead from the end of the sample
-to be forecast. The default is 14.}
+\item{n.ahead}{Number of positions ahead from the end of the sample to
+forecast. Default is 14.}
 
-\item{plt.start.date}{Plot start date. Default is \code{NULL} which is the
+\item{plt.start}{Plot start position. \code{NULL} (default) is the
 start of the estimation sample.}
 
-\item{title}{Plot title. Enter as text string.}
+\item{title}{Plot title.}
 
-\item{caption}{Plot caption. Enter as text string.}
+\item{caption}{Plot caption.}
+
+\item{axis}{An \code{\link{idx_axis_opts}} object controlling x-axis
+mode and info box, or \code{NULL} (default) for the previous default
+behaviour. If \code{info_box = TRUE}, the info box is appended below
+any \code{caption} already supplied.}
 }
 \value{
 A \code{ggplot2} plot.
 }
 \description{
-Plots actual and filtered values of the log cumulative growth
-rate (\eqn{\ln(g_t)}) in the estimation sample and the forecast and realised
-log cumulative growth rate out of the estimation sample.
-}
-\examples{
-library(tsgc)
-data(gauteng,package="tsgc")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-20"))
-# Estimate a specified model
-res <- estimate(model)
-
-# Plot forecast and realised log growth rate of cumulative cases
-plot_log_forecast(res, Y=gauteng, n.ahead = 7,
-  title = "Forecast ln(g_t)", plt.start.date = as.Date("2020-07-13"))
-
+Plots actual and filtered values of the log cumulative
+growth rate (\eqn{\ln(g_t)}) in the estimation sample and the forecast
+and realised log cumulative growth rate out of the estimation sample.
 }

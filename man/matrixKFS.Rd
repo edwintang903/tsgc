@@ -2,31 +2,31 @@
 % Please edit documentation in R/accessorFns.R
 \name{matrixKFS}
 \alias{matrixKFS}
-\title{Extract matrices used in observation, state and disturbance equation
-in KFS object}
+\title{Extract matrices of the observation, state, and disturbance
+equations from a KFS object}
 \usage{
 matrixKFS(object, matrix)
 }
 \arguments{
-\item{object}{KFS object}
+\item{object}{A \code{KFS} object.}
 
-\item{matrix}{String, indicating a matrix component of SSModel, e.g. H,T,R,Q}
+\item{matrix}{Character string naming a matrix component of \code{SSModel},
+e.g. \code{"H"}, \code{"T"}, \code{"R"}, \code{"Q"}.}
+}
+\value{
+The requested matrix.
 }
 \description{
-Accessor method to access the matrices used in observation,
-state and disturbance equation in KFS object
+Accessor method to access the matrices used in the
+observation, state, and disturbance equations of a \code{KFS} object.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-idx.est <- zoo::index(gauteng) <= as.Date("2020-07-06")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng[idx.est], q = 0.005)
-# Estimate a specified model
-res <- model$estimate()
-
-# Extract Z matrix from output(res)
-matrixKFS(output(res),"Z")
-
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
+res <- estimate(model)
+tsgc:::matrixKFS(output(res), "Z")
 }

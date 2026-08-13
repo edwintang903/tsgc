@@ -7,7 +7,7 @@
 \title{Class for designing a Dynamic Gompertz Curve State-Space Model}
 \description{
 Class for Dynamic Gompertz Curve State-Space Model Object, which encapsulates
-model settings and provides methods to obtain a FilterResults object and plot time series.
+model settings and provides methods to obtain a FilterResults object.
 
 The dynamic Gompertz model with an integrated random walk (IRW) trend is defined as:
 \deqn{\ln g_{t}= \delta_{t} + \varepsilon_{t}, \quad
@@ -32,8 +32,8 @@ See the vignette for details on the state disturbance variance matrix \eqn{Q} an
 
 This class also supports the implementation of the reinitialisation
 procedure, described in the vignette and also summarised below.
-Let \eqn{t=r} denote the re-initialization date and \eqn{r_0} denote the
-date at which the cumulative series is set to 0. As the growth rate of
+Let \eqn{t=r} denote the re-initialization position and \eqn{r_0} denote the
+position at which the cumulative series is set to 0. As the growth rate of
 cumulative cases is defined as \eqn{g_t\equiv \frac{y_t}{Y_{t-1}}}, we have:
 \deqn{\ln g_t = \ln y_t - \ln Y_{t-1} \;\;\;\; t=1, \ldots, r}
 \deqn{\ln g_t^r = \ln y_t - \ln Y_{t-1}^r \;\;\;\; t=r+1, \ldots, T}
@@ -48,7 +48,8 @@ initial states appropriately. See the vignette for details.
 \section{Fields}{
 
 \describe{
-\item{\code{Y}}{The cumulated variable. Must be strictly increasing in time.}
+\item{\code{Y}}{The cumulated variable, as an \code{idx_series}. Must be
+strictly increasing.}
 
 \item{\code{q}}{The signal-to-noise ratio (ratio of slope to irregular
 variance). Defaults to \code{'NULL'}, in which case no
@@ -60,32 +61,38 @@ data to model day-of-the-week effects. A value of \code{0} disables the seasonal
 component entirely. The default is \code{7}, which is suitable for capturing
 weekly seasonality in daily time series.}
 
-\item{\code{reinit.date}}{(Only needed for reinitialization.) The reinitialisation date \eqn{r}. Should be
-specified as an object of class \code{"Date"}. Defaults to NA, which
-represents the non-reinitialized version.}
+\item{\code{reinit.idx}}{(Only needed for reinitialization.) The
+reinitialisation position \eqn{r}, as a single integer. Defaults to
+\code{NULL}, which represents the non-reinitialized version.}
 
 \item{\code{original.results}}{(Only needed for reinitialization.) Rather than re-estimating the model up
-to the \code{reinit.date}, a \code{FilterResults} class object can be
+to the \code{reinit.idx}, a \code{FilterResults} class object can be
 specified here and the parameters for the reinitialisation will be taken
 from this object. Default is \code{NULL}. This parameter is optional.}
 
 \item{\code{use.presample.info}}{(Only needed for reinitialization.) Logical value denoting whether or
-not to use information from before the reinitialisation date in the
+not to use information from before the reinitialisation position in the
 reinitialisation procedure. Default is \code{TRUE}. If \code{FALSE}, the
-model is estimated from scratch from the reinitialisation date and no
-attempt to use information from before the reinitialisation date is made.}
+model is estimated from scratch from the reinitialisation position and no
+attempt to use information from before the reinitialisation position is made.}
 
-\item{\code{xpred}}{An \code{xts} object containing the dataset of exogenous variables
-to include in the model. Defaults to \code{NULL}.}
+\item{\code{xpred}}{An \code{idx_series} object containing the dataset of exogenous
+variables to include in the model. Defaults to \code{NULL}.}
 
 \item{\code{ar1}}{Logical value indicating whether an ar1 component should be
 included in the model. Default is \code{FALSE}.}
 
-\item{\code{start.date}}{Start date of the estimation period.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{start}}{Integer position marking the start of the estimation period.}
 
-\item{\code{end.date}}{End date of the estimation period.
-Must be one of the following types: \code{yearqtr}, \code{date} or \code{yearmon}.}
+\item{\code{end}}{Integer position marking the end of the estimation period.}
+
+\item{\code{calendar}}{An optional \code{idx_calendar} object describing how the
+integer positions used by \code{Y} (and the rest of this model's
+\code{idx_series} fields) map back to calendar time. Purely cosmetic:
+never consulted by estimation/filtering, only carried along so that
+plotting can later translate positions to dates. Defaults to
+\code{NULL}, in which case plots will be labelled with raw integer
+positions instead of dates.}
 }}
 
 \section{Methods}{
@@ -101,65 +108,39 @@ model.}}
   Y,
   q = NULL,
   sea.period = 7,
-  reinit.date = NULL,
+  reinit.idx = NULL,
   original.results = NULL,
   use.presample.info = TRUE,
   xpred = NULL,
   ar1 = FALSE,
-  start.date = index(Y)[1],
-  end.date = tail(index(Y), 1)
+  start = idx_range(Y)[1],
+  end = idx_range(Y)[2],
+  calendar = NULL
 )}}{Create an instance of the \code{SSModelDynamicGompertz} class. Parameters 
 are defined in `fields` section. 
-  \subsection{Usage}{\code{SSModelDynamicGompertz$new(y, q = 0.005,
-  reinit.date = as.Date("2021-05-12"))}}}
-
-\item{\code{plot(
-  title = NULL,
-  series.name = "target variable",
-  date_break = NULL,
-  MA_period = 7
-)}}{Plots the lagged differences of the cumulated dataset \code{Y} in this 
-\code{SSModelDynamicGompertz} object against time, which could represent 
-daily cases.
-\subsection{Parameters}{\itemize{
-  \item{\code{title} Title for forecast plot. Enter as text string. 
-  \code{NULL} (i.e. no title) by default.}
-  \item{\code{series.name} The name of the series the growth rate is being computed
-  for. E.g. \code{'cases'}. Default is `target variable`.}
-  \item{\code{date_break} A character string (e.g. '60 days') specifying the interval 
-  between date labels, used in \code{scale_x_date} within 
-  \code{ggplot}. If \code{NULL} (default), a suitable interval is chosen 
-  automatically by \code{ggplot}.}
-  \item{\code{MA_period} Number of days used in centered moving 
-  average, to be plotted. Integer type. If moving average plot is not desired, 
-  enter 0 or 1. Defaults to 7.}
-  }
-}
-\subsection{Return Value}{A plot of the lagged differences of the 
-cumulated dataset \code{Y} against time.}}
+  \subsection{Usage}{\code{SSModelDynamicGompertz$new(Y = y, q = 0.005,
+  reinit.idx = 45)}}}
 
 \item{\code{print()}}{Provides a quick description of the SSModelDynamicGompertz object, providing 
 model states and standard errors.}
 
 \item{\code{summary()}}{Supplies details of the SSModelDynamicGompertz object, such as estimated 
-parameter values, start and end dates of estimation.}
+parameter values, start and end positions of the estimation window.}
 }}
 
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
+set.seed(1)
+Y <- idx_series(cumsum(rpois(120, 8)) + 1, start = 1)
 
 # Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, end.date=as.Date("2020-07-06"))
+model <- SSModelDynamicGompertz$new(Y = Y, q = 0.005, end = 100)
 
 # Show summary of the model object
 summary(model)
 
 # Print a short description of the model object
 print(model)
-
-# Plot the time series in the model object
-plot(model,title="Daily COVID cases in Gauteng", series.name="cases", MA=TRUE)
 
 # Estimate a specified model
 res <- estimate(model)

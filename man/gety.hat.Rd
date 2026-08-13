@@ -2,31 +2,28 @@
 % Please edit documentation in R/accessorFns.R
 \name{gety.hat}
 \alias{gety.hat}
-\title{Extract prediction y.hat in predict.all output}
+\title{Extract prediction y.hat from predict.all output}
 \usage{
 gety.hat(object)
 }
 \arguments{
-\item{object}{An object from the output of predict.all}
+\item{object}{An object returned by \code{predict_all}.}
+}
+\value{
+The predicted values \code{y.hat}.
 }
 \description{
-Accessor method to access prediction y.hat in \code{SSModel} object
+Accessor method to access the prediction \code{y.hat} in the
+output of \code{predict_all}.
 }
 \examples{
 library(tsgc)
-data(gauteng,package="tsgc")
-
-# Specify a model
-model <- SSModelDynamicGompertz$new(Y = gauteng, q = 0.005, 
-                                    end.date=as.Date("2020-07-20"))
-
-# Estimate a specified model
+data(gauteng, package = "tsgc")
+conv <- xts_to_idx(gauteng)
+model <- SSModelDynamicGompertz$new(Y = conv$series, q = 0.005,
+                                    calendar = conv$calendar,
+                                    end = idx_to_pos(conv$calendar, "2020-07-20"))
 res <- estimate(model)
-
-# Get object from predict.all
-all_predictions<-res$predict_all(n.ahead=7)
-
-# Get prediction
-gety.hat(all_predictions)
-
+all_predictions <- res$predict_all(n.ahead = 7)
+tsgc:::gety.hat(all_predictions)
 }
