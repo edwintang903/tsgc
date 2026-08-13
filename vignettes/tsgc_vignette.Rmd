@@ -1,6 +1,6 @@
 ---
 title: "Forecasting epidemic trajectories: Time Series Growth Curves package `tsgc`"
-author: "Michael Ashby, Andrew Harvey, Paul Kattuman, Edwin Tang, Craig Thamotheram"
+author: "Michael Ashby, Andrew Harvey, Paul Kattuman, Edwin Tang, Guglielmo Secchi, Craig Thamotheram"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 bibliography: book.bib
