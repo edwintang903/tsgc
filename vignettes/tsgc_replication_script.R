@@ -6,6 +6,11 @@
 # ========
 # Contents
 # ========
+# 0. Overview, Model Equations & Data Provenance
+#    - One-page results summary
+#    - Model equations and assumptions
+#    - Data provenance and package pinning
+#
 # 1. Setup & Utilities
 #    - Parameters, libraries, theme, directories, helpers
 #
@@ -55,6 +60,12 @@
 #     10.2 multi_step_pattern() / idx_calendar_multi_step(): heterogeneous cycles
 #     10.3 idx_offset_to_pos(): non-calendar idx_calendar anchors
 #
+# 9. Limitations, Diagnostics & Exported-File Notes
+#    - Illustrative vs retrospective vs operational forecasts
+#    - Cross-validation scope and interval calibration
+#    - Convergence/residual diagnostics checklist
+#    - Exported CSV file labelling
+#
 # ==========================================
 #
 # This script works with `idx_series` (integer-position
@@ -68,6 +79,77 @@
 # `idx_series` and a matching `idx_calendar`; `idx_to_pos()` translates
 # a calendar date into the integer position that `start`/`end`/
 # `reinit.idx`/`n.lag` expect.
+
+#' 
+#' # 0. Overview, Model Equations & Data Provenance
+#' 
+#' ## 0.1 One-page results summary
+#' 
+#' | Example | Frequency | Model | Estimation window | Horizon |
+#' |---|---|---|---|---|
+#' | Gauteng cases (free q / fixed q=0.005) | Daily | Dynamic Gompertz | 2021-02-01 to 2021-05-03 | 14d |
+#' | Gauteng cases + weather (q=0.005, fixed to match holdout) | Daily | Dynamic Gompertz + xpred | 2021-02-01 to 2021-05-03 | 14d |
+#' | England hospital admissions (+ weather) | Daily | Leading indicator (+ xpred) | 2021-04-30 to 2021-07-24 | 14d |
+#' | UK-Italy Case 1 / Case 2 | Daily | Gompertz vs leading indicator | 2020-02-25 to 2020-04-01 / 04-15 | 14d |
+#' | Wii / Plus500 / DEGIRO-AvaTrade | Quarterly / Monthly | Gompertz / leading indicator | see relevant section | 4 |
+#' | 3DS / Wii->3DS (annual, Q4-dated) | Annual | Gompertz / leading indicator | 2011-12 to 2018-12 | 2y |
+#' 
+#' Fill in forecast/accuracy figures for each row from this run's own
+#' output (`results/Tables`); figures are intentionally omitted here since
+#' they depend on run-specific data vintage. Read this table alongside the
+#' limitations in Section 9 -- several rows (the annual examples in
+#' particular) are illustrative, not empirically validated, forecasts.
+#' 
+#' ## 0.2 Model equations and assumptions
+#' 
+#' **Dynamic Gompertz model** (Sections 2-3, 5, 8.1, 8.3, 8.5): models the
+#' log-growth rate of a cumulative series as a locally-linear trend in a
+#' state-space form, following Harvey & Kattuman (2021), "A farewell to R:
+#' time-series models for tracking and forecasting epidemics", Journal of
+#' the Royal Society Interface, 18. <http://doi.org/10.1098/rsif.2021.0179>.
+#' 
+#' - `q` is the signal-to-noise ratio governing how much the slope state
+#'   drifts period to period. It can be estimated freely or fixed; **the
+#'   value used must be reported alongside every table or forecast**,
+#'   since free-q and fixed-q fits are different models (see the corrected
+#'   `model_weather` specification in Section 3, which now fixes
+#'   `q = q.default` to match its paired holdout model).
+#' - `xpred` regressors enter as an `SSMregression` component. When
+#'   supplying future values via `supply_xpred.new()`, the model performs
+#'   a **date match** between the regressor series' index and the forecast
+#'   origin (`end.date`), not a positional/row-number match. Confirm index
+#'   classes agree (e.g. `Date` vs `POSIXct`) between the model's own
+#'   dates and the supplied regressor series.
+#' 
+#' **Leading-indicator model** (Sections 6-7, 8.2, 8.4, 8.6): a bivariate
+#' extension in which a lead series' lagged values inform the target
+#' series' state, with the lag length `n.lag` specified by the user (see
+#' Section 7.2 on lag selection, and Section 9 on its validation scope).
+#' 
+#' **Reproduction number, R_t** (Section 4): computed as
+#' \(R_t = \exp(g_{y,t} \cdot \text{gen\_int})\), where \(g_{y,t}\) is the
+#' fitted daily log-growth rate and `gen_int` (default 4 days) is an
+#' **assumed**, not estimated, generation interval. `ndays` controls how
+#' many of the most recent daily R_t values are returned/plotted -- it is
+#' a truncation parameter, not a smoothing window. See the `gen_int`
+#' sensitivity table added in Section 4.2.
+#' 
+#' ## 0.3 Data provenance and package pinning
+#' 
+#' All series used below (`gauteng`, `gauteng_weather_2021`, `england`,
+#' `england_weather_2021`, `nintendo_sales`, `etrading_apps`, and the
+#' Italy comparison series) are built-in datasets shipped with the `tsgc`
+#' package itself, used as-is except for the column subsetting and
+#' frequency conversions documented at each point of use (e.g. the
+#' Q4/year-end conversion of `nintendo_sales` in Section 8.5).
+#' 
+#' This document requires `tsgc 2.0.0`. For a fully pinned replication,
+#' record here: the exact repository URL and commit SHA used, the
+#' installation command (e.g.
+#' `remotes::install_github("<org>/tsgc", ref = "<commit-sha>")`), and an
+#' `renv.lock` capturing the full dependency graph (`KFAS`, `dplyr`,
+#' `xts`, etc.), not just `tsgc` itself.
+#' 
 
 #' 
 #' # 1. Setup & Utilities
@@ -756,6 +838,13 @@ head(gauteng_weather_est)
 
 # Fit a Dynamic Gompertz model with weather regressors
 # Fit the Gompertz model with weather regressors included through xpred.
+# NB. q is fixed at q.default here so that this full-sample specification
+# matches the holdout specification (model_q_xpred_holdout, Section 3.1.4),
+# which also fixes q = q.default. Estimating q freely in one and fixing it
+# in the other would make the forecast and the holdout-accuracy table
+# describe two different models rather than the same model evaluated two
+# ways. If a free-q comparison is wanted, add it as a clearly separate,
+# additionally-labelled specification rather than substituting it here.
 model_weather <- tsgc::SSModelDynamicGompertz(
   Y          = cumulative_cases,
   xpred      = gauteng_weather_est,
@@ -967,9 +1056,9 @@ print(p)
 #' 
 #' # 4. Reproduction Number (R_t)
 #' 
-#' Map Gompertz estimates to effective reproduction numbers 
-#' using a specified generation interval (4 days),  
-#' smoothed over a 7-day window.
+#' Map Gompertz estimates to effective reproduction numbers using 
+#' R_t = exp(g_y,t * gen_int), an assumed generation interval (4 days), 
+#' reporting the most recent 7 daily estimates.
 #' 
 #' ## 4.1 Transform Gompertz estimates to R_t
 #' 
