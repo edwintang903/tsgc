@@ -911,43 +911,6 @@ write_results <- function(res, res.dir, n.ahead, prefix="", confidence.level=0.6
   message("Saved results for: ", substitute(res))
 }
 
-#' @title Check whether estimated variance parameters sit at or near a
-#' degeneracy boundary
-#'
-#' @description Flags estimated variance parameters (observation noise
-#' \eqn{H}, and any state-innovation variances such as the slope or
-#' seasonal components of \eqn{Q}) that are at or below \code{boundary_tol}.
-#' A variance parameter this close to zero is a common sign of an
-#' unidentified or degenerate parameter in these state-space models.
-#'
-#' \code{H} can be a scalar (e.g. \code{\link{FilterResults}}, one
-#' observation equation) or a \eqn{K \times K} matrix for \eqn{K > 1}
-#' (e.g. \code{\link{FilterResultsLI}}'s leading-indicator model, which has
-#' two observation equations). This check works identically either way -
-#' every element of \code{H} is checked, not just a single assumed-scalar
-#' value.
-#'
-#' @param ... One or more variance parameters (scalars, vectors, or
-#' matrices) to check. \code{NA}/\code{NULL} arguments are ignored.
-#' @param boundary_tol Boundary threshold. Defaults to \code{1e-6}.
-#'
-#' @returns Logical scalar: \code{TRUE} if any supplied variance parameter
-#' is non-missing and at or below \code{boundary_tol}, \code{FALSE}
-#' otherwise (including when every supplied parameter is entirely
-#' missing/\code{NULL}).
-#' @export
-check_variance_boundary <- function(..., boundary_tol = 1e-6) {
-  params <- list(...)
-  any(vapply(params, function(p) {
-    if (is.null(p)) return(FALSE)
-    p <- as.numeric(p)
-    if (anyNA(p)) p <- p[!is.na(p)]
-    if (length(p) == 0) return(FALSE)
-    any(p <= boundary_tol)
-  }, logical(1)))
-}
-
-
 #' @title Calling print method for classes in tsgc
 #'
 #' @description Accessor method to print a short description for the objects of
@@ -1179,20 +1142,17 @@ print.FilterResultsLI <- function(x, ...) {
 #'
 #' @description \code{summary()} on \code{\link{FilterResults}}/
 #' \code{\link{FilterResultsLI}} reports estimated variance parameters and
-#' model states, but does not report the model's log-likelihood, a
-#' boundary/degeneracy check across all estimated variance parameters, or
+#' model states, but does not report the model's log-likelihood or
 #' residual diagnostics. \code{print_model_diagnostics()} reports these
-#' three additional, complementary diagnostics; it does not replace or
+#' two additional, complementary diagnostics; it does not replace or
 #' duplicate what \code{summary()} already prints.
 #'
 #' @param res A \code{FilterResults} or \code{FilterResultsLI} object.
-#' @param boundary_tol Boundary threshold passed to
-#' \code{\link{check_variance_boundary}}. Defaults to \code{1e-6}.
 #'
 #' @returns \code{NULL}, invisibly. Called for its printed output.
 #' @importFrom stats residuals sd
 #' @export
-print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
+print_model_diagnostics <- function(res) {
   if (!inherits(res, "FilterResults") && !inherits(res, "FilterResultsLI")) {
     stop("res must be a FilterResults or FilterResultsLI object.")
   }
@@ -1206,15 +1166,6 @@ print_model_diagnostics <- function(res, boundary_tol = 1e-6) {
   # Log-likelihood of the fitted state-space model, when available.
   ll <- tryCatch(stats::logLik(res$output$model), error = function(e) NA)
   cat("  Log-likelihood:", if (is.na(ll)) "unavailable" else format(ll, digits = 6), "\n")
-  
-  # Flag estimated variances at or near a degeneracy boundary. H may be a
-  # K x K matrix for multi-equation models (e.g. FilterResultsLI).
-  H  <- tryCatch(res$output$model$H[, , 1], error = function(e) NULL)
-  Qg <- tryCatch(res$output$model$Q[2, 2, 1], error = function(e) NULL)
-  boundary_hit <- check_variance_boundary(H, Qg, boundary_tol = boundary_tol)
-  cat("  Boundary check (variance <= ", boundary_tol, "): ",
-      if (boundary_hit) "FLAGGED - one or more variances at/near zero" else "ok",
-      "\n", sep = "")
   
   # Residual/innovation diagnostics from the KFS object, when present.
   resid <- tryCatch(residuals(res$output, type = "recursive"), error = function(e) NULL)

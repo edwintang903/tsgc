@@ -808,8 +808,7 @@ actually fitted sensibly. `summary()` on a `FilterResults`/
 `FilterResultsLI` object reports the estimation window, model states and
 their standard errors, and the estimated variance parameters (including
 the signal-to-noise ratio); `tsgc::print_model_diagnostics()`
-supplements this with the fitted log-likelihood, a check for estimated
-variances sitting at or near a zero/degenerate boundary, and simple
+supplements this with the fitted log-likelihood and simple
 recursive-residual diagnostics.
 
 ```{r model-diagnostics}
@@ -1191,8 +1190,7 @@ res.eng <- estimate(mod.eng)
 `FilterResults$summary()` above, but its observation-equation noise `H`
 is a $2\times2$ matrix (one variance per equation, for the lead and
 target series) rather than a single scalar; it is printed as a matrix
-accordingly, and `print_model_diagnostics()` handles a matrix-valued `H`
-the same way when checking for boundary/degenerate variances.
+accordingly.
 
 ```{r li-diagnostics}
 summary(res.eng)

@@ -371,29 +371,7 @@ test_that("write_results errors when res is not a FilterResults or FilterResults
   )
 })
 
-test_that("check_variance_boundary flags a scalar variance at or below the tolerance", {
-  expect_true(check_variance_boundary(0, boundary_tol = 1e-6))
-  expect_true(check_variance_boundary(1e-7, boundary_tol = 1e-6))
-  expect_false(check_variance_boundary(0.01, boundary_tol = 1e-6))
-})
-
-test_that("check_variance_boundary works on a matrix-valued variance parameter (e.g. leading-indicator H) without erroring, unlike a direct && on a multi-element value", {
-  H_scalar <- matrix(0.05, 1, 1)
-  H_matrix_ok <- matrix(c(0.05, 0.001, 0.001, 0.03), nrow = 2)
-  H_matrix_boundary <- matrix(c(0.05, 0.001, 0.001, 1e-8), nrow = 2)
-  
-  expect_false(check_variance_boundary(H_scalar, boundary_tol = 1e-6))
-  expect_false(check_variance_boundary(H_matrix_ok, boundary_tol = 1e-6))
-  expect_true(check_variance_boundary(H_matrix_boundary, boundary_tol = 1e-6))
-})
-
-test_that("check_variance_boundary treats NULL/NA arguments as absent rather than erroring or matching", {
-  expect_false(check_variance_boundary(NULL, boundary_tol = 1e-6))
-  expect_false(check_variance_boundary(NA, boundary_tol = 1e-6))
-  expect_true(check_variance_boundary(NULL, 1e-8, boundary_tol = 1e-6))
-})
-
-test_that("print_model_diagnostics runs without error on a FilterResults object and reports log-likelihood and a boundary check", {
+test_that("print_model_diagnostics runs without error on a FilterResults object and reports log-likelihood", {
   data(gauteng, package = "tsgc")
   conv <- xts_to_idx(gauteng$cum_cases)
   est.start <- idx_to_pos(conv$calendar, as.Date("2021-02-01"))
@@ -404,7 +382,6 @@ test_that("print_model_diagnostics runs without error on a FilterResults object 
   
   out <- capture.output(print_model_diagnostics(res))
   expect_true(any(grepl("Log-likelihood", out)))
-  expect_true(any(grepl("Boundary check", out)))
   expect_true(any(grepl("Recursive residuals", out)))
 })
 

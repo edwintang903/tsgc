@@ -57,8 +57,7 @@
 * Added `get_timeframe()`, `idx_to_pos()`, `idx_offset_to_pos()`, and
   `idx_detect_calendar_pattern()` to support the new indexing system.
 
-* Added `check_variance_boundary()` and `print_model_diagnostics()` to
-  surface variance boundary conditions and model diagnostics more clearly.
+* Added `print_model_diagnostics()` to surface model diagnostics more clearly.
 
 * Added `xts_to_idx()` to convert `xts`/`zoo` objects to the internal
   `idx_series` representation, for users supplying their own `xts` data.

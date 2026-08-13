@@ -4,13 +4,10 @@
 \alias{print_model_diagnostics}
 \title{Report fitted diagnostics for a FilterResults/FilterResultsLI object}
 \usage{
-print_model_diagnostics(res, boundary_tol = 1e-06)
+print_model_diagnostics(res)
 }
 \arguments{
 \item{res}{A \code{FilterResults} or \code{FilterResultsLI} object.}
-
-\item{boundary_tol}{Boundary threshold passed to
-\code{\link{check_variance_boundary}}. Defaults to \code{1e-6}.}
 }
 \value{
 \code{NULL}, invisibly. Called for its printed output.
@@ -18,9 +15,8 @@ print_model_diagnostics(res, boundary_tol = 1e-06)
 \description{
 \code{summary()} on \code{\link{FilterResults}}/
 \code{\link{FilterResultsLI}} reports estimated variance parameters and
-model states, but does not report the model's log-likelihood, a
-boundary/degeneracy check across all estimated variance parameters, or
+model states, but does not report the model's log-likelihood or
 residual diagnostics. \code{print_model_diagnostics()} reports these
-three additional, complementary diagnostics; it does not replace or
+two additional, complementary diagnostics; it does not replace or
 duplicate what \code{summary()} already prints.
 }

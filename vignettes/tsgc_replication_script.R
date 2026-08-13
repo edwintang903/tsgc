@@ -390,8 +390,7 @@ validate_saved_figure <- function(filepath, min_dim = 50) {
 # print_model_diagnostics() lives in the package (utils.R). It operates
 # purely on public FilterResults/FilterResultsLI accessors and is
 # generically useful, not specific to this replication exercise. It
-# reports the log-likelihood, a matrix-safe variance-boundary check (via
-# check_variance_boundary(), also in utils.R), and recursive-residual
+# reports the log-likelihood and recursive-residual
 # diagnostics - none of which summary() on these classes reports.
 
 # ---- 1.6 CSV Export Helpers ----
