@@ -395,7 +395,7 @@ test_that("print_model_diagnostics runs without error on a FilterResultsLI objec
   
   expect_no_error(out <- capture.output(print_model_diagnostics(res)))
   expect_true(any(grepl("Log-likelihood", out)))
-  expect_true(any(grepl("Boundary check", out)))
+  expect_true(any(grepl("Recursive residuals", out)))
 })
 
 test_that("print_model_diagnostics errors clearly when res is not a FilterResults or FilterResultsLI object", {
