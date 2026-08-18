@@ -1,6 +1,14 @@
-## Resubmission
+## New release
 
-This is a resubmission. In this version I have:
+This is a release. It is a major version update (from 0.0 to 2.0.0) that
+includes breaking changes. This new release also includes a change of package
+maintainer, from Craig Thamotheram <craig_thamotheram@hotmail.com> to 
+Michael Ashby <mwa22@cam.ac.uk>. Craig Thamotheram has separately emailed
+<CRAN-submissions@R-project.org> to confirm this change. Please note that
+Craig's email address is no longer <cpt@tacindex.com> as he has since left
+the company.
+
+In this version we have:
 
 * Rewritten the internal computational engine to use a new lightweight,
   dependency-free `idx_series`/`idx_calendar` indexing abstraction in place
