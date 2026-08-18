@@ -1,0 +1,1284 @@
+---
+title: "Forecasting Delhi PM2.5 Pollution Surges with tsgc"
+author: "Guglielmo Secchi"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo       = TRUE,
+  message    = TRUE,
+  warning    = TRUE,
+  fig.align  = "center",
+  fig.width  = 10,
+  fig.height = 6
+)
+```
+
+# Overview
+
+`tsgc`'s dynamic Gompertz model is built for a cumulative, saturating
+series: $Y_t$ strictly increasing, growth rate $\ln g_t = \ln y_t - \ln
+Y_{t-1}$. Raw PM2.5 is a level series with no saturation point, so it
+can't be fed to `SSModelDynamicGompertz` directly. Instead, each pollution
+season is treated as its own bounded episode: cumulative PM2.5 *within* a
+surge window (1 May-30 April), reset to zero at each new window, mirroring
+how the package treats one wave of an epidemic. Forecasts of $y_t$
+(daily PM2.5) are recovered from the fitted cumulative series via
+`predict_level(..., return.diff = TRUE)`.
+
+## Data
+
+```{r libraries}
+suppressPackageStartupMessages({
+  library(tsgc)
+  library(dplyr)
+  library(ggplot2)
+  library(ggthemes)
+  library(zoo)
+  library(xts)
+  library(tidyr)
+})
+
+theme_set(ggthemes::theme_economist_white(gray_bg = FALSE, base_size = 14))
+options(scipen = 7)
+
+CONF_LEVEL <- 0.68
+```
+
+```{r load-data}
+pm <- read.csv("../inst/Alipur_Delhi_PM_daily_2023_2025.csv", stringsAsFactors = FALSE)
+pm$date <- as.Date(pm$date, format = "%d/%m/%Y")
+pm <- pm[order(pm$date), ]
+
+str(pm)
+range(pm$date)
+sum(is.na(pm$pm25_mean))
+```
+
+`r nrow(pm)` daily observations, `r format(min(pm$date), "%d %b %Y")` to
+`r format(max(pm$date), "%d %b %Y")`, spanning four winter pollution
+seasons (2023, 2024, 2025, and the still-incomplete 2026 wave).
+`r sum(is.na(pm$pm25_mean))` missing PM2.5 readings
+(`r round(100*sum(is.na(pm$pm25_mean))/nrow(pm),1)`%); weather covariates
+complete. Stubble-burning intensity and a Diwali dummy are natural
+`xpred` candidates -- Diwali is built below; stubble-burning still needs
+a data source.
+
+```{r raw-series-plot, fig.cap="Daily PM2.5 at Alipur, Delhi, 2023-2026."}
+ggplot(pm, aes(x = date, y = pm25_mean)) +
+  geom_line(color = "firebrick", linewidth = 0.3, na.rm = TRUE) +
+  labs(title = "Daily PM2.5, Alipur station, Delhi",
+       x = NULL, y = expression(paste("PM2.5 (", mu, "g/", m^3, ")"))) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+Trough around July-September (roughly 25-45 $\mu g/m^3$), sharp rise
+from October, winter peak typically November-December (200-275
+$\mu g/m^3$), decline back to baseline by March-April.
+
+# Constructing surge-window cumulative series
+
+Surge window: 1 May-30 April, so the full rise-peak-decline cycle sits
+inside one window, starting from the summer trough. Three complete
+windows (2023-24, 2024-25, 2025-26); data ends July 2026, partway through
+what would be the 2026-27 trough, so that window isn't built.
+
+```{r surge-windows}
+surge_windows <- data.frame(
+  label = c("2023-24", "2024-25", "2025-26"),
+  start = as.Date(c("2023-05-01", "2024-05-01", "2025-05-01")),
+  end   = as.Date(c("2024-04-30", "2025-04-30", "2026-04-30"))
+)
+surge_windows
+```
+
+## Missing days
+
+`estimate()` requires non-missing increments to be strictly positive
+(checked via `na.omit()`), so `NA` gaps are tolerated -- `KFAS` handles
+missing observations natively, skipping the update step and propagating
+the state prediction across the gap. Missing days are left as `NA`
+(no interpolation).
+
+```{r check-na-clusters}
+na_run_lengths <- rle(is.na(pm$pm25_mean))
+table(na_run_lengths$lengths[na_run_lengths$values])
+```
+
+Isolated single-day gaps only.
+
+```{r build-cumulative-surges}
+cumsum_na <- function(x) {
+  out <- rep(NA_real_, length(x))
+  running <- 0
+  for (i in seq_along(x)) {
+    if (!is.na(x[i])) {
+      running <- running + x[i]
+      out[i] <- running
+    }
+  }
+  out
+}
+
+build_surge_cumulative <- function(pm, start_date, end_date) {
+  w <- pm[pm$date >= start_date & pm$date <= end_date, ]
+  w$cum_pm25 <- cumsum_na(w$pm25_mean)
+  w
+}
+
+surge_data <- lapply(seq_len(nrow(surge_windows)), function(i) {
+  build_surge_cumulative(pm, surge_windows$start[i], surge_windows$end[i])
+})
+names(surge_data) <- surge_windows$label
+
+sapply(surge_data, nrow)
+sapply(surge_data, function(d) sum(is.na(d$cum_pm25)))
+```
+
+```{r surge-cumulative-plot, fig.cap="Cumulative within-season PM2.5 exposure, by surge window."}
+surge_plot_df <- do.call(rbind, lapply(names(surge_data), function(nm) {
+  d <- surge_data[[nm]]
+  data.frame(day = seq_len(nrow(d)), cum_pm25 = d$cum_pm25, surge = nm)
+}))
+
+ggplot(surge_plot_df, aes(x = day, y = cum_pm25, color = surge)) +
+  geom_line(linewidth = 0.7, na.rm = TRUE) +
+  labs(title = "Cumulative PM2.5 exposure within each surge window",
+       subtitle = "Window: 1 May to 30 April; day 1 = 1 May. Gaps mark missing days.",
+       x = "Day of surge window", y = "Cumulative PM2.5",
+       color = "Surge") +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+Clearly S-shaped: shallow slope through summer, steepening sharply
+around day 150-180 (October), flattening again by day 330-360
+(March-April).
+
+```{r idx-conversion}
+make_surge_idx <- function(d) {
+  x <- xts::xts(d$cum_pm25, order.by = d$date)
+  conv <- xts_to_idx(x)
+  list(series = conv$series, calendar = conv$calendar, raw = d)
+}
+
+surge_idx <- lapply(surge_data, make_surge_idx)
+```
+
+# Model 1: dynamic Gompertz, single surge (2024-25), no regressors
+
+Most recent complete surge as the primary worked example: fit on data up
+to a forecast origin, forecast forward, check against the actual
+continuation.
+
+```{r model1-setup}
+s2425 <- surge_idx[["2024-25"]]
+cal2425 <- s2425$calendar
+Y2425  <- s2425$series
+
+oct1_pos  <- idx_to_pos(cal2425, as.Date("2024-10-01"))
+n.forecasts <- 14
+q.default   <- 0.005
+stopifnot(!is.na(idx_values(Y2425[oct1_pos])))
+```
+
+```{r model1-inspect, fig.cap="2024-25 surge window: cumulative PM2.5 exposure."}
+mod_check <- tsgc::SSModelDynamicGompertz(Y = Y2425, calendar = cal2425)
+p <- plot(mod_check, title = "2024-25 surge: cumulative PM2.5", series.name = "Cum. PM2.5")
+print(p)
+```
+
+## Estimation from a 1 October forecast origin
+
+```{r model1-fit}
+model_oct1 <- tsgc::SSModelDynamicGompertz(
+  Y        = Y2425,
+  q        = q.default,
+  sea.period = 7,
+  start    = 1,
+  end      = oct1_pos,
+  calendar = cal2425
+)
+res_oct1 <- tsgc::estimate(model_oct1)
+summary(res_oct1)
+tsgc::print_model_diagnostics(res_oct1)
+```
+
+## Forecast and holdout accuracy
+
+```{r model1-forecast, fig.cap="Log growth rate forecast, 14 days from 1 Oct 2024."}
+p <- tsgc::plot_log_forecast(
+  res_oct1, Y = Y2425, n.ahead = n.forecasts,
+  plt.start = oct1_pos - 30,
+  title = "Log growth rate of cumulative PM2.5 exposure\nforecast from 1 Oct 2024"
+)
+print(p)
+```
+
+```{r model1-forecast-level, fig.cap="New (daily) PM2.5 forecast, 14 days from 1 Oct 2024."}
+p <- tsgc::plot_forecast(
+  res_oct1, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = oct1_pos - 30,
+  title = "Forecast of daily PM2.5 increment\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r model1-holdout, fig.cap="Holdout accuracy, 14 days from 1 Oct 2024."}
+p <- tsgc::plot_holdout(
+  res_oct1, Y = Y2425, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: daily PM2.5 forecast\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r model1-mapes}
+res_oct1$mapes(n.ahead = n.forecasts, Y = Y2425)
+```
+
+# Rolling forecast origins through a surge (2024-25)
+
+Forecast origins across the surge: 1 Oct, 15 Oct, 30 Oct, 15 Nov, 30 Nov,
+15 Dec, 31 Dec, 15 Jan, 31 Jan, 15 Feb -- refit at each, 14-day-ahead
+accuracy. 31 Jan 2025 is itself a missing reading, so that origin drops
+out below.
+
+```{r rolling-origins-2425}
+origin_dates_2425 <- as.Date(c(
+  "2024-10-01", "2024-10-15", "2024-10-30",
+  "2024-11-15", "2024-11-30",
+  "2024-12-15", "2024-12-31",
+  "2025-01-15", "2025-01-31",
+  "2025-02-15"
+))
+
+fit_rolling_origin <- function(surge_idx_obj, origin_date, q = q.default,
+                               n.ahead = 14, sea.period = 7) {
+  cal <- surge_idx_obj$calendar
+  Y   <- surge_idx_obj$series
+  origin_pos <- idx_to_pos(cal, origin_date)
+  rng <- idx_range(Y)
+  if (origin_pos + n.ahead > rng[2]) {
+    return(NULL)  # not enough holdout left to evaluate
+  }
+  if (is.na(idx_values(Y[origin_pos]))) {
+    return(NULL)  # origin falls on a missing PM2.5 day; predict_level()
+                  # requires a non-NA cumulative value at the fit's end
+  }
+  model <- tsgc::SSModelDynamicGompertz(
+    Y = Y, q = q, sea.period = sea.period,
+    start = rng[1], end = origin_pos, calendar = cal
+  )
+  res <- tryCatch(tsgc::estimate(model), error = function(e) NULL)
+  if (is.null(res)) return(NULL)
+  acc <- tryCatch(res$mapes(n.ahead = n.ahead, Y = Y), error = function(e) NULL)
+  list(origin = origin_date, res = res, accuracy = acc)
+}
+
+rolling_2425 <- lapply(origin_dates_2425, function(d) {
+  fit_rolling_origin(s2425, d)
+})
+names(rolling_2425) <- format(origin_dates_2425)
+
+# Drop any origins too close to the end of the window to evaluate a full
+# 14-day holdout.
+rolling_2425 <- Filter(Negate(is.null), rolling_2425)
+length(rolling_2425)
+```
+
+```{r rolling-2425-table}
+rolling_accuracy_2425 <- do.call(rbind, lapply(names(rolling_2425), function(nm) {
+  a <- rolling_2425[[nm]]$accuracy
+  data.frame(origin = nm, mape = a$mape, smape = a$smape,
+            mae = a$mae, rmse = a$rmse, coverage = a$coverage)
+}))
+rolling_accuracy_2425
+```
+
+```{r rolling-2425-plot, fig.cap="Forecast accuracy (sMAPE, coverage) by forecast origin, 2024-25 surge."}
+rolling_long <- tidyr::pivot_longer(
+  rolling_accuracy_2425, cols = c(smape, coverage),
+  names_to = "metric", values_to = "value"
+)
+rolling_long$origin <- factor(rolling_long$origin, levels = rolling_accuracy_2425$origin)
+
+ggplot(rolling_long, aes(x = origin, y = value, group = metric, color = metric)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  facet_wrap(~metric, scales = "free_y", ncol = 1) +
+  labs(title = "14-day-ahead forecast accuracy across the 2024-25 surge",
+       x = "Forecast origin", y = NULL, color = NULL) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        plot.title = element_text(face = "bold"))
+```
+
+Accuracy is generally worse for origins around the peak (mid/late
+November), where the growth rate turns from strongly positive to
+strongly negative in a short window -- hard to forecast 14 days ahead
+regardless of model. Coverage should be read loosely given the small
+number of holdout days per origin.
+
+# Applying the same rolling-origin design to all three surges
+
+Same offsets relative to each surge's own 1 October, for 2023-24 and
+2025-26 too.
+
+```{r rolling-all-surges}
+rolling_offsets <- as.numeric(origin_dates_2425 - as.Date("2024-10-01"))
+
+origin_dates_for <- function(anchor_oct1) anchor_oct1 + rolling_offsets
+
+all_surge_origins <- list(
+  "2023-24" = origin_dates_for(as.Date("2023-10-01")),
+  "2024-25" = origin_dates_for(as.Date("2024-10-01")),
+  "2025-26" = origin_dates_for(as.Date("2025-10-01"))
+)
+
+rolling_all <- lapply(names(surge_idx), function(surge_nm) {
+  origins <- all_surge_origins[[surge_nm]]
+  res_list <- lapply(origins, function(d) fit_rolling_origin(surge_idx[[surge_nm]], d))
+  names(res_list) <- format(origins)
+  Filter(Negate(is.null), res_list)
+})
+names(rolling_all) <- names(surge_idx)
+
+sapply(rolling_all, length)
+```
+
+```{r rolling-all-table}
+rolling_accuracy_all <- do.call(rbind, lapply(names(rolling_all), function(surge_nm) {
+  do.call(rbind, lapply(names(rolling_all[[surge_nm]]), function(nm) {
+    a <- rolling_all[[surge_nm]][[nm]]$accuracy
+    data.frame(surge = surge_nm, origin = nm, mape = a$mape, smape = a$smape,
+              mae = a$mae, rmse = a$rmse, coverage = a$coverage)
+  }))
+}))
+rolling_accuracy_all
+```
+
+```{r rolling-all-plot, fig.cap="14-day-ahead sMAPE by forecast origin, all three surges."}
+rolling_accuracy_all$origin_offset <- rep(rolling_offsets, length.out = nrow(rolling_accuracy_all))
+
+ggplot(rolling_accuracy_all, aes(x = origin_offset, y = smape, color = surge)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  labs(title = "14-day-ahead sMAPE across forecast origins, by surge",
+       subtitle = "x-axis: days after 1 October of that surge's year",
+       x = "Days after 1 October", y = "sMAPE", color = "Surge") +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+The degraded accuracy around the November peak recurs across all three
+surges -- a structural feature of forecasting through a turning point 14
+days ahead, not an artefact of one year.
+
+# Weather regressors (`xpred`)
+
+Four weather covariates with a clear mechanistic link to pollutant
+accumulation: temperature, relative humidity, wind speed, boundary-layer
+height (inversions and low BLH trap pollutants; wind disperses them).
+Starting with these four of the nine available, added to the 2024-25,
+1 October model.
+
+```{r xpred-setup}
+weather_cols <- c("at_c_mean", "rh_percent_mean", "ws_m_s_mean",
+                  "boundary_layer_height_m_mean")
+
+w2425 <- surge_data[["2024-25"]]
+weather_xts <- xts::xts(w2425[, weather_cols], order.by = w2425$date)
+weather_idx_full <- xts_to_idx(
+  weather_xts,
+  start.pos = idx_to_pos(cal2425, w2425$date[1])
+)$series
+
+weather_est <- get_timeframe(weather_idx_full, 1, oct1_pos)
+head(weather_est)
+```
+
+```{r xpred-fit}
+model_weather <- tsgc::SSModelDynamicGompertz(
+  Y        = Y2425,
+  xpred    = weather_est,
+  q        = q.default,
+  sea.period = 7,
+  start    = 1,
+  end      = oct1_pos,
+  calendar = cal2425
+)
+res_weather <- tsgc::estimate(model_weather)
+summary(res_weather)
+tsgc::print_model_diagnostics(res_weather)
+```
+
+## Realised weather vs a naive forecast
+
+Realised future weather answers "what if we'd known the weather
+perfectly" -- not an operational forecast, since an archived weather
+forecast (not the realised outcome) is what's actually available at the
+origin. Two forecasts from the same 1 October 2024 origin:
+
+* **Realised weather** -- actual observed weather over the 14-day
+  horizon, an upper bound on what perfect foresight buys.
+* **Naive persistence** -- each weather variable held at its last
+  observed value for the full horizon; uses only information available
+  at the origin.
+
+```{r xpred-future}
+weather_future_realised <- get_timeframe(weather_idx_full, oct1_pos + 1, oct1_pos + n.forecasts)
+
+# Naive persistence: repeat the last observed (1 Oct) weather values for
+# every day of the forecast horizon, using only information available at
+# the forecast origin.
+last_obs_weather <- idx_values(get_timeframe(weather_idx_full, oct1_pos, oct1_pos))
+persistence_mat <- matrix(
+  rep(last_obs_weather, each = n.forecasts),
+  nrow = n.forecasts,
+  dimnames = list(NULL, weather_cols)
+)
+weather_future_naive <- idx_series(persistence_mat, start = oct1_pos + 1)
+
+# FilterResults is a reference class (setRefClass): `res_weather_realised
+# <- res_weather` would alias the same underlying object, so setting
+# $xpred.new on one would silently overwrite the other. Re-estimating
+# independently for each weather path avoids this.
+res_weather_realised <- tsgc::estimate(model_weather)
+res_weather_realised$xpred.new <- weather_future_realised
+
+res_weather_naive <- tsgc::estimate(model_weather)
+res_weather_naive$xpred.new <- weather_future_naive
+```
+
+```{r xpred-forecast-plot, fig.cap="PM2.5 forecast, 1 Oct 2024 origin: realised vs naive-persistence future weather."}
+p <- tsgc::plot_forecast(
+  res_weather_realised, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = oct1_pos - 30,
+  title = "Forecast of daily PM2.5 increment\nwith realised future weather (upper-bound comparison)",
+  series.name = "PM2.5"
+)
+print(p)
+
+p <- tsgc::plot_forecast(
+  res_weather_naive, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = oct1_pos - 30,
+  title = "Forecast of daily PM2.5 increment\nwith naive-persistence future weather (operationally realistic)",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r xpred-holdout, fig.cap="Holdout accuracy: realised vs naive-persistence future weather."}
+p <- tsgc::plot_holdout(
+  res_weather_realised, Y = Y2425, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: PM2.5 forecast, realised future weather",
+  series.name = "PM2.5"
+)
+print(p)
+
+p <- tsgc::plot_holdout(
+  res_weather_naive, Y = Y2425, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: PM2.5 forecast, naive-persistence future weather",
+  series.name = "PM2.5"
+)
+print(p)
+
+weather_accuracy_compare <- rbind(
+  data.frame(weather_path = "realised", as.data.frame(res_weather_realised$mapes(n.ahead = n.forecasts, Y = Y2425))),
+  data.frame(weather_path = "naive_persistence", as.data.frame(res_weather_naive$mapes(n.ahead = n.forecasts, Y = Y2425)))
+)
+weather_accuracy_compare
+```
+
+```{r xpred-compare-paths, fig.cap="Weather-augmented forecast: realised vs naive-persistence future weather, 1 Oct 2024 origin."}
+tsgc::plot_compare_forecast(
+  list(realised_weather = res_weather_realised, naive_persistence_weather = res_weather_naive),
+  n.ahead = n.forecasts, actual = Y2425,
+  title = "Realised vs naive-persistence future weather (2024-25, 1 Oct origin)"
+)
+```
+
+Naive persistence uses only origin-available information and is the
+fairer comparison against baseline below; realised weather stays as an
+upper bound, not an operational result.
+
+## Comparison: baseline vs weather-augmented
+
+```{r xpred-compare, fig.cap="Baseline vs weather-augmented forecast, 1 Oct 2024 origin."}
+tsgc::plot_compare_forecast(
+  list(baseline = res_oct1, weather_realised = res_weather_realised,
+      weather_naive_persistence = res_weather_naive),
+  n.ahead = n.forecasts, actual = Y2425,
+  title = "Baseline vs weather-augmented forecast (2024-25, 1 Oct origin)"
+)
+```
+
+# Leading-indicator model: boundary-layer height and PM2.5
+
+Boundary-layer height (BLH) is a mechanistic lead for pollutant
+accumulation: a shallow boundary layer traps pollutants near the
+surface, and BLH contraction in autumn typically precedes the sharpest
+rise in measured PM2.5. `SSModelLeadingIndicator` requires both series
+in `Y` to be strictly increasing cumulative series on a shared position
+axis, so BLH itself (not cumulative, not monotone) can't be used
+directly -- it is first transformed to a positive, cumulable series by
+inverting it (low BLH -> high value) and cumulating that within the
+2024-25 surge window, exactly as PM2.5 itself was cumulated above.
+
+`SSModelLeadingIndicator$estimate()` additionally requires the lead and
+target series, after lagging, to leave a single *contiguous* block of
+finite rows -- unlike `SSModelDynamicGompertz`, it does not fall back to
+KFAS's native handling of interior missing observations. The isolated
+single-day gaps identified earlier are therefore linearly interpolated
+here, but only for the purposes of constructing the lead/target pair
+`Y_li` used in this section; `Y2425` (used by the baseline Gompertz and
+weather models elsewhere in this vignette) is left with its NAs intact.
+
+The inverse-BLH series is scaled by 1000 (rather than using `1/BLH`
+directly) so its magnitude is closer to that of cumulative PM2.5; this
+is good practice for numerical stability but is a separate issue from
+the very wide forecast intervals seen further below -- see the
+diagnostic chunk after model estimation for the actual source of that.
+
+```{r li-blh-transform}
+blh_raw  <- zoo::na.approx(w2425$boundary_layer_height_m_mean, na.rm = FALSE)
+pm25_raw <- zoo::na.approx(w2425$pm25_mean, na.rm = FALSE)
+
+inv_blh <- 1000 / blh_raw
+cum_inv_blh <- cumsum_na(inv_blh)
+cum_pm25_li <- cumsum_na(pm25_raw)
+
+li_df <- data.frame(
+  date = w2425$date,
+  lead = cum_inv_blh,
+  targ = cum_pm25_li
+)
+
+li_xts <- xts::xts(li_df[, c("lead", "targ")], order.by = li_df$date)
+li_conv <- xts_to_idx(li_xts)
+Y_li <- li_conv$series
+cal_li <- li_conv$calendar
+```
+
+## Preview: comovement of inverse-BLH and PM2.5
+
+The built-in `plot.SSModelLeadingIndicator` overlays both series on a
+single (log) axis. Because inverse-BLH and cumulative PM2.5 live on
+very different scales, a dual-axis plot is more informative here.
+
+```{r li-preview-plot, fig.cap="Cumulative inverse boundary-layer height (lead) vs cumulative PM2.5 (target), 2024-25 surge."}
+n.lag.li <- 5
+
+li_plot_df <- data.frame(
+  date        = li_df$date,
+  lead_series = li_df$lead,
+  targ_series = li_df$targ
+)
+
+lead_range <- range(li_plot_df$lead_series, na.rm = TRUE)
+targ_range <- range(li_plot_df$targ_series, na.rm = TRUE)
+scale_factor <- diff(targ_range) / diff(lead_range)
+offset <- targ_range[1] - lead_range[1] * scale_factor
+
+p <- ggplot(li_plot_df, aes(x = date)) +
+  geom_line(aes(y = lead_series * scale_factor + offset, color = "Cum. inverse BLH"),
+            linewidth = 0.7, na.rm = TRUE) +
+  geom_line(aes(y = targ_series, color = "Cum. PM2.5"),
+            linewidth = 0.7, na.rm = TRUE) +
+  scale_y_continuous(
+    name = "Cumulative PM2.5",
+    sec.axis = sec_axis(~ (. - offset) / scale_factor, name = "Cumulative inverse BLH")
+  ) +
+  scale_color_manual(values = c("Cum. inverse BLH" = "steelblue", "Cum. PM2.5" = "firebrick")) +
+  labs(title = "Cumulative inverse BLH (lead) vs cumulative PM2.5 (target)",
+       x = NULL, color = NULL) +
+  theme(plot.title = element_text(face = "bold"),
+        axis.title.y.left = element_text(color = "firebrick"),
+        axis.title.y.right = element_text(color = "steelblue"))
+print(p)
+```
+
+## Estimation from the 1 October forecast origin
+
+```{r li-fit}
+model_li <- SSModelLeadingIndicator$new(
+  Y          = Y_li,
+  n.lag      = n.lag.li,
+  LeadIndCol = 1,
+  sea.period = 7,
+  start      = 1,
+  end        = oct1_pos,
+  calendar   = cal_li
+)
+res_li <- estimate(model_li)
+summary(res_li)
+tsgc::print_model_diagnostics(res_li)
+```
+
+Left free, `q` is estimated at 0.3144 here -- roughly 60x
+`q.default = 0.005`, the value fixed throughout the rest of this
+vignette (including the vanilla Gompertz comparisons). A state
+variance that large lets the log-growth-rate trend wander freely
+between observations, and a random-walk state's forecast-interval
+width grows with horizon; compounded through `cumprod()` on the
+exponentiated scale, a linear widening in log-space becomes an
+explosive one in level-space. The forecast and holdout plots below,
+from this freely-estimated fit, show that explosion directly rather
+than describing it.
+
+```{r li-forecast-log, fig.cap="Log growth rate forecast, leading-indicator model (q estimated freely), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_log_forecast(
+  res_li, Y = Y_li, n.ahead = n.forecasts,
+  plt.start = oct1_pos - 30,
+  title = "Log growth rate of cumulative PM2.5\nleading-indicator forecast from 1 Oct 2024 (q estimated freely)"
+)
+print(p)
+```
+
+```{r li-forecast-level, fig.cap="Daily PM2.5 forecast, leading-indicator model (q estimated freely), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_forecast(
+  res_li, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = oct1_pos - 30,
+  title = "Forecast of daily PM2.5 increment (leading-indicator model, q estimated freely)\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r li-holdout, fig.cap="Holdout accuracy, leading-indicator model (q estimated freely), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_holdout(
+  res_li, Y = Y_li, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: daily PM2.5 forecast (leading-indicator model, q estimated freely)\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r li-mapes}
+res_li$mapes(n.ahead = n.forecasts, Y = Y_li)
+```
+
+## Fixing q at the package default
+
+The freely-estimated `q` above is itself informative: with only
+~150 days of estimation data, this particular leading-indicator
+specification weakly identifies its own state variance, and left
+unconstrained it produces forecasts that are technically correct but
+practically useless past about day 6-7. Fixing `q = q.default`, as
+already done for the vanilla Gompertz model throughout this vignette,
+keeps the leading-indicator forecast on a comparable, usable scale.
+
+```{r li-fit-qfixed}
+model_li_qfixed <- SSModelLeadingIndicator$new(
+  Y          = Y_li,
+  n.lag      = n.lag.li,
+  LeadIndCol = 1,
+  sea.period = 7,
+  q          = q.default,
+  start      = 1,
+  end        = oct1_pos,
+  calendar   = cal_li
+)
+res_li_qfixed <- estimate(model_li_qfixed)
+summary(res_li_qfixed)
+```
+
+```{r li-forecast-log-qfixed, fig.cap="Log growth rate forecast, leading-indicator model (q fixed at default), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_log_forecast(
+  res_li_qfixed, Y = Y_li, n.ahead = n.forecasts,
+  plt.start = oct1_pos - 30,
+  title = "Log growth rate of cumulative PM2.5\nleading-indicator forecast from 1 Oct 2024 (q fixed at default)"
+)
+print(p)
+```
+
+```{r li-forecast-level-qfixed, fig.cap="Daily PM2.5 forecast, leading-indicator model (q fixed at default), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_forecast(
+  res_li_qfixed, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = oct1_pos - 30,
+  title = "Forecast of daily PM2.5 increment (leading-indicator model, q fixed at default)\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r li-holdout-qfixed, fig.cap="Holdout accuracy, leading-indicator model (q fixed at default), 14 days from 1 Oct 2024."}
+p <- tsgc::plot_holdout(
+  res_li_qfixed, Y = Y_li, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: daily PM2.5 forecast (leading-indicator model, q fixed at default)\n14 days from 1 Oct 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r li-mapes-qfixed}
+res_li_qfixed$mapes(n.ahead = n.forecasts, Y = Y_li)
+```
+
+The remainder of this section (and the lag/q sensitivity analysis
+further below) uses `res_li_qfixed`, so its plots stay on a scale
+comparable to the vanilla Gompertz baseline.
+
+## Comparison: baseline vs leading-indicator forecast
+
+`plot_compare_forecast()`'s `actual` overlay assumes a `FilterResults`
+object (it looks for an `index` field that `FilterResultsLI` doesn't
+have), so it can only be passed when every model in the list is a plain
+`SSModelDynamicGompertz` fit. Comparing a `FilterResults` and a
+`FilterResultsLI` side by side therefore drops `actual` here; the actual
+values are already visible in the individual forecast/holdout plots
+above.
+
+```{r li-compare, fig.cap="Baseline dynamic Gompertz vs BLH leading-indicator forecast (q fixed at default), 1 Oct 2024 origin."}
+tsgc::plot_compare_forecast(
+  list(baseline = res_oct1, leading_indicator_blh = res_li_qfixed),
+  n.ahead = n.forecasts,
+  title = "Baseline vs leading-indicator (BLH) forecast (2024-25, 1 Oct origin)"
+)
+```
+
+## Lag selection and `q` sensitivity via rolling cross-validation
+
+The lag of 5 days above was chosen by inspection. This section sweeps
+lag and `q` jointly on a grid, so the effect of each can be read off
+independently as well as in combination, using `cross_val()`'s
+disjoint selection and reporting folds so the reported accuracy of the
+chosen specification isn't inflated by having been used to pick it.
+
+```{r li-cv-setup}
+n.ahead.cv.li  <- 5
+gap.cv.li      <- n.ahead.cv.li
+n.select.cv.li <- 2
+n.report.cv.li <- 1
+
+report.end.cv.li <- oct1_pos - (n.report.cv.li - 1) * gap.cv.li - n.ahead.cv.li
+select.end.cv.li <- report.end.cv.li - n.select.cv.li * gap.cv.li - n.ahead.cv.li
+stopifnot(select.end.cv.li > 1)
+
+max_lag_cv_li <- 10
+stopifnot(select.end.cv.li - 1 > max_lag_cv_li + 1)
+```
+
+### Building the lag × q grid
+
+```{r li-cv-models}
+q_candidates <- c(0.001, 0.005, 0.01, 0.02, 0.05)
+lag_candidates <- c(3, 5, 7, 10)
+
+cv_models_li <- list()
+
+cv_models_li[["Vanilla_q_default"]] <- SSModelDynamicGompertz$new(
+  Y = Y2425, q = q.default, sea.period = 7,
+  start = 1, end = select.end.cv.li, calendar = cal2425
+)
+
+for (qv in q_candidates) {
+  cv_models_li[[paste0("Vanilla_q", qv)]] <- SSModelDynamicGompertz$new(
+    Y = Y2425, q = qv, sea.period = 7,
+    start = 1, end = select.end.cv.li, calendar = cal2425
+  )
+}
+
+grid_spec_li <- expand.grid(lag = lag_candidates, q = q_candidates)
+
+for (i in seq_len(nrow(grid_spec_li))) {
+  lg <- grid_spec_li$lag[i]
+  qv <- grid_spec_li$q[i]
+  nm <- paste0("LI_lag", lg, "_q", qv)
+  cv_models_li[[nm]] <- SSModelLeadingIndicator$new(
+    Y = Y_li, n.lag = lg, LeadIndCol = 1, sea.period = 7,
+    q = qv, start = 1, end = select.end.cv.li, calendar = cal_li
+  )
+}
+```
+
+### Selection-fold results: full grid
+
+```{r li-cv-select}
+cv_selection_li <- cross_val(
+  Y = Y_li,
+  model_list = cv_models_li,
+  est.end = select.end.cv.li,
+  criterion = "smape",
+  n.ahead = n.ahead.cv.li,
+  n.estimate = n.select.cv.li,
+  gap = gap.cv.li
+)
+cv_selection_li$mean_smape <- rowMeans(cv_selection_li[, -1, drop = FALSE])
+cv_selection_li[order(cv_selection_li$mean_smape), c("Model", "mean_smape")]
+```
+
+### Lag × q grid, reshaped
+
+The table above is easiest to read reshaped so that lag runs down the
+rows and `q` runs across the columns, restricted to the leading-indicator
+models (the vanilla Gompertz rows are kept separately as a benchmark
+below).
+
+```{r li-cv-grid-table}
+li_only <- cv_selection_li[grepl("^LI_lag", cv_selection_li$Model), c("Model", "mean_smape")]
+li_only$lag <- as.integer(sub("^LI_lag(\\d+)_q.*$", "\\1", li_only$Model))
+li_only$q   <- as.numeric(sub("^LI_lag\\d+_q", "", li_only$Model))
+
+grid_table_li <- reshape(
+  li_only[, c("lag", "q", "mean_smape")],
+  idvar = "lag", timevar = "q", direction = "wide"
+)
+names(grid_table_li) <- sub("mean_smape\\.", "q=", names(grid_table_li))
+grid_table_li <- grid_table_li[order(grid_table_li$lag), ]
+grid_table_li
+```
+
+### Isolating the effect of lag (at the package default `q`)
+
+```{r li-cv-lag-effect}
+lag_effect_li <- li_only[li_only$q == q.default, c("lag", "mean_smape")]
+lag_effect_li <- lag_effect_li[order(lag_effect_li$lag), ]
+lag_effect_li
+```
+
+```{r li-lag-effect-plot, fig.cap="Selection-fold SMAPE by lag, leading-indicator model at q = 0.005."}
+p <- ggplot(lag_effect_li, aes(x = lag, y = mean_smape)) +
+  geom_line(color = "steelblue", linewidth = 0.8) +
+  geom_point(color = "steelblue", size = 2) +
+  labs(title = "Selection-fold SMAPE by lag (q = 0.005)",
+       x = "Lag (days)", y = "Mean SMAPE") +
+  theme(plot.title = element_text(face = "bold"))
+print(p)
+```
+
+### Isolating the effect of `q` (at the best lag found above)
+
+```{r li-cv-q-effect}
+best_lag_li <- lag_effect_li$lag[which.min(lag_effect_li$mean_smape)]
+best_lag_li
+
+q_effect_li <- li_only[li_only$lag == best_lag_li, c("q", "mean_smape")]
+q_effect_li <- q_effect_li[order(q_effect_li$q), ]
+q_effect_li
+
+vanilla_rows_li <- cv_selection_li[grepl("^Vanilla_q", cv_selection_li$Model), c("Model", "mean_smape")]
+vanilla_rows_li$q <- ifelse(
+  vanilla_rows_li$Model == "Vanilla_q_default", q.default,
+  as.numeric(sub("^Vanilla_q", "", vanilla_rows_li$Model))
+)
+vanilla_rows_li <- vanilla_rows_li[order(vanilla_rows_li$q), c("q", "mean_smape")]
+vanilla_rows_li
+```
+
+```{r li-q-effect-plot, fig.cap="Selection-fold SMAPE across q, leading-indicator model vs vanilla Gompertz."}
+q_effect_li$model <- paste0("LI_lag", best_lag_li)
+vanilla_rows_li$model <- "Vanilla"
+q_compare_li <- rbind(q_effect_li, vanilla_rows_li)
+
+p <- ggplot(q_compare_li, aes(x = q, y = mean_smape, color = model)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2) +
+  scale_x_log10() +
+  labs(title = paste0("Selection-fold SMAPE across q (LI at lag = ", best_lag_li, ")"),
+       x = "q (log scale)", y = "Mean SMAPE", color = NULL) +
+  theme(plot.title = element_text(face = "bold"))
+print(p)
+```
+
+### Reporting-fold accuracy of the selected specification
+
+Having picked `best_lag_li` and the `q` that minimised selection-fold
+SMAPE from the tables above, the reporting fold gives a final,
+held-out accuracy check against the vanilla Gompertz benchmark.
+
+```{r li-cv-report}
+best_q_li <- q_effect_li$q[which.min(q_effect_li$mean_smape)]
+selected_spec_li <- paste0("LI_lag", best_lag_li, "_q", best_q_li)
+selected_spec_li
+
+cv_report_models_li <- cv_models_li[c("Vanilla_q_default", selected_spec_li)]
+
+cv_reporting_li <- cross_val(
+  Y = Y_li,
+  model_list = cv_report_models_li,
+  est.end = report.end.cv.li,
+  criterion = "smape",
+  n.ahead = n.ahead.cv.li,
+  n.estimate = n.report.cv.li,
+  gap = gap.cv.li
+)
+cv_reporting_li
+```
+
+## Forecast overlay across `q`
+
+```{r li-q-overlay-fit}
+res_li_q_list <- lapply(q_candidates, function(qv) {
+  m <- SSModelLeadingIndicator$new(
+    Y = Y_li, n.lag = best_lag_li, LeadIndCol = 1, sea.period = 7,
+    q = qv, start = 1, end = oct1_pos, calendar = cal_li
+  )
+  estimate(m)
+})
+names(res_li_q_list) <- paste0("q_", q_candidates)
+```
+
+As above, `actual` is omitted from this overlay since every model here
+is a `FilterResultsLI` object and `plot_compare_forecast()`'s `actual`
+argument does not support that class.
+
+```{r li-q-overlay-plot, fig.cap="Leading-indicator forecast of daily PM2.5 across candidate q values, 1 Oct 2024 origin."}
+tsgc::plot_compare_forecast(
+  res_li_q_list,
+  n.ahead = n.forecasts,
+  title = paste0("Leading-indicator (BLH) forecast across q, 2024-25, 1 Oct origin, lag = ", best_lag_li)
+)
+```
+
+# Reinitialisation for a single new surge
+
+`reinit.idx` restarts the cumulative series at zero at a chosen position,
+optionally carrying forward the prior state via `use.presample.info`.
+Treating the 1 October transition into the 2024-25 surge as a
+reinitialisation point: fit a longer window starting in the preceding
+(2023-24) surge's tail, reinitialising at 2024-25's own 1 October start.
+
+```{r reinit-single-setup}
+# Build one continuous cumulative PM2.5 series spanning the tail of the
+# 2023-24 surge through the 2024-25 surge, so a single reinit.idx can mark
+# the transition between them.
+span_start <- as.Date("2024-07-01")
+span_end   <- surge_windows$end[surge_windows$label == "2024-25"]
+w_span <- pm[pm$date >= span_start & pm$date <= span_end, ]
+w_span$cum_pm25 <- cumsum_na(w_span$pm25_mean)
+
+span_xts <- xts::xts(w_span$cum_pm25, order.by = w_span$date)
+span_conv <- xts_to_idx(span_xts)
+Y_span <- span_conv$series
+cal_span <- span_conv$calendar
+
+reinit_pos <- idx_to_pos(cal_span, as.Date("2024-10-01"))
+span_end_pos <- idx_range(Y_span)[2]
+long_end     <- span_end_pos - n.forecasts  # leave a holdout for plot_compare_forecast
+```
+
+```{r reinit-single-fit}
+model_span_base <- tsgc::SSModelDynamicGompertz(
+  Y = Y_span, q = q.default, start = 1, end = long_end, calendar = cal_span
+)
+res_span_base <- tsgc::estimate(model_span_base)
+
+model_span_reinit <- tsgc::SSModelDynamicGompertz(
+  Y = Y_span, q = q.default, start = 1, end = long_end,
+  reinit.idx = reinit_pos, calendar = cal_span
+)
+res_span_reinit <- tsgc::estimate(model_span_reinit)
+summary(res_span_reinit)
+tsgc::print_model_diagnostics(res_span_reinit)
+```
+
+```{r reinit-single-compare, fig.cap="Reinitialised vs non-reinitialised forecast at the 2024-25 surge onset."}
+tsgc::plot_compare_forecast(
+  list(no_reinit = res_span_base, reinit = res_span_reinit),
+  n.ahead = n.forecasts, actual = Y_span,
+  title = "Effect of reinitialising at 1 Oct 2024 (surge onset)"
+)
+```
+
+# Continual (chained) reinitialisation across all observed surges
+
+Chaining reinitialisation at every surge onset, rather than fitting each
+surge independently as above.
+
+`reinit.idx` only takes one restart position per model, so this is a
+manual chain: 1 October of each subsequent year passed as `reinit.idx`
+in turn, re-basing the growth-rate target to zero each time, while
+`start` stays at the series start throughout -- `use.presample.info =
+TRUE` internally re-estimates a presample fit over `[start, reinit.idx]`
+to seed the post-reinit state, which needs real history before
+`reinit.idx`, not `start == reinit.idx`. `end` advances through the
+boundaries (Oct 2023, Oct 2024, final origin below); what changes
+segment to segment is the rebasing point and how far the fit extends,
+not the span of history informing it. (`original.results` isn't reused
+across segments -- valid only at the exact `reinit.idx` it was estimated
+for; each segment lets `use.presample.info` re-derive its own presample
+fit instead.)
+
+```{r chained-reinit-setup}
+full_xts <- xts::xts(pm$pm25_mean, order.by = pm$date)
+full_conv <- xts_to_idx(full_xts)
+Y_full <- full_conv$series
+cal_full <- full_conv$calendar
+Y_full_cum <- idx_series(cumsum_na(idx_values(Y_full)), start = Y_full$start)
+
+reinit_dates <- as.Date(c("2023-10-01", "2024-10-01", "2025-10-01"))
+reinit_positions <- sapply(reinit_dates, function(d) idx_to_pos(cal_full, d))
+reinit_positions
+```
+
+```{r chained-reinit-fit}
+chain_reinit_forward <- function(Y, calendar, reinit_positions, q = q.default,
+                                 sea.period = 7, end = idx_range(Y)[2]) {
+  series_start <- idx_range(Y)[1]
+  results <- list()
+
+  boundaries <- c(reinit_positions, end)
+
+  for (i in seq_along(boundaries)) {
+    seg_end <- boundaries[i]
+    if (i == 1) {
+      # First segment: no reinitialisation, plain fit from the series
+      # start to the first reinit point.
+      model <- tsgc::SSModelDynamicGompertz(
+        Y = Y, q = q, sea.period = sea.period,
+        start = series_start, end = seg_end, calendar = calendar
+      )
+      res <- tsgc::estimate(model)
+    } else {
+      # reinit.idx restarts the growth-rate target (Y is re-based to zero
+      # from this point on), but SSModelDynamicGompertz's own
+      # use.presample.info logic internally re-estimates a presample fit
+      # over [start, reinit.idx] to seed the post-reinit state -- this
+      # requires start to be well before reinit.idx, not equal to it, so
+      # start is kept at series_start for every segment (matching the
+      # package's own reinit.idx examples) rather than advanced to the
+      # previous boundary.
+      reinit_pos_i <- reinit_positions[i - 1]
+      model <- tsgc::SSModelDynamicGompertz(
+        Y = Y, q = q, sea.period = sea.period,
+        start = series_start, end = seg_end,
+        reinit.idx = reinit_pos_i,
+        use.presample.info = TRUE,
+        calendar = calendar
+      )
+      res <- tsgc::estimate(model)
+    }
+    results[[i]] <- res
+  }
+  results
+}
+
+final_segment_end <- idx_to_pos(cal_full, as.Date("2025-10-01"))  # match the independent 2025-26 model's own origin
+reinit_positions_for_chain <- reinit_positions[reinit_positions < final_segment_end]
+
+chained_results <- chain_reinit_forward(
+  Y_full_cum, cal_full, reinit_positions_for_chain,
+  end = final_segment_end
+)
+length(chained_results)
+```
+
+```{r chained-reinit-summary}
+invisible(lapply(seq_along(chained_results), function(i) {
+  cat("--- Segment", i, "---\n")
+  print(summary(chained_results[[i]]))
+}))
+```
+
+## Comparing continual reinitialisation to independent per-surge models
+
+```{r chained-vs-independent-forecast, fig.cap="14-day forecast from 1 Oct 2025: chained (multi-surge reinitialisation) vs a model fitted only on the 2025-26 surge."}
+# "Independent" here means: re-cumulate PM2.5 from scratch at the 2025-26
+# surge's own onset (1 May 2025), using none of the prior surges' data or
+# reinitialisation chain -- but still positioned on cal_full so its
+# forecast lines up on the same axis as the chained model and Y_full_cum.
+surge_2025_26_start <- surge_windows$start[surge_windows$label == "2025-26"]
+start_pos_2526_full <- idx_to_pos(cal_full, surge_2025_26_start)
+oct1_2526_pos_full  <- idx_to_pos(cal_full, as.Date("2025-10-01"))
+
+w2526 <- pm[pm$date >= surge_2025_26_start & pm$date <= as.Date("2025-10-01"), ]
+Y_2526_only <- idx_series(cumsum_na(w2526$pm25_mean), start = start_pos_2526_full)
+
+model_2526_indep <- tsgc::SSModelDynamicGompertz(
+  Y = Y_2526_only, q = q.default, sea.period = 7,
+  start = start_pos_2526_full, end = oct1_2526_pos_full, calendar = cal_full
+)
+res_2526_indep <- tsgc::estimate(model_2526_indep)
+
+final_chained <- chained_results[[length(chained_results)]]
+
+tsgc::plot_compare_forecast(
+  list(chained = final_chained, independent = res_2526_indep),
+  n.ahead = n.forecasts, actual = Y_full_cum,
+  title = "Chained (continually reinitialised) vs independently fitted 2025-26 model"
+)
+```
+
+Not a difference in data span -- every chained segment's presample still
+draws on the full history -- but in where the growth-rate series is
+rebased and what prior seeds the post-reinit state. Independent models
+start from a diffuse prior on that surge's own data; the chained model
+carries forward the terminal slope/level state from a presample fit over
+all preceding history. Whether that improves accuracy is worth checking
+again once more surges accumulate; illustrative rather than conclusive
+with three.
+
+# Extensions: a Diwali festival regressor
+
+Firecracker use around Diwali falls within the October-November window
+where forecast accuracy has been weakest above. Diwali dummy from public
+festival dates, added as `xpred` alongside the weather covariates.
+Stubble-burning is a natural companion (residue burning in Punjab
+overlaps the Diwali period) but no proxy is built yet -- a next step,
+e.g. from satellite fire-count products.
+
+## Constructing the Diwali dummy
+
+Diwali dates for the years spanned by this dataset are fixed calendar
+facts (India's National Informatics Centre / standard public references):
+
+```{r diwali-dates}
+diwali_dates <- as.Date(c("2023-11-12", "2024-11-01", "2025-10-20", "2026-11-08"))
+names(diwali_dates) <- c("2023", "2024", "2025", "2026")
+diwali_dates
+```
+
+Coded as 1 over a short window centred on each Diwali date: two days
+before through two days after (five days total), to catch both build-up
+and immediate aftermath rather than a single-day spike.
+
+```{r diwali-dummy}
+diwali_window <- 2L  # days either side of Diwali itself
+
+pm$diwali_dummy <- 0L
+for (d in diwali_dates) {
+  in_window <- pm$date >= (d - diwali_window) & pm$date <= (d + diwali_window)
+  pm$diwali_dummy[in_window] <- 1L
+}
+
+table(pm$diwali_dummy)
+```
+
+```{r diwali-plot, fig.cap="Diwali windows against daily PM2.5, 2023-2026."}
+ggplot(pm, aes(x = date, y = pm25_mean)) +
+  geom_line(color = "grey40", linewidth = 0.3, na.rm = TRUE) +
+  geom_point(data = pm[pm$diwali_dummy == 1L, ], color = "darkorange", size = 1.2, na.rm = TRUE) +
+  labs(title = "Diwali windows (orange) against daily PM2.5",
+       x = NULL, y = expression(paste("PM2.5 (", mu, "g/", m^3, ")"))) +
+  theme(plot.title = element_text(face = "bold"))
+```
+
+## Estimating with the Diwali regressor
+
+```{r diwali-xpred-setup}
+w2425 <- surge_data[["2024-25"]]
+w2425$diwali_dummy <- pm$diwali_dummy[match(w2425$date, pm$date)]
+
+diwali_weather_cols <- c(weather_cols, "diwali_dummy")
+diwali_xreg_xts <- xts::xts(w2425[, diwali_weather_cols], order.by = w2425$date)
+diwali_xreg_idx_full <- xts_to_idx(
+  diwali_xreg_xts,
+  start.pos = idx_to_pos(cal2425, w2425$date[1])
+)$series
+
+diwali_xreg_est <- get_timeframe(diwali_xreg_idx_full, 1, oct1_pos)
+```
+
+```{r diwali-xpred-fit}
+model_diwali <- tsgc::SSModelDynamicGompertz(
+  Y        = Y2425,
+  xpred    = diwali_xreg_est,
+  q        = q.default,
+  sea.period = 7,
+  start    = 1,
+  end      = oct1_pos,
+  calendar = cal2425
+)
+res_diwali <- tsgc::estimate(model_diwali)
+summary(res_diwali)
+tsgc::print_model_diagnostics(res_diwali)
+```
+
+Diwali 2024-25 fell on 1 November. Estimating from a 1-14 October origin
+leaves the dummy at zero throughout the estimation window, since Diwali
+falls entirely in the forecast horizon rather than the estimation
+sample; the dummy's coefficient is then not identified by the data at
+all and is carried forward purely from KFAS's diffuse initialisation.
+This is visible above as `xregdiwali_dummy` estimating at exactly 0
+with a 0 standard error in `res_diwali`, and produces the "model is
+degenerate" warnings in `KFS()` -- a constant (all-zero) regressor
+column gives a degenerate diffuse prior for that state, not a fitting
+failure to be silenced.
+
+To let the model actually learn the Diwali effect from data, the
+estimation window is moved to 10 November -- a few days after the
+1 November +/-2-day Diwali window (which runs 30 Oct-3 Nov) closes, so
+those non-zero dummy rows sit inside the estimation sample rather than
+the forecast horizon. The 14-day forecast horizon from this origin
+(11-24 Nov) then tests the post-Diwali decay rather than asking the
+model to predict the festival spike itself from an unidentified
+coefficient.
+
+```{r diwali-forecast-origin}
+nov10_pos <- idx_to_pos(cal2425, as.Date("2024-11-10"))
+stopifnot(!is.na(idx_values(Y2425[nov10_pos])))
+
+model_baseline_nov10 <- tsgc::SSModelDynamicGompertz(
+  Y = Y2425, q = q.default, sea.period = 7,
+  start = 1, end = nov10_pos, calendar = cal2425
+)
+res_baseline_nov10 <- tsgc::estimate(model_baseline_nov10)
+
+diwali_xreg_est_nov10 <- get_timeframe(diwali_xreg_idx_full, 1, nov10_pos)
+table(diwali_xreg_est_nov10$data[, "diwali_dummy"])
+
+model_diwali_nov10 <- tsgc::SSModelDynamicGompertz(
+  Y = Y2425, xpred = diwali_xreg_est_nov10, q = q.default, sea.period = 7,
+  start = 1, end = nov10_pos, calendar = cal2425
+)
+res_diwali_nov10 <- tsgc::estimate(model_diwali_nov10)
+summary(res_diwali_nov10)
+
+diwali_xreg_future <- get_timeframe(diwali_xreg_idx_full, nov10_pos + 1, nov10_pos + n.forecasts)
+res_diwali_nov10$xpred.new <- diwali_xreg_future
+```
+
+```{r diwali-forecast-plot, fig.cap="14-day forecast from 10 Nov 2024 (post-Diwali decay): baseline vs weather+Diwali."}
+p <- tsgc::plot_forecast(
+  res_diwali_nov10, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  plt.start = nov10_pos - 30,
+  title = "Forecast of daily PM2.5 increment\nweather + Diwali dummy, from 10 Nov 2024",
+  series.name = "PM2.5"
+)
+print(p)
+```
+
+```{r diwali-holdout-compare, fig.cap="Holdout accuracy, 10 Nov 2024 origin: baseline vs weather+Diwali."}
+p <- tsgc::plot_holdout(
+  res_baseline_nov10, Y = Y2425, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: baseline, 10 Nov 2024 origin (Diwali in estimation window)",
+  series.name = "PM2.5"
+)
+print(p)
+
+p <- tsgc::plot_holdout(
+  res_diwali_nov10, Y = Y2425, n.ahead = n.forecasts, confidence.level = CONF_LEVEL,
+  title = "Accuracy: weather + Diwali dummy, 10 Nov 2024 origin",
+  series.name = "PM2.5"
+)
+print(p)
+
+diwali_accuracy_compare <- rbind(
+  data.frame(model = "baseline", as.data.frame(res_baseline_nov10$mapes(n.ahead = n.forecasts, Y = Y2425))),
+  data.frame(model = "weather_plus_diwali", as.data.frame(res_diwali_nov10$mapes(n.ahead = n.forecasts, Y = Y2425)))
+)
+diwali_accuracy_compare
+```
+
+```{r diwali-compare-plot, fig.cap="Baseline vs weather+Diwali forecast, 10 Nov 2024 origin."}
+tsgc::plot_compare_forecast(
+  list(baseline = res_baseline_nov10, weather_plus_diwali = res_diwali_nov10),
+  n.ahead = n.forecasts, actual = Y2425,
+  title = "Baseline vs weather + Diwali dummy (2024-25, 10 Nov origin, post-Diwali)"
+)
+```
+
+The `r 2*diwali_window + 1`-day window is a starting specification, not a
+validated one -- worth testing sensitivity to width, and once a
+stubble-burning proxy exists, comparing Diwali-only against both
+regressors together. Punjab's stubble-burning season runs roughly
+mid-October to end of November, overlapping all three observed Diwali
+dates (12 Nov 2023, 1 Nov 2024, 20 Oct 2025), so the two effects may be
+hard to separate with only three occurrences.
