@@ -33,7 +33,7 @@ In this version we have:
 
 ## Test environments
 
-* local: macOS, R 4.4.x
+* local: macOS, R 4.6.x
 * win-builder: R-devel, R-release, R-oldrelease
 * R-hub: Windows Server 2022 (R-devel), Ubuntu Linux (R-release), Fedora
   Linux (R-devel)
