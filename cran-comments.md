@@ -12,8 +12,7 @@ In this version we have:
 
 * Rewritten the internal computational engine to use a new lightweight,
   dependency-free `idx_series`/`idx_calendar` indexing abstraction in place
-  of `xts`/`zoo` for internal state-space calculations, substantially
-  reducing the package's dependency footprint. `xts` and `zoo` are retained
+  of `xts`/`zoo` for internal state-space calculations. `xts` and `zoo` are retained
   only at the user-facing edges (bundled datasets, `xts_to_idx()`, and
   plotting) where calendar-indexed objects are convenient.
 * Added a leading indicator model (`SSModelLeadingIndicator` and
